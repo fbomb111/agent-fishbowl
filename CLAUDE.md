@@ -13,7 +13,7 @@ Agent Fishbowl is an AI-curated news feed built and maintained by a team of AI a
 - **Frontend**: Next.js 15 + React 19 + Tailwind CSS — `frontend/`
 - **Storage**: Azure Blob Storage (articles as JSON, no database)
 - **Activity Feed**: GitHub API (cached by FastAPI) — agents' GitHub activity IS the data
-- **Agent Runtime**: GitHub Agentic Workflows (Claude engine)
+- **Agent Runtime**: Claude Code CLI sessions with role-specific prompts
 - **Hosting**: Azure Container Apps (API) + Azure Static Web Apps (frontend)
 
 ## Project Structure
@@ -37,20 +37,95 @@ frontend/               Next.js frontend
 config/                 Configuration
   sources.yaml          RSS feed sources
   ROADMAP.md            Product vision (PM agent reads this)
+agents/                 Agent runner infrastructure
+  run-agent.sh          Shared runner (invokes claude CLI)
+  engineer.sh           Engineer agent wrapper
+  prompts/              Role-specific prompt files
+  logs/                 Run logs (gitignored)
+scripts/                Deterministic operations
+  run-checks.sh         All quality checks (ruff + tsc + eslint + conventions)
+  create-branch.sh      Create branch from issue number
+  lint-conventions.sh   Convention checks with agent-friendly errors
+  setup-labels.sh       Create GitHub labels (idempotent)
+.claude/commands/       Claude Code skills (AI-guided workflows)
+  pick-issue.md         Find + claim highest-priority issue
+  open-pr.md            Create draft PR with proper format
 .github/workflows/      CI + agent workflows
 ```
 
-## Agent Roles
+## Git Workflow
 
-Each agent has a specific domain and runs via GitHub Agentic Workflows:
+### Branch Naming
+- Features: `feat/issue-{N}-short-description`
+- Bug fixes: `fix/issue-{N}-short-description`
+- Use `scripts/create-branch.sh <issue_number> [feat|fix]` to create branches automatically.
 
-| Agent | Domain | Trigger |
-|-------|--------|---------|
-| PM Agent | Backlog grooming, issue creation | Scheduled (Mon/Wed/Fri) |
-| Frontend Agent | UI components, pages, styling | Issue labeled `agent/frontend` |
-| Backend Agent | API endpoints, services, models | Issue labeled `agent/backend` |
-| Ingestion Agent | RSS fetching, AI summarization | Issue labeled `agent/ingestion` |
-| SRE Agent | CI health, deployment monitoring | Scheduled (every 6 hours) |
+### Commit Messages
+Format: `type(scope): description (#issue)`
+
+Examples:
+- `feat(api): add category filter endpoint (#42)`
+- `fix(frontend): fix mobile layout overflow (#17)`
+- `chore(ci): add type-check step to workflow (#5)`
+
+Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`
+Scopes: `api`, `frontend`, `ci`, `config`
+
+### Pull Requests
+- Always create as **draft** (human reviews and merges)
+- Title: concise, under 70 characters
+- Body MUST include `Closes #N` to link the issue
+- Must pass `scripts/run-checks.sh` before opening
+- Include a summary of what changed and why
+
+## Label Taxonomy
+
+| Label | Purpose |
+|-------|---------|
+| `agent/frontend` | Frontend work (React, Tailwind, pages) |
+| `agent/backend` | Backend work (FastAPI, services, models) |
+| `agent/ingestion` | Article ingestion and processing |
+| `priority/high` | Do first |
+| `priority/medium` | Do after high-priority items |
+| `type/feature` | New functionality |
+| `type/bug` | Something broken |
+| `type/chore` | Maintenance, CI, docs |
+| `status/in-progress` | An agent is working on this |
+| `status/blocked` | Cannot proceed — needs human input |
+| `agent-created` | Created by an agent (not human) |
+
+## Agent Coordination Rules
+
+- **Never pick an assigned issue.** If it has an assignee, skip it.
+- **Never modify another agent's open PR.** If they have a branch, leave it alone.
+- **One issue per run.** Pick one, implement fully, open one PR.
+- **Never merge.** Only create draft PRs. The human merges.
+- **Comment your progress.** When you start an issue, comment. When you open a PR, comment on the issue with a link.
+
+## Available Tools
+
+### Scripts (`scripts/`)
+
+| Script | Purpose | When to Use |
+|--------|---------|-------------|
+| `run-checks.sh` | Run all quality checks (ruff + tsc + eslint + conventions) | Before every PR |
+| `create-branch.sh` | Create named branch from issue number | When starting work on an issue |
+| `lint-conventions.sh` | Check branch naming, PR format, file sizes | Runs as part of run-checks.sh |
+| `setup-labels.sh` | Create/update GitHub labels | Setup only |
+
+### Skills (`.claude/commands/`)
+
+| Skill | Purpose | When to Use |
+|-------|---------|-------------|
+| `/pick-issue` | Find highest-priority unassigned issue, assign it, create branch | Start of engineer run |
+| `/open-pr` | Create draft PR with proper format and issue reference | After implementing a change |
+
+### GitHub CLI (`gh`)
+
+Agents use `gh` for all GitHub operations:
+- `gh issue list` / `gh issue view` / `gh issue create` / `gh issue edit`
+- `gh pr create` / `gh pr view` / `gh pr list`
+- `gh pr review` (for reviewer agent)
 
 ## Code Conventions
 
@@ -66,12 +141,17 @@ Each agent has a specific domain and runs via GitHub Agentic Workflows:
 - Tailwind CSS for styling (no CSS modules)
 - Components in `src/components/`, pages in `src/app/`
 
+### General
+- Keep files under 500 lines — split into modules if larger
+- Don't add features beyond what the issue asks for
+- Run `scripts/run-checks.sh` before committing
+
 ## Key Patterns
 
 - **No database**: Articles stored as JSON in Azure Blob Storage with a manifest index
 - **Activity feed**: Read-through cache of GitHub API data (5-min TTL)
-- **Agent coordination**: PM creates issues with labels → engineering agents pick up labeled issues → open draft PRs → human reviews and merges
-- **Safe outputs only**: Agents create draft PRs (never merge), create issues, add comments. All writes go through GitHub's safe-output system.
+- **Agent coordination**: PM creates issues with labels → engineer picks up → opens draft PR → human reviews and merges
+- **Safe outputs only**: Agents create draft PRs (never merge), create issues, add comments
 
 ## Development
 
@@ -85,6 +165,9 @@ cd frontend && npm install && npm run dev
 
 # Both via Docker
 docker-compose up
+
+# Quality checks
+scripts/run-checks.sh
 ```
 
 ## Blob Storage Schema
