@@ -3,6 +3,7 @@
 import json
 import logging
 
+from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import ManagedIdentityCredential
 from azure.storage.blob import ContainerClient
 
@@ -39,8 +40,11 @@ async def get_article_index() -> ArticleIndex:
         articles_data = json.loads(data)
         articles = [ArticleSummary(**a) for a in articles_data]
         return ArticleIndex(articles=articles, total=len(articles))
-    except Exception as e:
-        logger.warning("Failed to read article index: %s", e)
+    except ResourceNotFoundError:
+        # Index doesn't exist yet — return empty index
+        return ArticleIndex(articles=[], total=0)
+    except HttpResponseError as e:
+        logger.warning("Azure API error reading article index: %s", e.message)
         return ArticleIndex(articles=[], total=0)
     finally:
         client.close()
@@ -54,8 +58,11 @@ async def get_article(article_id: str) -> Article | None:
         blob = client.get_blob_client(f"{article_id}.json")
         data = blob.download_blob().readall()
         return Article(**json.loads(data))
-    except Exception as e:
-        logger.warning("Failed to read article %s: %s", article_id, e)
+    except ResourceNotFoundError:
+        # Article doesn't exist — return None
+        return None
+    except HttpResponseError as e:
+        logger.warning("Azure API error reading article %s: %s", article_id, e.message)
         return None
     finally:
         client.close()
