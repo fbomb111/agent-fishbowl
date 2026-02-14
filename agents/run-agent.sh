@@ -35,12 +35,12 @@ echo ""
 cd "$PROJECT_ROOT"
 
 # Run Claude in non-interactive mode with the role prompt.
+# -p: pass prompt directly (not via stdin)
 # --print: non-interactive, output only
-# --prompt-file: role-specific instructions
 # CLAUDE.md is loaded automatically by Claude Code.
 claude --print \
-    --prompt-file "$PROMPT_FILE" \
-    --allowedTools "Bash(scripts/*),Bash(gh *),Bash(git *),Bash(ruff *),Bash(npx *),Read,Write,Edit,Glob,Grep,Skill" \
+    --allowedTools "Bash(gh:*),Bash(git:*),Bash(ruff:*),Bash(npx:*),Bash(pip:*),Bash(scripts/*),Bash(cat:*),Bash(chmod:*),Read,Write,Edit,Glob,Grep" \
+    -p "$(cat "$PROMPT_FILE")" \
     2>&1 | tee "$LOG_FILE"
 
 EXIT_CODE=${PIPESTATUS[0]}
