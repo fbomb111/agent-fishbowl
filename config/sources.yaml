@@ -1,0 +1,23 @@
+# RSS feed sources for article ingestion
+# Add new sources here — the ingestion agent will pick them up
+
+sources:
+  - name: "The Verge - AI"
+    url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
+    categories: ["ai", "news"]
+
+  - name: "TechCrunch - AI"
+    url: "https://techcrunch.com/category/artificial-intelligence/feed/"
+    categories: ["ai", "startups"]
+
+  - name: "MIT Technology Review - AI"
+    url: "https://www.technologyreview.com/topic/artificial-intelligence/feed"
+    categories: ["ai", "research"]
+
+  - name: "Ars Technica - AI"
+    url: "https://feeds.arstechnica.com/arstechnica/features"
+    categories: ["tech", "analysis"]
+
+  - name: "Hacker News - Best"
+    url: "https://hnrss.org/best?q=AI+OR+LLM+OR+GPT+OR+Claude"
+    categories: ["ai", "community"]
