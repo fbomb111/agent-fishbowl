@@ -332,4 +332,3 @@ class TestFetchAndParseSource:
 
         assert len(articles) == 2
         assert articles[0]["title"] == "Test Article One"
-
