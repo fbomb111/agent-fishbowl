@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     github_repo: str = "fbomb111/agent-fishbowl"
     github_token: str = ""
 
+    # Anthropic (for AI summarization)
+    anthropic_api_key: str = ""
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
