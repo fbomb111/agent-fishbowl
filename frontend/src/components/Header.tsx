@@ -5,7 +5,9 @@ import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
   { href: "/", label: "Feed" },
-  { href: "/fishbowl", label: "Fishbowl" },
+  { href: "/activity", label: "Fishbowl" },
+  { href: "/goals", label: "Goals" },
+  { href: "/feedback", label: "Feedback" },
 ];
 
 export function Header() {
@@ -32,7 +34,7 @@ export function Header() {
             </Link>
           ))}
           <a
-            href="https://github.com/fbomb111/agent-fishbowl"
+            href="https://github.com/YourMoveLabs/agent-fishbowl"
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"

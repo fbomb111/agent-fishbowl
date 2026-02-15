@@ -1,29 +1,45 @@
+import type { Insight } from "@/lib/api";
+
+const CATEGORY_COLORS: Record<string, string> = {
+  tool: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+  pattern: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+  trend: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
+  technique: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+  concept: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+};
+
 interface ArticleCardProps {
   title: string;
   source: string;
-  summary: string;
+  description: string;
   originalUrl: string;
   publishedAt: string;
   categories: string[];
   imageUrl?: string;
   readTimeMinutes?: number;
+  insights?: Insight[];
+  aiSummary?: string;
 }
 
 export function ArticleCard({
   title,
   source,
-  summary,
+  description,
   originalUrl,
   publishedAt,
   categories,
   imageUrl,
   readTimeMinutes,
+  insights,
+  aiSummary,
 }: ArticleCardProps) {
   const date = new Date(publishedAt).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
+
+  const displayInsights = insights?.filter((i) => i.text) ?? [];
 
   return (
     <a
@@ -57,8 +73,24 @@ export function ArticleCard({
         {title}
       </h3>
       <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-        {summary}
+        {aiSummary || description}
       </p>
+      {displayInsights.length > 0 && (
+        <div className="mt-3 space-y-1.5 border-l-2 border-blue-200 pl-3 dark:border-blue-800">
+          {displayInsights.map((insight, idx) => (
+            <div key={idx} className="flex items-start gap-2">
+              <span
+                className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight ${CATEGORY_COLORS[insight.category] || CATEGORY_COLORS.concept}`}
+              >
+                {insight.category}
+              </span>
+              <span className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+                {insight.text}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
       {categories.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {categories.map((cat) => (

@@ -1,18 +1,23 @@
-"""Article ingestion orchestrator — ties fetch, dedup, summarize, and write together."""
+"""Article ingestion orchestrator — ties fetch, dedup, scrape, analyze, and write together."""
 
+import asyncio
 import logging
-from datetime import datetime, timezone
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from api.models.article import Article
 from api.services.blob_storage import get_article_index, write_article
+from api.services.ingestion.analyzer import AnalysisError, analyze_article
 from api.services.ingestion.rss import fetch_all_sources
-from api.services.ingestion.summarizer import summarize_article, SummarizationError
+from api.services.ingestion.scraper import scrape_article
 
 logger = logging.getLogger(__name__)
 
 # Cap new articles per run to limit AI API costs
 MAX_NEW_ARTICLES_PER_RUN = 20
+
+# Delay between articles to respect rate limits
+INTER_ARTICLE_DELAY = 1.5
 
 
 @dataclass
@@ -22,6 +27,7 @@ class IngestionStats:
     sources: int
     fetched: int
     new: int
+    scraped: int
     skipped: int
     failed: int
 
@@ -30,13 +36,14 @@ class IngestionStats:
             "sources": self.sources,
             "fetched": self.fetched,
             "new": self.new,
+            "scraped": self.scraped,
             "skipped": self.skipped,
             "failed": self.failed,
         }
 
 
 async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionStats:
-    """Run a full ingestion cycle: fetch → dedup → summarize → write.
+    """Run a full ingestion cycle: fetch → dedup → scrape → analyze → write.
 
     Args:
         max_new: Maximum number of new articles to process per run.
@@ -65,15 +72,36 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
         logger.info("Capping to %d new articles (had %d)", max_new, len(new_parsed))
         new_parsed = new_parsed[:max_new]
 
-    # 5. Summarize and write each new article
+    # 5. Scrape, analyze, and write each new article
     new_count = 0
+    scraped_count = 0
     failed_count = 0
 
-    for parsed in new_parsed:
+    for i, parsed in enumerate(new_parsed):
         try:
-            result = await summarize_article(
+            # Rate limiting between articles
+            if i > 0:
+                await asyncio.sleep(INTER_ARTICLE_DELAY)
+
+            # RSS description is always available for preview
+            description = parsed["summary"]
+
+            # Try scraping full article text
+            scraped = await scrape_article(parsed["original_url"])
+            has_full_text = scraped is not None
+            if has_full_text:
+                scraped_count += 1
+                logger.info(
+                    "Scraped %d words from: %s",
+                    scraped.word_count,
+                    parsed["title"][:60],
+                )
+
+            # Analyze with AI — full text if available, RSS description as fallback
+            content_for_ai = scraped.text if has_full_text else description
+            analysis = await analyze_article(
                 title=parsed["title"],
-                content=parsed["summary"],
+                content=content_for_ai,
             )
 
             article = Article(
@@ -83,20 +111,32 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
                 source_url=parsed["source_url"],
                 original_url=parsed["original_url"],
                 published_at=parsed["published_at"],
-                summary=result.summary,
-                key_takeaways=result.key_takeaways,
+                description=description,
                 categories=parsed["categories"],
                 image_url=parsed["image_url"],
+                insights=[
+                    {"text": ins["text"], "category": ins["category"]}
+                    for ins in analysis.insights
+                ],
+                ai_summary=analysis.ai_summary,
+                has_full_text=has_full_text,
                 ingested_at=datetime.now(timezone.utc),
             )
 
             await write_article(article)
             new_count += 1
-            logger.info("Ingested: %s", parsed["title"][:80])
 
-        except SummarizationError as e:
+            insight_count = len(analysis.insights)
+            logger.info(
+                "Ingested: %s (%d insights, %s)",
+                parsed["title"][:60],
+                insight_count,
+                "full text" if has_full_text else "RSS only",
+            )
+
+        except AnalysisError as e:
             failed_count += 1
-            logger.error("Summarization failed for '%s': %s", parsed["title"][:60], e)
+            logger.error("Analysis failed for '%s': %s", parsed["title"][:60], e)
         except Exception as e:
             failed_count += 1
             logger.error("Failed to ingest '%s': %s", parsed["title"][:60], e)
@@ -105,13 +145,15 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
         sources=5,  # from config/sources.yaml
         fetched=fetched_count,
         new=new_count,
+        scraped=scraped_count,
         skipped=skipped,
         failed=failed_count,
     )
 
     logger.info(
-        "Ingestion complete: %d new, %d skipped, %d failed",
+        "Ingestion complete: %d new, %d scraped, %d skipped, %d failed",
         new_count,
+        scraped_count,
         skipped,
         failed_count,
     )

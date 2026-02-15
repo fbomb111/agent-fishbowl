@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.config import get_settings
-from api.routers import articles, activity
+from api.routers import activity, articles, feedback, goals
 
 settings = get_settings()
 
@@ -39,11 +39,13 @@ app.add_middleware(
 )
 
 # Routers
-app.include_router(articles.router, prefix="/api")
-app.include_router(activity.router, prefix="/api")
+app.include_router(articles.router, prefix="/api/fishbowl")
+app.include_router(activity.router, prefix="/api/fishbowl")
+app.include_router(goals.router, prefix="/api/fishbowl")
+app.include_router(feedback.router, prefix="/api/fishbowl")
 
 
-@app.get("/health")
+@app.get("/api/fishbowl/health")
 async def health_check():
     """Basic health check."""
     return {"status": "ok", "service": "agent-fishbowl-api", "version": "0.1.0"}

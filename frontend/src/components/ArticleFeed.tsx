@@ -113,12 +113,14 @@ export function ArticleFeed() {
               key={article.id}
               title={article.title}
               source={article.source}
-              summary={article.summary}
+              description={article.description}
               originalUrl={article.original_url}
               publishedAt={article.published_at}
               categories={article.categories}
               imageUrl={article.image_url}
               readTimeMinutes={article.read_time_minutes}
+              insights={article.insights}
+              aiSummary={article.ai_summary}
             />
           ))}
         </div>
