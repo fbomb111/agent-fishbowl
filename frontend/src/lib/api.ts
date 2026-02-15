@@ -26,11 +26,15 @@ export interface ActivityEvent {
   url?: string;
 }
 
-export async function fetchArticles(): Promise<{
+export async function fetchArticles(category?: string): Promise<{
   articles: ArticleSummary[];
   total: number;
 }> {
-  const res = await fetch(`${API_URL}/api/articles`);
+  const url = new URL(`${API_URL}/api/articles`);
+  if (category) {
+    url.searchParams.set("category", category);
+  }
+  const res = await fetch(url.toString());
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
