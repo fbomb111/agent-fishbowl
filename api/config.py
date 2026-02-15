@@ -13,7 +13,11 @@ class Settings(BaseSettings):
     environment: str = "development"
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:8000"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "https://polite-tree-06036620f.1.azurestaticapps.net",
+    ]
 
     # Azure Blob Storage
     azure_storage_account: str = "agentfishbowlstorage"
