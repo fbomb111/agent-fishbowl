@@ -18,11 +18,10 @@ const EVENT_ICONS: Record<string, string> = {
 };
 
 const AGENT_COLORS: Record<string, string> = {
-  "pm-agent": "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-  "frontend-agent": "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-  "backend-agent": "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-  "ingestion-agent": "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
-  "sre-agent": "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+  pm: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+  engineer:
+    "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+  reviewer: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
 };
 
 export function ActivityEvent({
