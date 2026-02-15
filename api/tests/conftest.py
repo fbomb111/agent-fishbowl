@@ -173,3 +173,4 @@ def feed_with_missing_required_fields() -> str:
     </item>
   </channel>
 </rss>"""
+
