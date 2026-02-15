@@ -1,5 +1,4 @@
 #!/bin/bash
-# PM (Product Manager) agent — strategic roadmap evolution (Phase 3).
-# NOTE: The tactical backlog role moved to po.sh. This will be repurposed
-# for the strategic PM agent that reads goals.md and updates ROADMAP.md.
+# PM (Product Manager) agent — reads goals.md and evolves ROADMAP.md.
+# Strategic counterpart to the PO: PM sets the vision, PO executes the backlog.
 exec "$(dirname "$0")/run-agent.sh" pm

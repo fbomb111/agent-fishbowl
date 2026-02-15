@@ -15,7 +15,9 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = [
         "http://localhost:3000",
-        "http://localhost:8000",
+        "http://localhost:3010",
+        "http://localhost:8080",
+        "http://localhost:8500",
         "https://polite-tree-06036620f.1.azurestaticapps.net",
     ]
 
@@ -27,7 +29,7 @@ class Settings(BaseSettings):
     managed_identity_client_id: str = "e0e642cd-94c8-435f-9d0e-e23c4edaaaa9"
 
     # GitHub (for activity feed)
-    github_repo: str = "fbomb111/agent-fishbowl"
+    github_repo: str = "YourMoveLabs/agent-fishbowl"
     github_token: str = ""
 
     # Microsoft Foundry (LLM access via OpenAI-compatible API)

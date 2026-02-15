@@ -4,7 +4,7 @@ import json
 import logging
 
 from azure.identity import ManagedIdentityCredential
-from azure.storage.blob import ContainerClient
+from azure.storage.blob import ContainerClient, ContentSettings
 
 from api.config import get_settings
 from api.models.article import Article, ArticleIndex, ArticleSummary
@@ -41,6 +41,9 @@ async def get_article_index(category: str | None = None) -> ArticleIndex:
         blob = client.get_blob_client(INDEX_BLOB)
         data = blob.download_blob().readall()
         articles_data = json.loads(data)
+        # Handle both list format and dict format ({"articles": [...]})
+        if isinstance(articles_data, dict):
+            articles_data = articles_data.get("articles", [])
         articles = [ArticleSummary(**a) for a in articles_data]
 
         if category:
@@ -83,7 +86,7 @@ async def write_article(article: Article) -> None:
         blob.upload_blob(
             article.model_dump_json(indent=2),
             overwrite=True,
-            content_settings={"content_type": "application/json"},
+            content_settings=ContentSettings(content_type="application/json"),
         )
 
         # Update index
@@ -101,7 +104,7 @@ async def write_article(article: Article) -> None:
         index_blob.upload_blob(
             index_data,
             overwrite=True,
-            content_settings={"content_type": "application/json"},
+            content_settings=ContentSettings(content_type="application/json"),
         )
     finally:
         client.close()

@@ -11,7 +11,7 @@ export default function FishbowlPage() {
           coordinating through GitHub.
         </p>
         <a
-          href="https://github.com/fbomb111/agent-fishbowl"
+          href="https://github.com/YourMoveLabs/agent-fishbowl"
           target="_blank"
           rel="noopener noreferrer"
           className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"

@@ -4,7 +4,7 @@
 
 Agent Fishbowl is an AI-curated news feed built and maintained by a team of AI agents. The project demonstrates multi-agent orchestration in the open — every issue, PR, commit, and review is done by agents coordinating through GitHub.
 
-**Repository**: `fbomb111/agent-fishbowl` (public)
+**Repository**: `YourMoveLabs/agent-fishbowl` (public)
 **Main Branch**: `main`
 
 ## Architecture
@@ -36,8 +36,7 @@ frontend/               Next.js frontend
   src/lib/api.ts        API client
 config/                 Configuration
   sources.yaml          RSS feed sources
-  ROADMAP.md            Product vision (PM agent reads + updates)
-  goals.md              Strategic goals (PM agent reads)
+  goals.md              Strategic goals (human-maintained, PM agent reads)
   conventions.md        Technical standards (Tech Lead maintains)
   ux-standards.md       UX checklist (UX agent reads — Phase 2)
 agents/                 Agent runner infrastructure
@@ -48,13 +47,15 @@ agents/                 Agent runner infrastructure
   tech-lead.sh          Tech Lead — sets standards, spots architecture needs
   triage.sh             Triage — validates human-created issues
   ux.sh                 UX Reviewer — reviews product UX
-  pm.sh                 Product Manager — strategic roadmap (Phase 3)
+  pm.sh                 Product Manager — reads goals.md, manages GitHub Project roadmap
+  sre.sh                SRE — monitors system health, files issues for problems
   prompts/              Role-specific prompt files
   logs/                 Run logs (gitignored)
 scripts/                Deterministic operations
   run-loop.sh           Dev loop (PO → Engineer → Reviewer)
   run-scans.sh          Scanning agents (Tech Lead + UX)
   run-triage.sh         Triage human issues
+  run-strategic.sh      PM strategic review (weekly)
   run-checks.sh         All quality checks (ruff + tsc + eslint + conventions)
   create-branch.sh      Create branch from issue number
   lint-conventions.sh   Convention checks with agent-friendly errors
@@ -110,11 +111,13 @@ Scopes: `api`, `frontend`, `ci`, `config`
 | `source/ux-review` | From UX agent review |
 | `source/triage` | Validated by triage agent |
 | `source/reviewer-backlog` | Rework from closed PR |
+| `source/sre` | From SRE monitoring |
 | `status/in-progress` | An agent is working on this |
 | `status/blocked` | Cannot proceed — needs human input |
 | `status/needs-info` | Needs more information from reporter |
 | `review/approved` | Reviewer approved this PR |
 | `review/changes-requested` | Reviewer requested changes |
+| `pm/misaligned` | PM flagged: issue misinterprets roadmap intent |
 | `agent-created` | Created by an agent (not human) |
 
 ## Agent Team
@@ -125,17 +128,20 @@ Scopes: `api`, `frontend`, `ci`, `config`
 | **Engineer** | `fishbowl-engineer[bot]` | Part of dev loop | Picks issues, implements code, opens PRs |
 | **Reviewer** | `fishbowl-reviewer[bot]` | Part of dev loop | Reviews PRs, approves+merges or requests changes |
 | **Tech Lead** | `fishbowl-techlead[bot]` | Every 3-4 days | Sets technical standards, identifies architecture needs |
-| **PM** | `fishbowl-pm[bot]` | Weekly (Phase 3) | Strategic goals and roadmap evolution |
+| **PM** | `fishbowl-pm[bot]` | Weekly | Strategic goals and GitHub Project roadmap management |
 | **Triage** | `fishbowl-triage[bot]` | Every 12-24h | Validates human-created issues |
 | **UX** | `fishbowl-ux[bot]` | Weekly | Reviews product UX, creates improvement issues |
+| **SRE** | `fishbowl-sre[bot]` | Every 4h | Monitors system health, files issues for problems |
 
 ### Information Flow
 
 All roads lead to the PO. No agent bypasses the PO to create work for the engineer.
 
 ```
-PM (strategy) → updates ROADMAP.md → PO (tactical) reads roadmap + source/* intake → backlog
+PM (strategy) → manages GitHub Project roadmap → PO (tactical) reads project items + source/* intake → backlog
+PM reviews PO's source/roadmap issues → pm/misaligned if off-target → PO re-scopes
 Tech Lead, UX, Triage → create source/* intake issues → PO triages → backlog
+SRE → monitors health, creates source/sre issues for failures → PO triages → backlog
 Engineer claims issues → opens PR → Reviewer merges (or backlogs via source/reviewer-backlog → PO)
 ```
 
@@ -161,6 +167,8 @@ Engineer claims issues → opens PR → Reviewer merges (or backlogs via source/
 | `run-loop.sh` | Dev loop (PO → Engineer → Reviewer) | Manually or via cron (every 24-48h) |
 | `run-scans.sh` | Scanning agents (Tech Lead + UX) | Every 3-4 days |
 | `run-triage.sh` | Triage human-created issues | Every 12-24h |
+| `run-strategic.sh` | PM strategic review (goals → roadmap) | Weekly |
+| `run-sre.sh` | SRE health check (API, ingestion, deploys) | Every 4 hours |
 | `run-checks.sh` | Quality checks (ruff + tsc + eslint + conventions) | Before every PR |
 | `create-branch.sh` | Create named branch from issue number | When starting work on an issue |
 | `lint-conventions.sh` | Check branch naming, PR format, file sizes | Runs as part of run-checks.sh |
@@ -205,16 +213,47 @@ Agents use `gh` for all GitHub operations:
 - **Activity feed**: Read-through cache of GitHub API data (5-min TTL)
 - **Agent coordination**: PO triages intake → creates prioritized issues → engineer picks up → opens PR → reviewer reviews → may request changes → engineer fixes → reviewer approves and merges → CI/CD deploys
 - **Intake pipeline**: Scanning agents (tech lead, UX, triage) create `source/*` issues → PO triages and prioritizes → engineer works → reviewer gates quality
-- **Per-role tool allowlists**: Non-code agents can't Write/Edit application code. Tech lead can only modify `config/` and `scripts/`. PM can only modify `config/`.
+- **Per-role tool allowlists**: Non-code agents can't Write/Edit application code. Tech lead can only modify `config/` and `scripts/`. PM has read-only codebase access plus `gh` for managing the GitHub Project roadmap — no Write/Edit/git, no Glob/Grep. PM understands product through outcomes, not code. SRE has curl, az CLI, gh, and python3 for health checks and diagnostics — no Write/Edit.
+- **PM↔PO feedback loop**: PM reviews `source/roadmap` issues for alignment. If misaligned, PM labels `pm/misaligned` with a comment. PO re-scopes before the engineer picks it up.
 - **Full autonomy**: Agents handle the complete cycle. The human monitors and adjusts workflows, but does not manually merge or write code.
 
 ## Development
 
-### Running Locally
+### Local Dev (Dev Server via SSH Tunnel)
+
+The dev server is a remote Azure VM accessed via SSH tunnel. Agent Fishbowl shares nginx with Captain AI and other apps.
+
+**Port Assignments:**
+- API: port 8500 (uvicorn)
+- Frontend: port 3010 (Next.js dev)
+
+**Access URLs (from Mac via SSH tunnel at `localhost:8080`):**
+- Frontend: `http://localhost:8080/fishbowl/`
+- Activity: `http://localhost:8080/fishbowl/activity/`
+- API: `http://localhost:8080/api/fishbowl/articles`
+- Health: `http://localhost:8080/api/fishbowl/health`
+
+**Quick Start:**
+```bash
+# API (from project root)
+api/.venv/bin/uvicorn api.main:app --reload --port 8500
+
+# Frontend (separate terminal)
+cd frontend && npm run dev   # runs on port 3010
+
+# Run article ingestion
+api/.venv/bin/python -m scripts.ingest
+```
+
+**VS Code:** Open `agent-fishbowl.code-workspace`, use "Full Stack: Fishbowl" compound launch.
+
+**Nginx config:** `/etc/nginx/sites-available/captain-ai` (fishbowl routes section)
+
+### Running Standalone (no nginx)
 ```bash
 # API
 cd api && pip install -r requirements.txt
-uvicorn api.main:app --reload --port 8000
+uvicorn api.main:app --reload --port 8500
 
 # Frontend
 cd frontend && npm install && npm run dev
@@ -237,13 +276,21 @@ scripts/run-scans.sh
 # Triage human issues (run every 12-24h)
 scripts/run-triage.sh
 
+# PM strategic review (run weekly)
+scripts/run-strategic.sh
+
+# SRE health check (run every 4 hours)
+scripts/run-sre.sh
+
 # Individual agents
-agents/po.sh          # Triage intake + create issues from roadmap
+agents/pm.sh          # Evaluate goals + manage GitHub Project roadmap
+agents/po.sh          # Triage intake + create issues from roadmap project
 agents/engineer.sh    # Pick issue and implement
 agents/reviewer.sh    # Review and merge PRs
 agents/tech-lead.sh   # Set standards + create architecture issues
 agents/triage.sh      # Validate human-created issues
 agents/ux.sh          # Review product UX
+agents/sre.sh         # Monitor system health
 ```
 
 ## Blob Storage Schema
@@ -258,7 +305,7 @@ articles/
 ## The Human Role
 
 The human (Frankie) is the engineering leader:
-- Maintains `config/goals.md` (strategic objectives) and `config/ROADMAP.md` (until PM agent is built in Phase 3)
+- Maintains `config/goals.md` (strategic objectives — the PM agent reads these to evolve the roadmap)
 - Monitors the loop execution and agent quality
 - Adjusts agent workflows, prompts, and guardrails
 - Creates GitHub Apps for new agent identities

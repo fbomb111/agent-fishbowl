@@ -102,8 +102,17 @@ case "$ROLE" in
         ALLOWED_TOOLS="${COMMON_TOOLS},Bash(ruff:*),Bash(npx:*),Bash(pip:*),Bash(scripts/*),Write,Edit"
         ;;
     pm)
-        # Can write config files (roadmap, goals) — Phase 3 strategic agent
-        ALLOWED_TOOLS="${COMMON_TOOLS},Write,Edit"
+        # Strategic agent: reads goals, manages GitHub Project roadmap via gh
+        # scripts/* for project-fields.sh and roadmap-status.sh (read-only GitHub data)
+        # No Glob/Grep — PM understands product through outcomes, not code
+        # No Write/Edit/git — PM doesn't modify codebase files
+        ALLOWED_TOOLS="Bash(gh:*),Bash(cat:*),Bash(scripts/*),Read"
+        ;;
+    sre)
+        # Operational agent: monitors health, checks Azure resources, creates issues
+        # scripts/* for health-check.sh, workflow-status.sh, find-issues.sh
+        # No Write/Edit — SRE doesn't modify code. It reads, monitors, and creates issues.
+        ALLOWED_TOOLS="Bash(curl:*),Bash(az:*),Bash(gh:*),Bash(python3:*),Bash(cat:*),Bash(date:*),Bash(scripts/*),Read"
         ;;
     po|reviewer|triage|ux)
         # Read-only + GitHub CLI — no file editing

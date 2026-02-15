@@ -54,6 +54,9 @@ ensure_label "status/needs-info"  "e4e669" "Needs more information from reporter
 ensure_label "review/approved"           "0e8a16" "Reviewer approved this PR"
 ensure_label "review/changes-requested"  "e4e669" "Reviewer requested changes"
 
+# PM feedback labels
+ensure_label "pm/misaligned"    "d876e3" "PM flagged: issue misinterprets roadmap intent"
+
 # Meta labels
 ensure_label "agent-created"    "bfdadc" "Created by an agent (not human)"
 

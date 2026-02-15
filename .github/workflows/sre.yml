@@ -1,0 +1,19 @@
+name: SRE Health Check
+
+on:
+  schedule:
+    # Every 4 hours
+    - cron: "30 */4 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  health-check:
+    name: Run SRE agent health check
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run SRE health check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: scripts/run-sre.sh
