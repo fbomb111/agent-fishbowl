@@ -46,7 +46,9 @@ async def get_article_index(category: str | None = None) -> ArticleIndex:
         if category:
             category_lower = category.lower()
             articles = [
-                a for a in articles if category_lower in [c.lower() for c in a.categories]
+                a
+                for a in articles
+                if category_lower in [c.lower() for c in a.categories]
             ]
 
         return ArticleIndex(articles=articles, total=len(articles))
