@@ -168,3 +168,4 @@ async def get_activity_events(page: int = 1, per_page: int = 30) -> list[dict[st
         if cache_key in _cache:
             return _cache[cache_key][0]
         return []
+
