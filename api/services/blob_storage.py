@@ -30,14 +30,25 @@ def _get_container_client() -> ContainerClient:
     )
 
 
-async def get_article_index() -> ArticleIndex:
-    """Read the article index from blob storage."""
+async def get_article_index(category: str | None = None) -> ArticleIndex:
+    """Read the article index from blob storage.
+
+    Args:
+        category: Optional category to filter articles by (case-insensitive).
+    """
     client = _get_container_client()
     try:
         blob = client.get_blob_client(INDEX_BLOB)
         data = blob.download_blob().readall()
         articles_data = json.loads(data)
         articles = [ArticleSummary(**a) for a in articles_data]
+
+        if category:
+            category_lower = category.lower()
+            articles = [
+                a for a in articles if category_lower in [c.lower() for c in a.categories]
+            ]
+
         return ArticleIndex(articles=articles, total=len(articles))
     except Exception as e:
         logger.warning("Failed to read article index: %s", e)
