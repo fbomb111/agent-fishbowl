@@ -28,15 +28,27 @@ ensure_label "agent/ingestion"  "6f42c1" "Article ingestion and processing"
 # Priority labels
 ensure_label "priority/high"    "d73a4a" "Do first"
 ensure_label "priority/medium"  "fbca04" "Do after high-priority items"
+ensure_label "priority/low"     "e4e669" "Low priority — do when convenient"
 
 # Type labels
 ensure_label "type/feature"     "0e8a16" "New functionality"
 ensure_label "type/bug"         "d73a4a" "Something broken"
 ensure_label "type/chore"       "cccccc" "Maintenance, CI, docs"
+ensure_label "type/refactor"    "7057ff" "Code refactoring or architecture improvement"
+ensure_label "type/ux"          "f9d0c4" "User experience improvement"
+
+# Source labels (which agent created the intake)
+ensure_label "source/roadmap"          "c5def5" "From product roadmap"
+ensure_label "source/tech-lead"        "d4c5f9" "From tech lead code review"
+ensure_label "source/ux-review"        "f9d0c4" "From UX agent review"
+ensure_label "source/triage"           "c2e0c6" "Validated by triage agent"
+ensure_label "source/reviewer-backlog" "fef2c0" "Rework from closed PR"
+ensure_label "source/sre"              "d73a4a" "From SRE monitoring"
 
 # Status labels
 ensure_label "status/in-progress" "fef2c0" "An agent is working on this"
 ensure_label "status/blocked"     "e4e669" "Cannot proceed — needs human input"
+ensure_label "status/needs-info"  "e4e669" "Needs more information from reporter"
 
 # Review labels
 ensure_label "review/approved"           "0e8a16" "Reviewer approved this PR"

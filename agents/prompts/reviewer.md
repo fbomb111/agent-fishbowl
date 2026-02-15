@@ -49,7 +49,8 @@ Categorize each issue you find:
 - Security vulnerabilities (exposed secrets, injection, XSS)
 - Logic errors that would cause runtime crashes or incorrect behavior
 - Missing imports or references to files that don't exist
-- CI is failing
+- CI is failing **on files changed in this PR** (check with `gh pr diff N --name-only`)
+  - If CI fails on files NOT in the PR diff, it's a pre-existing issue on main. Note it in your review but do NOT block the PR for it. Optionally create a separate issue for the pre-existing failure.
 - Changes break existing functionality
 - PR doesn't address the issue's acceptance criteria
 
@@ -65,15 +66,13 @@ Categorize each issue you find:
 Count how many times you've already requested changes on this PR:
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/N/reviews --jq '[.[] | select(.user.login=="fishbowl-reviewer[bot]" and .state=="CHANGES_REQUESTED")] | length'
+gh pr view N --json reviews --jq '[.reviews[] | select(.author.login=="fishbowl-reviewer[bot]" and .state=="CHANGES_REQUESTED")] | length'
 ```
-
-Replace `{owner}/{repo}` with the actual repo (check with `gh repo view --json nameWithOwner --jq .nameWithOwner`).
 
 This is the **review round number**:
 - **Round 0**: First review — apply normal standards
 - **Round 1**: Second review — be lenient, only block for true blocking issues
-- **Round 2+**: Too many rounds — you MUST either approve or close (no more change requests)
+- **Round 2+**: Too many rounds — you MUST either approve or close (no more change requests). **Do NOT request changes again.**
 
 ## Step 5: Take action
 
@@ -116,6 +115,20 @@ gh pr merge N --squash --delete-branch
 5. Comment on the linked issue:
 ```bash
 gh issue comment X --body "Merged via PR #N."
+```
+
+6. If you identified non-blocking suggestions worth pursuing (not trivial style nits), create a follow-up issue for each meaningful one:
+```bash
+gh issue create --title "Improvement: BRIEF_DESCRIPTION" \
+  --label "agent-created,priority/medium,type/chore" \
+  --body "## Context
+Identified during review of PR #N.
+
+## Suggestion
+DETAILED_DESCRIPTION
+
+## Why
+RATIONALE"
 ```
 
 ### Path B: Request Changes

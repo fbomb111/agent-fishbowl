@@ -65,3 +65,26 @@ jobs:
           output_location: ""
           skip_app_build: true
           is_static_export: true
+
+  notify-failure:
+    name: Create issue on deploy failure
+    runs-on: self-hosted
+    needs: [deploy-api, deploy-frontend]
+    if: failure()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create deploy failure issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Deploy failure: ${GITHUB_SHA::8}" \
+            --label "priority/high,type/bug,deploy-failure" \
+            --body "## Deploy Failed
+
+          **Commit**: ${{ github.sha }}
+          **Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          Check the workflow logs above to identify the failing step and fix it.
+
+          This issue was auto-created by the deploy workflow."

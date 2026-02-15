@@ -1,0 +1,31 @@
+name: Ingest Articles
+
+on:
+  schedule:
+    # Every 6 hours
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ingest:
+    name: Fetch and ingest RSS articles
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r api/requirements.txt
+
+      - name: Run ingestion
+        env:
+          FOUNDRY_OPENAI_ENDPOINT: https://fishbowl.openai.azure.com/openai/v1/
+          FOUNDRY_API_KEY: ${{ secrets.FOUNDRY_API_KEY }}
+          FOUNDRY_DEPLOYMENT: gpt-4.1
+          AZURE_STORAGE_ACCOUNT: agentfishbowlstorage
+          AZURE_STORAGE_CONTAINER: articles
+          MANAGED_IDENTITY_CLIENT_ID: e0e642cd-94c8-435f-9d0e-e23c4edaaaa9
+        run: python -m scripts.ingest

@@ -1,13 +1,13 @@
 #!/bin/bash
 # Shared agent runner — invokes Claude CLI with a role-specific prompt.
 # Usage: ./agents/run-agent.sh <role>
-# Roles: engineer, pm, reviewer, sre
+# Roles: po, engineer, reviewer, tech-lead, triage, ux, pm, sre
 set -euo pipefail
 
 ROLE="${1:-}"
 if [ -z "$ROLE" ]; then
     echo "Usage: $0 <role>"
-    echo "Roles: engineer, pm, reviewer, sre"
+    echo "Roles: po, engineer, reviewer, tech-lead, triage, ux, pm, sre"
     exit 1
 fi
 
@@ -37,7 +37,8 @@ if [ -f "$ENV_FILE" ]; then
     set +a
 fi
 
-ROLE_UPPER=$(echo "$ROLE" | tr '[:lower:]' '[:upper:]')
+# Convert role to uppercase for env var lookup (handle hyphens → underscores)
+ROLE_UPPER=$(echo "$ROLE" | tr '[:lower:]-' '[:upper:]_')
 APP_ID_VAR="GITHUB_APP_${ROLE_UPPER}_ID"
 APP_INSTALL_VAR="GITHUB_APP_${ROLE_UPPER}_INSTALLATION_ID"
 APP_KEY_VAR="GITHUB_APP_${ROLE_UPPER}_KEY_PATH"
@@ -83,12 +84,45 @@ echo ""
 
 cd "$PROJECT_ROOT"
 
+# Use project-level git hooks (pre-commit auto-formats Python)
+git config core.hooksPath .githooks
+
+# --- Per-role tool allowlists ---
+# Different roles get different tool permissions to prevent scope creep.
+# Non-code agents lose Write/Edit to ensure they can't modify application code.
+COMMON_TOOLS="Bash(gh:*),Bash(git:*),Bash(cat:*),Read,Glob,Grep"
+
+case "$ROLE" in
+    engineer)
+        # Full access — implements code changes
+        ALLOWED_TOOLS="Bash(gh:*),Bash(git:*),Bash(ruff:*),Bash(npx:*),Bash(pip:*),Bash(scripts/*),Bash(cat:*),Bash(chmod:*),Read,Write,Edit,Glob,Grep"
+        ;;
+    tech-lead)
+        # Can write conventions and lint scripts, but not application code
+        ALLOWED_TOOLS="${COMMON_TOOLS},Bash(ruff:*),Bash(npx:*),Bash(pip:*),Bash(scripts/*),Write,Edit"
+        ;;
+    pm)
+        # Can write config files (roadmap, goals) — Phase 3 strategic agent
+        ALLOWED_TOOLS="${COMMON_TOOLS},Write,Edit"
+        ;;
+    po|reviewer|triage|ux)
+        # Read-only + GitHub CLI — no file editing
+        ALLOWED_TOOLS="${COMMON_TOOLS},Bash(scripts/*)"
+        ;;
+    *)
+        # Fallback: read-only + GitHub CLI
+        ALLOWED_TOOLS="${COMMON_TOOLS}"
+        ;;
+esac
+
+echo "Tools: ${ROLE} allowlist"
+
 # Run Claude in non-interactive mode with the role prompt.
 # -p: pass prompt directly (not via stdin)
 # --print: non-interactive, output only
 # CLAUDE.md is loaded automatically by Claude Code.
 claude --print \
-    --allowedTools "Bash(gh:*),Bash(git:*),Bash(ruff:*),Bash(npx:*),Bash(pip:*),Bash(scripts/*),Bash(cat:*),Bash(chmod:*),Read,Write,Edit,Glob,Grep" \
+    --allowedTools "$ALLOWED_TOOLS" \
     -p "$(cat "$PROMPT_FILE")" \
     2>&1 | tee "$LOG_FILE"
 

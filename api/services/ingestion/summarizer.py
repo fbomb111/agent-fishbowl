@@ -1,16 +1,13 @@
-"""AI-powered article summarization service using Claude."""
+"""AI-powered article summarization service using Microsoft Foundry (GPT-4.1)."""
 
 import logging
 from dataclasses import dataclass
 
-from anthropic import APIError, AsyncAnthropic, RateLimitError
+from openai import APIError, RateLimitError
 
-from api.config import get_settings
+from api.services.llm import chat_completion
 
 logger = logging.getLogger(__name__)
-
-# Use claude-3-haiku for cost efficiency on high volume
-MODEL = "claude-3-haiku-20240307"
 
 # Prompt for generating summaries
 SUMMARIZATION_PROMPT = """You are a news summarizer. Given an article title and content, generate:
@@ -51,10 +48,10 @@ class SummarizationError(Exception):
 
 
 def _parse_response(response_text: str) -> SummarizationResult:
-    """Parse the Claude response into summary and key takeaways.
+    """Parse the LLM response into summary and key takeaways.
 
     Args:
-        response_text: Raw response from Claude API.
+        response_text: Raw response from the LLM.
 
     Returns:
         Parsed summarization result.
@@ -118,29 +115,20 @@ async def summarize_article(
     Raises:
         SummarizationError: If summarization fails after retries.
     """
-    settings = get_settings()
-
-    if not settings.anthropic_api_key:
-        raise SummarizationError("ANTHROPIC_API_KEY not configured")
-
-    # Truncate content if too long (Claude has context limits)
+    # Truncate content if too long
     max_content_length = 10000
     if len(content) > max_content_length:
         content = content[:max_content_length] + "..."
 
     prompt = SUMMARIZATION_PROMPT.format(title=title, content=content)
 
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-
     for attempt in range(max_retries + 1):
         try:
-            message = await client.messages.create(
-                model=MODEL,
+            response_text = await chat_completion(
+                prompt=prompt,
                 max_tokens=500,
-                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
             )
-
-            response_text = message.content[0].text
             return _parse_response(response_text)
 
         except RateLimitError as e:
@@ -151,13 +139,13 @@ async def summarize_article(
                     max_retries + 1,
                     e,
                 )
-                # Let the caller handle backoff if needed
                 continue
-            raise SummarizationError(f"Rate limited after {max_retries + 1} attempts")
+            raise SummarizationError(
+                f"Rate limited after {max_retries + 1} attempts"
+            ) from e
 
         except APIError as e:
-            logger.error("Anthropic API error: %s", e)
+            logger.error("LLM API error: %s", e)
             raise SummarizationError(f"API error: {e}") from e
 
-    # Should not reach here, but satisfy type checker
     raise SummarizationError("Unexpected error in retry loop")

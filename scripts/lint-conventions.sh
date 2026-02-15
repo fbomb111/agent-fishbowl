@@ -9,9 +9,9 @@ FAILED=0
 BRANCH=$(git branch --show-current 2>/dev/null || echo "")
 
 if [ -n "$BRANCH" ] && [ "$BRANCH" != "main" ]; then
-    if ! echo "$BRANCH" | grep -qE '^(feat|fix)/issue-[0-9]+-'; then
+    if ! echo "$BRANCH" | grep -qE '^(feat|fix|chore)/issue-[0-9]+-'; then
         echo "ERROR: Branch name '$BRANCH' doesn't match the required pattern."
-        echo "  PATTERN: feat/issue-{N}-description or fix/issue-{N}-description"
+        echo "  PATTERN: feat/issue-{N}-description, fix/issue-{N}-description, or chore/issue-{N}-description"
         echo "  FIX: Create a new branch with: scripts/create-branch.sh <issue_number> [feat|fix]"
         echo "  Example: scripts/create-branch.sh 42 feat"
         FAILED=1
@@ -37,7 +37,7 @@ fi
 
 # --- File size guard (agents sometimes generate bloated files) ---
 MAX_LINES=500
-LARGE_FILES=$(find api/ frontend/src/ -type f \( -name "*.py" -o -name "*.ts" -o -name "*.tsx" \) -exec awk -v max="$MAX_LINES" -v f="{}" 'END { if (NR > max) print f " (" NR " lines)" }' {} \; 2>/dev/null)
+LARGE_FILES=$(find api/ frontend/src/ -path 'api/.venv' -prune -o -type f \( -name "*.py" -o -name "*.ts" -o -name "*.tsx" \) -exec awk -v max="$MAX_LINES" -v f="{}" 'END { if (NR > max) print f " (" NR " lines)" }' {} \; 2>/dev/null)
 
 if [ -n "$LARGE_FILES" ]; then
     echo "WARNING: Files exceeding $MAX_LINES lines:"

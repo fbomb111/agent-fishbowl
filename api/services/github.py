@@ -19,7 +19,13 @@ CACHE_TTL = 300  # 5 minutes
 ACTOR_MAP: dict[str, str] = {
     "fishbowl-engineer[bot]": "engineer",
     "fishbowl-reviewer[bot]": "reviewer",
+    "fishbowl-po[bot]": "po",
     "fishbowl-pm[bot]": "pm",
+    "fishbowl-techlead[bot]": "tech-lead",
+    "fishbowl-ux[bot]": "ux",
+    "fishbowl-triage[bot]": "triage",
+    "fishbowl-sre[bot]": "sre",
+    "fbomb111": "human",
 }
 
 

@@ -30,8 +30,13 @@ class Settings(BaseSettings):
     github_repo: str = "fbomb111/agent-fishbowl"
     github_token: str = ""
 
-    # Anthropic (for AI summarization)
-    anthropic_api_key: str = ""
+    # Microsoft Foundry (LLM access via OpenAI-compatible API)
+    foundry_openai_endpoint: str = ""  # https://fishbowl.openai.azure.com/openai/v1/
+    foundry_api_key: str = ""
+    foundry_deployment: str = "gpt-4.1"
+
+    # Ingestion API key (protects POST /api/ingest)
+    ingest_api_key: str = ""
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

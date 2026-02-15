@@ -36,16 +36,25 @@ frontend/               Next.js frontend
   src/lib/api.ts        API client
 config/                 Configuration
   sources.yaml          RSS feed sources
-  ROADMAP.md            Product vision (PM agent reads this)
+  ROADMAP.md            Product vision (PM agent reads + updates)
+  goals.md              Strategic goals (PM agent reads)
+  conventions.md        Technical standards (Tech Lead maintains)
+  ux-standards.md       UX checklist (UX agent reads — Phase 2)
 agents/                 Agent runner infrastructure
-  run-agent.sh          Shared runner (invokes claude CLI)
-  engineer.sh           Engineer agent wrapper
-  reviewer.sh           Reviewer agent wrapper
-  pm.sh                 PM agent wrapper
+  run-agent.sh          Shared runner (per-role tool allowlists)
+  po.sh                 Product Owner — triages intake, prioritizes backlog
+  engineer.sh           Engineer — picks issues, implements, opens PRs
+  reviewer.sh           Reviewer — reviews PRs, merges or requests changes
+  tech-lead.sh          Tech Lead — sets standards, spots architecture needs
+  triage.sh             Triage — validates human-created issues
+  ux.sh                 UX Reviewer — reviews product UX
+  pm.sh                 Product Manager — strategic roadmap (Phase 3)
   prompts/              Role-specific prompt files
   logs/                 Run logs (gitignored)
 scripts/                Deterministic operations
-  run-loop.sh           Full development loop (PM → Engineer → Reviewer)
+  run-loop.sh           Dev loop (PO → Engineer → Reviewer)
+  run-scans.sh          Scanning agents (Tech Lead + UX)
+  run-triage.sh         Triage human issues
   run-checks.sh         All quality checks (ruff + tsc + eslint + conventions)
   create-branch.sh      Create branch from issue number
   lint-conventions.sh   Convention checks with agent-friendly errors
@@ -90,14 +99,45 @@ Scopes: `api`, `frontend`, `ci`, `config`
 | `agent/ingestion` | Article ingestion and processing |
 | `priority/high` | Do first |
 | `priority/medium` | Do after high-priority items |
+| `priority/low` | Low priority — do when convenient |
 | `type/feature` | New functionality |
 | `type/bug` | Something broken |
 | `type/chore` | Maintenance, CI, docs |
+| `type/refactor` | Code refactoring or architecture improvement |
+| `type/ux` | User experience improvement |
+| `source/roadmap` | From product roadmap |
+| `source/tech-lead` | From tech lead code review |
+| `source/ux-review` | From UX agent review |
+| `source/triage` | Validated by triage agent |
+| `source/reviewer-backlog` | Rework from closed PR |
 | `status/in-progress` | An agent is working on this |
 | `status/blocked` | Cannot proceed — needs human input |
+| `status/needs-info` | Needs more information from reporter |
 | `review/approved` | Reviewer approved this PR |
 | `review/changes-requested` | Reviewer requested changes |
 | `agent-created` | Created by an agent (not human) |
+
+## Agent Team
+
+| Role | Identity | Cadence | One-liner |
+|------|----------|---------|-----------|
+| **PO** | `fishbowl-po[bot]` | Every 24-48h | Central intake funnel — triages all inputs into a prioritized backlog |
+| **Engineer** | `fishbowl-engineer[bot]` | Part of dev loop | Picks issues, implements code, opens PRs |
+| **Reviewer** | `fishbowl-reviewer[bot]` | Part of dev loop | Reviews PRs, approves+merges or requests changes |
+| **Tech Lead** | `fishbowl-techlead[bot]` | Every 3-4 days | Sets technical standards, identifies architecture needs |
+| **PM** | `fishbowl-pm[bot]` | Weekly (Phase 3) | Strategic goals and roadmap evolution |
+| **Triage** | `fishbowl-triage[bot]` | Every 12-24h | Validates human-created issues |
+| **UX** | `fishbowl-ux[bot]` | Weekly | Reviews product UX, creates improvement issues |
+
+### Information Flow
+
+All roads lead to the PO. No agent bypasses the PO to create work for the engineer.
+
+```
+PM (strategy) → updates ROADMAP.md → PO (tactical) reads roadmap + source/* intake → backlog
+Tech Lead, UX, Triage → create source/* intake issues → PO triages → backlog
+Engineer claims issues → opens PR → Reviewer merges (or backlogs via source/reviewer-backlog → PO)
+```
 
 ## Agent Coordination Rules
 
@@ -108,6 +148,9 @@ Scopes: `api`, `frontend`, `ci`, `config`
 - **Engineer creates ready PRs** (not drafts) so the reviewer can act on them.
 - **Max 2 review rounds.** If a PR still has issues after 2 rounds of change requests, the reviewer either approves with caveats or closes and backlogs.
 - **Comment your progress.** When you start an issue, comment. When you open a PR, comment on the issue with a link.
+- **All intake flows through the PO.** Scanning agents (tech lead, UX, triage) create issues with `source/*` labels. Only the PO sets final priority.
+- **Scanning agents never set `priority/high`.** They use `priority/medium`. The PO decides what's urgent.
+- **Preserve `source/*` labels.** These track where issues originated. Don't remove them.
 
 ## Available Tools
 
@@ -115,8 +158,10 @@ Scopes: `api`, `frontend`, `ci`, `config`
 
 | Script | Purpose | When to Use |
 |--------|---------|-------------|
-| `run-loop.sh` | Full development cycle (PM → Engineer → Reviewer) | Manually or via cron |
-| `run-checks.sh` | Run all quality checks (ruff + tsc + eslint + conventions) | Before every PR |
+| `run-loop.sh` | Dev loop (PO → Engineer → Reviewer) | Manually or via cron (every 24-48h) |
+| `run-scans.sh` | Scanning agents (Tech Lead + UX) | Every 3-4 days |
+| `run-triage.sh` | Triage human-created issues | Every 12-24h |
+| `run-checks.sh` | Quality checks (ruff + tsc + eslint + conventions) | Before every PR |
 | `create-branch.sh` | Create named branch from issue number | When starting work on an issue |
 | `lint-conventions.sh` | Check branch naming, PR format, file sizes | Runs as part of run-checks.sh |
 | `setup-labels.sh` | Create/update GitHub labels | Setup only |
@@ -158,7 +203,9 @@ Agents use `gh` for all GitHub operations:
 
 - **No database**: Articles stored as JSON in Azure Blob Storage with a manifest index
 - **Activity feed**: Read-through cache of GitHub API data (5-min TTL)
-- **Agent coordination**: PM creates issues → engineer picks up and opens PR → reviewer reviews → may request changes → engineer fixes → reviewer approves and merges → CI/CD deploys
+- **Agent coordination**: PO triages intake → creates prioritized issues → engineer picks up → opens PR → reviewer reviews → may request changes → engineer fixes → reviewer approves and merges → CI/CD deploys
+- **Intake pipeline**: Scanning agents (tech lead, UX, triage) create `source/*` issues → PO triages and prioritizes → engineer works → reviewer gates quality
+- **Per-role tool allowlists**: Non-code agents can't Write/Edit application code. Tech lead can only modify `config/` and `scripts/`. PM can only modify `config/`.
 - **Full autonomy**: Agents handle the complete cycle. The human monitors and adjusts workflows, but does not manually merge or write code.
 
 ## Development
@@ -181,13 +228,22 @@ scripts/run-checks.sh
 
 ### Running the Agent Loop
 ```bash
-# Full autonomous cycle (PM → Engineer → Reviewer → merge)
+# Full dev cycle (PO → Engineer → Reviewer → merge)
 scripts/run-loop.sh
 
+# Scanning agents (tech lead + UX — run every 3-4 days)
+scripts/run-scans.sh
+
+# Triage human issues (run every 12-24h)
+scripts/run-triage.sh
+
 # Individual agents
-agents/pm.sh          # Create issues from roadmap
+agents/po.sh          # Triage intake + create issues from roadmap
 agents/engineer.sh    # Pick issue and implement
 agents/reviewer.sh    # Review and merge PRs
+agents/tech-lead.sh   # Set standards + create architecture issues
+agents/triage.sh      # Validate human-created issues
+agents/ux.sh          # Review product UX
 ```
 
 ## Blob Storage Schema
@@ -202,8 +258,9 @@ articles/
 ## The Human Role
 
 The human (Frankie) is the engineering leader:
-- Maintains `config/ROADMAP.md` (product vision)
+- Maintains `config/goals.md` (strategic objectives) and `config/ROADMAP.md` (until PM agent is built in Phase 3)
 - Monitors the loop execution and agent quality
-- Adjusts agent workflows and guardrails
+- Adjusts agent workflows, prompts, and guardrails
+- Creates GitHub Apps for new agent identities
 - Intervenes when agents are stuck or going sideways
 - Does NOT write application code or manually merge PRs (agents handle the full cycle)

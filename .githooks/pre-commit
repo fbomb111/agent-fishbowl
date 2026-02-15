@@ -1,0 +1,27 @@
+#!/bin/bash
+# Auto-format staged Python files before commit.
+# This hook runs ruff format + ruff check --fix so agents (and humans)
+# cannot commit unformatted Python code.
+set -uo pipefail
+
+# Resolve ruff: venv first, then system PATH
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$HOOK_DIR/.." && pwd)"
+if [ -x "$PROJECT_ROOT/api/.venv/bin/ruff" ]; then
+    RUFF="$PROJECT_ROOT/api/.venv/bin/ruff"
+elif command -v ruff &>/dev/null; then
+    RUFF="ruff"
+else
+    echo "pre-commit: ruff not found — skipping format check"
+    exit 0
+fi
+
+STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' || true)
+if [ -n "$STAGED_PY" ]; then
+    # Auto-format
+    $RUFF format $STAGED_PY
+    # Auto-fix lint issues where possible
+    $RUFF check --fix $STAGED_PY 2>/dev/null || true
+    # Re-stage after formatting
+    git add $STAGED_PY
+fi

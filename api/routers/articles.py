@@ -1,9 +1,11 @@
 """Article feed endpoints."""
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query
 
+from api.config import get_settings
 from api.models.article import Article, ArticleIndex
 from api.services.blob_storage import get_article, get_article_index
+from api.services.ingestion.orchestrator import run_ingestion
 
 router = APIRouter(prefix="/articles", tags=["articles"])
 
@@ -26,3 +28,14 @@ async def get_article_by_id(article_id: str):
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
     return article
+
+
+@router.post("/ingest")
+async def trigger_ingestion(x_ingest_key: str = Header()):
+    """Trigger an article ingestion run. Protected by API key."""
+    settings = get_settings()
+    if not settings.ingest_api_key or x_ingest_key != settings.ingest_api_key:
+        raise HTTPException(status_code=403, detail="Invalid ingest key")
+
+    stats = await run_ingestion()
+    return stats.to_dict()
