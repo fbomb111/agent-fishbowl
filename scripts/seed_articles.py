@@ -8,11 +8,10 @@ import json
 import uuid
 from datetime import datetime, timezone
 
-from azure.identity import DefaultAzureCredential
 from azure.storage.blob import ContainerClient, ContentSettings
 
-ACCOUNT = "agentfishbowlstorage"
-CONTAINER = "articles"
+from api.config import get_settings
+
 JSON_CONTENT = ContentSettings(content_type="application/json")
 
 SEED_ARTICLES = [
@@ -111,15 +110,19 @@ SEED_ARTICLES = [
 
 def main():
     """Upload seed articles to blob storage."""
-    account_url = f"https://{ACCOUNT}.blob.core.windows.net"
-    credential = DefaultAzureCredential()
+    from azure.identity import DefaultAzureCredential
+
+    settings = get_settings()
+    account_url = f"https://{settings.azure_storage_account}.blob.core.windows.net"
     client = ContainerClient(
         account_url=account_url,
-        container_name=CONTAINER,
-        credential=credential,
+        container_name=settings.azure_storage_container,
+        credential=DefaultAzureCredential(),
     )
 
-    print(f"Seeding {len(SEED_ARTICLES)} articles to {ACCOUNT}/{CONTAINER}...")
+    print(
+        f"Seeding {len(SEED_ARTICLES)} articles to {settings.azure_storage_account}/{settings.azure_storage_container}..."
+    )
 
     # Upload individual articles
     for article in SEED_ARTICLES:
@@ -134,12 +137,22 @@ def main():
 
     # Build and upload index (summary fields only)
     index_fields = [
-        "id", "title", "source", "source_url", "original_url",
-        "published_at", "summary", "categories", "image_url", "read_time_minutes",
+        "id",
+        "title",
+        "source",
+        "source_url",
+        "original_url",
+        "published_at",
+        "summary",
+        "categories",
+        "image_url",
+        "read_time_minutes",
     ]
     index = [
         {k: v for k, v in article.items() if k in index_fields}
-        for article in sorted(SEED_ARTICLES, key=lambda a: a["published_at"], reverse=True)
+        for article in sorted(
+            SEED_ARTICLES, key=lambda a: a["published_at"], reverse=True
+        )
     ]
 
     index_blob = client.get_blob_client("index.json")
