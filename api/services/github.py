@@ -184,3 +184,4 @@ async def get_activity_events(
         if cache_key in _cache:
             return _cache[cache_key][0]
         return []
+
