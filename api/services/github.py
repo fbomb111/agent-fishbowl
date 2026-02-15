@@ -42,23 +42,27 @@ def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
             action = payload.get("action", "")
             issue = payload.get("issue", {})
             if action == "opened":
-                parsed.append({
-                    "id": event["id"],
-                    "type": "issue_created",
-                    "actor": actor,
-                    "description": f"Opened issue: {issue.get('title', '')}",
-                    "timestamp": created_at,
-                    "url": issue.get("html_url"),
-                })
+                parsed.append(
+                    {
+                        "id": event["id"],
+                        "type": "issue_created",
+                        "actor": actor,
+                        "description": f"Opened issue: {issue.get('title', '')}",
+                        "timestamp": created_at,
+                        "url": issue.get("html_url"),
+                    }
+                )
             elif action == "closed":
-                parsed.append({
-                    "id": event["id"],
-                    "type": "issue_closed",
-                    "actor": actor,
-                    "description": f"Closed issue: {issue.get('title', '')}",
-                    "timestamp": created_at,
-                    "url": issue.get("html_url"),
-                })
+                parsed.append(
+                    {
+                        "id": event["id"],
+                        "type": "issue_closed",
+                        "actor": actor,
+                        "description": f"Closed issue: {issue.get('title', '')}",
+                        "timestamp": created_at,
+                        "url": issue.get("html_url"),
+                    }
+                )
 
         elif event_type == "PullRequestEvent":
             action = payload.get("action", "")
@@ -66,23 +70,27 @@ def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
             title = pr.get("title", "")
             url = pr.get("html_url")
             if action == "opened":
-                parsed.append({
-                    "id": event["id"],
-                    "type": "pr_opened",
-                    "actor": actor,
-                    "description": f"Opened PR: {title}",
-                    "timestamp": created_at,
-                    "url": url,
-                })
+                parsed.append(
+                    {
+                        "id": event["id"],
+                        "type": "pr_opened",
+                        "actor": actor,
+                        "description": f"Opened PR: {title}",
+                        "timestamp": created_at,
+                        "url": url,
+                    }
+                )
             elif action == "closed" and pr.get("merged"):
-                parsed.append({
-                    "id": event["id"],
-                    "type": "pr_merged",
-                    "actor": actor,
-                    "description": f"Merged PR: {title}",
-                    "timestamp": created_at,
-                    "url": url,
-                })
+                parsed.append(
+                    {
+                        "id": event["id"],
+                        "type": "pr_merged",
+                        "actor": actor,
+                        "description": f"Merged PR: {title}",
+                        "timestamp": created_at,
+                        "url": url,
+                    }
+                )
 
         elif event_type == "PullRequestReviewEvent":
             pr = payload.get("pull_request", {})
@@ -95,14 +103,16 @@ def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 desc = f"Requested changes on PR: {title}"
             else:
                 desc = f"Reviewed PR: {title}"
-            parsed.append({
-                "id": event["id"],
-                "type": "pr_reviewed",
-                "actor": actor,
-                "description": desc,
-                "timestamp": created_at,
-                "url": review.get("html_url") or pr.get("html_url"),
-            })
+            parsed.append(
+                {
+                    "id": event["id"],
+                    "type": "pr_reviewed",
+                    "actor": actor,
+                    "description": desc,
+                    "timestamp": created_at,
+                    "url": review.get("html_url") or pr.get("html_url"),
+                }
+            )
 
         elif event_type == "PushEvent":
             commits = payload.get("commits", [])
@@ -111,32 +121,38 @@ def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 msg = commits[-1].get("message", "").split("\n")[0]
                 count = len(commits)
                 suffix = f" (+{count - 1} more)" if count > 1 else ""
-                parsed.append({
-                    "id": event["id"],
-                    "type": "commit",
-                    "actor": actor,
-                    "description": f"{msg}{suffix}",
-                    "timestamp": created_at,
-                    "url": f"https://github.com/{get_settings().github_repo}/commit/{commits[-1].get('sha', '')}",
-                })
+                parsed.append(
+                    {
+                        "id": event["id"],
+                        "type": "commit",
+                        "actor": actor,
+                        "description": f"{msg}{suffix}",
+                        "timestamp": created_at,
+                        "url": f"https://github.com/{get_settings().github_repo}/commit/{commits[-1].get('sha', '')}",
+                    }
+                )
 
         elif event_type == "IssueCommentEvent":
             issue = payload.get("issue", {})
             comment = payload.get("comment", {})
             body = comment.get("body", "")[:120]
-            parsed.append({
-                "id": event["id"],
-                "type": "comment",
-                "actor": actor,
-                "description": f"Commented on #{issue.get('number', '?')}: {body}",
-                "timestamp": created_at,
-                "url": comment.get("html_url"),
-            })
+            parsed.append(
+                {
+                    "id": event["id"],
+                    "type": "comment",
+                    "actor": actor,
+                    "description": f"Commented on #{issue.get('number', '?')}: {body}",
+                    "timestamp": created_at,
+                    "url": comment.get("html_url"),
+                }
+            )
 
     return parsed
 
 
-async def get_activity_events(page: int = 1, per_page: int = 30) -> list[dict[str, Any]]:
+async def get_activity_events(
+    page: int = 1, per_page: int = 30
+) -> list[dict[str, Any]]:
     """Fetch activity events from GitHub with caching."""
     settings = get_settings()
     cache_key = f"{page}:{per_page}"
