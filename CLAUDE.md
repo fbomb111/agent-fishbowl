@@ -40,9 +40,12 @@ config/                 Configuration
 agents/                 Agent runner infrastructure
   run-agent.sh          Shared runner (invokes claude CLI)
   engineer.sh           Engineer agent wrapper
+  reviewer.sh           Reviewer agent wrapper
+  pm.sh                 PM agent wrapper
   prompts/              Role-specific prompt files
   logs/                 Run logs (gitignored)
 scripts/                Deterministic operations
+  run-loop.sh           Full development loop (PM → Engineer → Reviewer)
   run-checks.sh         All quality checks (ruff + tsc + eslint + conventions)
   create-branch.sh      Create branch from issue number
   lint-conventions.sh   Convention checks with agent-friendly errors
@@ -72,7 +75,7 @@ Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`
 Scopes: `api`, `frontend`, `ci`, `config`
 
 ### Pull Requests
-- Always create as **draft** (human reviews and merges)
+- Create as **ready** (not draft) — the reviewer agent reviews and merges
 - Title: concise, under 70 characters
 - Body MUST include `Closes #N` to link the issue
 - Must pass `scripts/run-checks.sh` before opening
@@ -92,14 +95,18 @@ Scopes: `api`, `frontend`, `ci`, `config`
 | `type/chore` | Maintenance, CI, docs |
 | `status/in-progress` | An agent is working on this |
 | `status/blocked` | Cannot proceed — needs human input |
+| `review/approved` | Reviewer approved this PR |
+| `review/changes-requested` | Reviewer requested changes |
 | `agent-created` | Created by an agent (not human) |
 
 ## Agent Coordination Rules
 
 - **Never pick an assigned issue.** If it has an assignee, skip it.
 - **Never modify another agent's open PR.** If they have a branch, leave it alone.
-- **One issue per run.** Pick one, implement fully, open one PR.
-- **Never merge.** Only create draft PRs. The human merges.
+- **One task per run.** Pick one issue or fix one PR's feedback, not both.
+- **Reviewer merges.** Only the reviewer agent approves and squash-merges PRs. No other agent merges.
+- **Engineer creates ready PRs** (not drafts) so the reviewer can act on them.
+- **Max 2 review rounds.** If a PR still has issues after 2 rounds of change requests, the reviewer either approves with caveats or closes and backlogs.
 - **Comment your progress.** When you start an issue, comment. When you open a PR, comment on the issue with a link.
 
 ## Available Tools
@@ -108,6 +115,7 @@ Scopes: `api`, `frontend`, `ci`, `config`
 
 | Script | Purpose | When to Use |
 |--------|---------|-------------|
+| `run-loop.sh` | Full development cycle (PM → Engineer → Reviewer) | Manually or via cron |
 | `run-checks.sh` | Run all quality checks (ruff + tsc + eslint + conventions) | Before every PR |
 | `create-branch.sh` | Create named branch from issue number | When starting work on an issue |
 | `lint-conventions.sh` | Check branch naming, PR format, file sizes | Runs as part of run-checks.sh |
@@ -150,11 +158,12 @@ Agents use `gh` for all GitHub operations:
 
 - **No database**: Articles stored as JSON in Azure Blob Storage with a manifest index
 - **Activity feed**: Read-through cache of GitHub API data (5-min TTL)
-- **Agent coordination**: PM creates issues with labels → engineer picks up → opens draft PR → human reviews and merges
-- **Safe outputs only**: Agents create draft PRs (never merge), create issues, add comments
+- **Agent coordination**: PM creates issues → engineer picks up and opens PR → reviewer reviews → may request changes → engineer fixes → reviewer approves and merges → CI/CD deploys
+- **Full autonomy**: Agents handle the complete cycle. The human monitors and adjusts workflows, but does not manually merge or write code.
 
 ## Development
 
+### Running Locally
 ```bash
 # API
 cd api && pip install -r requirements.txt
@@ -170,6 +179,17 @@ docker-compose up
 scripts/run-checks.sh
 ```
 
+### Running the Agent Loop
+```bash
+# Full autonomous cycle (PM → Engineer → Reviewer → merge)
+scripts/run-loop.sh
+
+# Individual agents
+agents/pm.sh          # Create issues from roadmap
+agents/engineer.sh    # Pick issue and implement
+agents/reviewer.sh    # Review and merge PRs
+```
+
 ## Blob Storage Schema
 
 ```
@@ -183,6 +203,7 @@ articles/
 
 The human (Frankie) is the engineering leader:
 - Maintains `config/ROADMAP.md` (product vision)
-- Reviews and merges all PRs (final quality gate)
+- Monitors the loop execution and agent quality
 - Adjusts agent workflows and guardrails
-- Does NOT write application code
+- Intervenes when agents are stuck or going sideways
+- Does NOT write application code or manually merge PRs (agents handle the full cycle)

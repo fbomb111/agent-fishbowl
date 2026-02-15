@@ -1,0 +1,66 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy-api:
+    name: Deploy API
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and push API image
+        run: |
+          az acr login --name agentfishbowlacr
+          docker build \
+            -t agentfishbowlacr.azurecr.io/agent-fishbowl-api:${{ github.sha }} \
+            -t agentfishbowlacr.azurecr.io/agent-fishbowl-api:latest \
+            -f api/Dockerfile .
+          docker push agentfishbowlacr.azurecr.io/agent-fishbowl-api --all-tags
+
+      - name: Update Container App
+        run: |
+          az containerapp update \
+            --name ca-agent-fishbowl-api \
+            --resource-group rg-agent-fishbowl \
+            --image agentfishbowlacr.azurecr.io/agent-fishbowl-api:${{ github.sha }}
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting for container to start..."
+          sleep 15
+          curl -sf https://ca-agent-fishbowl-api.victoriousground-9f7e15f3.eastus.azurecontainerapps.io/api/articles \
+            && echo "API is responding" \
+            || echo "WARNING: API health check failed (may still be starting)"
+
+  deploy-frontend:
+    name: Deploy Frontend
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+        env:
+          NEXT_PUBLIC_API_URL: https://ca-agent-fishbowl-api.victoriousground-9f7e15f3.eastus.azurecontainerapps.io
+
+      - name: Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.SWA_DEPLOY_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: frontend
+          output_location: .next
+          skip_app_build: true

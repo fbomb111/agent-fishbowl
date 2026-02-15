@@ -38,6 +38,10 @@ ensure_label "type/chore"       "cccccc" "Maintenance, CI, docs"
 ensure_label "status/in-progress" "fef2c0" "An agent is working on this"
 ensure_label "status/blocked"     "e4e669" "Cannot proceed — needs human input"
 
+# Review labels
+ensure_label "review/approved"           "0e8a16" "Reviewer approved this PR"
+ensure_label "review/changes-requested"  "e4e669" "Reviewer requested changes"
+
 # Meta labels
 ensure_label "agent-created"    "bfdadc" "Created by an agent (not human)"
 
