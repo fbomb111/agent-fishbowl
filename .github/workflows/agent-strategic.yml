@@ -1,0 +1,26 @@
+name: Agent - PM Strategic Review
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # Weekly, Monday 06:00 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: agent-strategic
+  cancel-in-progress: false
+
+jobs:
+  strategic:
+    name: Run PM strategic review
+    runs-on: self-hosted
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable
+
+      - name: Load agent env
+        run: cp ~/.config/agent-fishbowl/.env .env
+
+      - name: Run PM agent
+        run: scripts/run-strategic.sh

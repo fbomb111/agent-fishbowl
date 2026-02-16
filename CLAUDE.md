@@ -16,6 +16,31 @@ Agent Fishbowl is an AI-curated news feed built and maintained by a team of AI a
 - **Agent Runtime**: Claude Code CLI sessions with role-specific prompts
 - **Hosting**: Azure Container Apps (API) + Azure Static Web Apps (frontend)
 
+## Agent Deployment
+
+Agents are deployed as GitHub Actions workflows running on the self-hosted runner. They pull code from the `stable` branch — never from the dev workspace.
+
+**Branches:**
+- `main` — active development, CI tests pass
+- `stable` — production agent code, human-promoted from main
+
+**Promotion:** Trigger the `promote.yml` workflow (Actions UI → Run workflow → type "PROMOTE"). This fast-forwards `stable` to match `main`.
+
+**Workflows** (all in `.github/workflows/`):
+
+| Workflow | Agents | Schedule | Manual Trigger |
+|----------|--------|----------|----------------|
+| `agent-dev-loop.yml` | PO + Engineer + Reviewer | Daily 08:00 UTC | `workflow_dispatch` |
+| `agent-sre.yml` | SRE | Every 4h + Azure alerts | `workflow_dispatch` + `repository_dispatch` |
+| `agent-strategic.yml` | PM | Weekly Mon 06:00 UTC | `workflow_dispatch` |
+| `agent-scans.yml` | Tech Lead + UX | Every 3 days | `workflow_dispatch` |
+| `agent-triage.yml` | Triage | Every 12h | `workflow_dispatch` |
+| `promote.yml` | — | Manual only | `workflow_dispatch` |
+
+**Environment:** Agent .env is staged at `~/.config/agent-fishbowl/.env` on the runner. Workflows copy it into the checkout. PEM keys are already at `~/.config/agent-fishbowl/*.pem`.
+
+**Local scripts remain** as dev/testing fallbacks (`scripts/run-loop.sh`, etc.). Production runs via GitHub Actions.
+
 ## Project Structure
 
 ```
@@ -63,7 +88,13 @@ scripts/                Deterministic operations
 .claude/commands/       Claude Code skills (AI-guided workflows)
   pick-issue.md         Find + claim highest-priority issue
   open-pr.md            Create draft PR with proper format
-.github/workflows/      CI + agent workflows
+.github/workflows/      CI + agent deployment workflows
+  promote.yml           Promote main → stable
+  agent-dev-loop.yml    PO → Engineer → Reviewer (daily)
+  agent-sre.yml         SRE health check (4h + alerts)
+  agent-strategic.yml   PM review (weekly)
+  agent-scans.yml       Tech Lead + UX (every 3 days)
+  agent-triage.yml      Triage (every 12h)
 ```
 
 ## Git Workflow

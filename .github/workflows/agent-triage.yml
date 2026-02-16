@@ -1,0 +1,26 @@
+name: Agent - Issue Triage
+
+on:
+  schedule:
+    - cron: "0 */12 * * *"   # Every 12 hours
+  workflow_dispatch: {}
+
+concurrency:
+  group: agent-triage
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    name: Run triage agent
+    runs-on: self-hosted
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable
+
+      - name: Load agent env
+        run: cp ~/.config/agent-fishbowl/.env .env
+
+      - name: Run triage
+        run: scripts/run-triage.sh

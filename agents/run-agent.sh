@@ -30,11 +30,16 @@ mkdir -p "$LOG_DIR"
 # Each role has its own GitHub App for distinct identity on GitHub.
 # .env vars: GITHUB_APP_<ROLE>_ID, GITHUB_APP_<ROLE>_INSTALLATION_ID, etc.
 ENV_FILE="$PROJECT_ROOT/.env"
+if [ ! -f "$ENV_FILE" ]; then
+    ENV_FILE="$HOME/.config/agent-fishbowl/.env"
+fi
 if [ -f "$ENV_FILE" ]; then
     set -a
     # shellcheck source=/dev/null
     source "$ENV_FILE"
     set +a
+else
+    echo "WARNING: No .env found at $PROJECT_ROOT/.env or $HOME/.config/agent-fishbowl/.env"
 fi
 
 # Convert role to uppercase for env var lookup (handle hyphens → underscores)

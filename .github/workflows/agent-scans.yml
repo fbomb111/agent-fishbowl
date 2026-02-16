@@ -1,0 +1,26 @@
+name: Agent - Tech Lead + UX Scans
+
+on:
+  schedule:
+    - cron: "0 10 */3 * *"   # Every 3 days at 10:00 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: agent-scans
+  cancel-in-progress: false
+
+jobs:
+  scans:
+    name: Run Tech Lead + UX review
+    runs-on: self-hosted
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable
+
+      - name: Load agent env
+        run: cp ~/.config/agent-fishbowl/.env .env
+
+      - name: Run scans
+        run: scripts/run-scans.sh
