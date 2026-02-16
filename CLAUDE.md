@@ -34,6 +34,7 @@ Agents are deployed as GitHub Actions workflows running on the self-hosted runne
 | `agent-engineer.yml` | Engineer | PO/Reviewer dispatch + daily | 10/day |
 | `agent-reviewer.yml` | Reviewer | `pull_request` (opened/sync) + 12h | 10/day |
 | `agent-triage.yml` | Triage | `issues.opened` + 12h | 5/day |
+| `agent-sre.yml` | SRE | `repository_dispatch` (azure-alert) + 4h schedule | — |
 | `agent-strategic.yml` | PM | Weekly Mon 06:00 UTC | — |
 | `agent-scans.yml` | Tech Lead + UX | Every 3 days | — |
 | `promote.yml` | — | Manual only | — |

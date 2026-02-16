@@ -2,9 +2,9 @@ name: Agent - SRE Health Check
 
 on:
   repository_dispatch:
-    types: [azure-alert-critical, azure-alert-warning]
+    types: [azure-alert]
   schedule:
-    - cron: "30 */4 * * *"
+    - cron: "30 */4 * * *"   # Every 4 hours
   workflow_dispatch: {}
 
 concurrency:
@@ -22,20 +22,22 @@ jobs:
           ref: stable
 
       - name: Load agent env
-        run: cp ~/.config/agent-fishbowl/.env .env
+        run: cp ~/.config/agent-fishbowl/.env .env 2>/dev/null || true
 
       - name: Determine run mode
         id: mode
         run: |
           if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            echo "mode=investigate" >> "$GITHUB_OUTPUT"
-            echo "alert=${{ toJSON(github.event.client_payload) }}" >> "$GITHUB_OUTPUT"
+            echo "mode=alert" >> "$GITHUB_OUTPUT"
+            echo "context=${{ toJSON(github.event.client_payload) }}" >> "$GITHUB_OUTPUT"
           else
             echo "mode=summary" >> "$GITHUB_OUTPUT"
+            echo "context={}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Run SRE health check
+      - name: Run SRE
         run: scripts/run-sre.sh
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SRE_MODE: ${{ steps.mode.outputs.mode }}
-          ALERT_PAYLOAD: ${{ steps.mode.outputs.alert }}
+          ALERT_CONTEXT: ${{ steps.mode.outputs.context }}
