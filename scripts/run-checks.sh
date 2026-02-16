@@ -64,8 +64,13 @@ fi
 # --- Convention checks ---
 echo ""
 echo "▸ Convention lint"
-if ! bash "$SCRIPT_DIR/lint-conventions.sh"; then
-    FAILED=1
+LINT_SCRIPT="${HARNESS_ROOT:-$SCRIPT_DIR/../.harness}/scripts/lint-conventions.sh"
+if [ -f "$LINT_SCRIPT" ]; then
+    if ! bash "$LINT_SCRIPT"; then
+        FAILED=1
+    fi
+else
+    echo "  SKIP: lint-conventions.sh not found (run via harness or set HARNESS_ROOT)"
 fi
 
 echo ""

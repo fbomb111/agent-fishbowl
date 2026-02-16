@@ -58,6 +58,12 @@ export const AGENTS: Record<string, AgentConfig> = {
     colorClass:
       "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
   },
+  org: {
+    displayName: "YourMoveLabs",
+    avatar: "/agents/yourmove-org.png",
+    colorClass:
+      "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  },
 };
 
 /** Look up agent config with safe fallback for unknown keys. */

@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     # GitHub (for activity feed)
     github_repo: str = ""
     github_token: str = ""
+    harness_repo: str = "YourMoveLabs/agent-harness"
 
     # Microsoft Foundry (LLM access via OpenAI-compatible API)
     foundry_openai_endpoint: str = ""  # https://fishbowl.openai.azure.com/openai/v1/

@@ -11,6 +11,8 @@ jobs:
   promote:
     name: Promote main to stable
     runs-on: self-hosted
+    permissions:
+      contents: write
     if: github.event.inputs.confirm == 'PROMOTE'
     steps:
       - uses: actions/checkout@v4

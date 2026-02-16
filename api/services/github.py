@@ -4,6 +4,7 @@ Fetches repository events (issues, PRs, commits, reviews) and maps them
 to ActivityEvent dicts for the frontend. Results are cached with a 5-min TTL.
 """
 
+import asyncio
 from typing import Any
 
 from api.config import get_settings
@@ -156,13 +157,47 @@ def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 }
             )
 
+        elif event_type == "ReleaseEvent":
+            action = payload.get("action", "")
+            release = payload.get("release", {})
+            tag = release.get("tag_name", "")
+            name = release.get("name", tag)
+            if action == "published":
+                parsed.append(
+                    {
+                        "id": event["id"],
+                        "type": "release",
+                        "actor": actor,
+                        "description": f"Published release: {name}",
+                        "timestamp": created_at,
+                        "url": release.get("html_url"),
+                    }
+                )
+
     return parsed
+
+
+async def _fetch_repo_events(
+    repo: str, per_page: int, page: int
+) -> list[dict[str, Any]]:
+    """Fetch raw events from a single repo."""
+    headers = github_headers()
+    url = f"https://api.github.com/repos/{repo}/events"
+    params = {"per_page": str(per_page), "page": str(page)}
+    client = get_shared_client()
+    resp = await client.get(url, headers=headers, params=params)
+    if resp.status_code == 200:
+        return resp.json()
+    return []
 
 
 async def get_activity_events(
     page: int = 1, per_page: int = 30
 ) -> list[dict[str, Any]]:
-    """Fetch activity events from GitHub with caching."""
+    """Fetch activity events from GitHub with caching.
+
+    Fetches from both the project repo and harness repo, merges by timestamp.
+    """
     settings = get_settings()
     cache_key = f"{page}:{per_page}"
 
@@ -171,19 +206,28 @@ async def get_activity_events(
     if cached is not None:
         return cached
 
-    headers = github_headers()
+    repos = [settings.github_repo]
+    if settings.harness_repo:
+        repos.append(settings.harness_repo)
 
-    url = f"https://api.github.com/repos/{settings.github_repo}/events"
-    params = {"per_page": str(per_page), "page": str(page)}
+    # Fetch all repos in parallel
+    raw_results = await asyncio.gather(
+        *[_fetch_repo_events(repo, per_page, page) for repo in repos]
+    )
 
-    client = get_shared_client()
-    resp = await client.get(url, headers=headers, params=params)
-    if resp.status_code == 200:
-        raw = resp.json()
-        events = _parse_events(raw)
+    # Merge and sort by timestamp descending
+    all_raw: list[dict[str, Any]] = []
+    for raw in raw_results:
+        all_raw.extend(raw)
+    all_raw.sort(key=lambda e: e.get("created_at", ""), reverse=True)
+
+    events = _parse_events(all_raw[:per_page])
+
+    if events:
         _cache.set(cache_key, events)
         return events
-    # On error, return cached data if available (stale), else empty
+
+    # On error/empty, return stale cache if available
     stale = _cache.get(cache_key)
     if stale is not None:
         return stale
