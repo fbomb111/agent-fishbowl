@@ -4,8 +4,8 @@
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "FUNCTIONS_WORKER_RUNTIME": "python",
     "GITHUB_REPO": "YourMoveLabs/agent-fishbowl",
-    "GITHUB_TOKEN": "<your-github-pat-with-repo-scope>",
-    "KEY_VAULT_NAME": "",
-    "GITHUB_TOKEN_SECRET_NAME": ""
+    "GITHUB_APP_ID": "2868629",
+    "GITHUB_APP_INSTALLATION_ID": "110315536",
+    "GITHUB_APP_SRE_KEY_PATH": "/home/fcleary/.config/agent-fishbowl/fishbowl-sre.pem"
   }
 }

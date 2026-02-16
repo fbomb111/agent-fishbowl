@@ -65,17 +65,20 @@ Real-time alerting bridge: Azure Monitor detects problems → fires alert → Ac
 ```
 Container App metrics → Alert Rule fires → Action Group webhook
   → func-fishbowl-alert-bridge (Azure Function)
-    → reads GitHub PAT from Key Vault (via Managed Identity)
-      → POST repos/{repo}/dispatches (event_type: azure-alert)
-        → agent-sre.yml triggers → run-sre.sh routes to playbooks/Claude
+    → reads fishbowl-sre PEM from Key Vault (via Managed Identity)
+      → mints JWT → exchanges for installation access token
+        → POST repos/{repo}/dispatches (event_type: azure-alert)
+          → agent-sre.yml triggers → run-sre.sh routes to playbooks/Claude
 ```
+
+**Auth:** Uses `fishbowl-sre` GitHub App (App ID: `2868629`, Installation ID: `110315536`). PEM key stored in Key Vault as `fishbowl-sre-pem`. No PATs — tokens are short-lived installation tokens minted per-invocation.
 
 **Azure Resources** (all in `rg-agent-fishbowl`):
 
 | Resource | Name | Purpose |
 |----------|------|---------|
 | Function App | `func-fishbowl-alert-bridge` | HTTP trigger, parses alert, dispatches to GitHub |
-| Key Vault | `kv-fishbowl-sre` | Stores GitHub PAT (`github-dispatch-token`) |
+| Key Vault | `kv-fishbowl-sre` | Stores SRE GitHub App PEM key (`fishbowl-sre-pem`) |
 | App Insights | `fishbowl-appinsights` | Function App telemetry |
 | Storage Account | `stfuncfishbowl` | Functions runtime storage |
 | Action Group | `fishbowl-alerts` | Webhook to Function App |
@@ -86,12 +89,11 @@ Container App metrics → Alert Rule fires → Action Group webhook
 |-------|--------|-----------|--------|----------|
 | `fishbowl-api-5xx` | Requests (5xx) | > 5 total | 5 min | Sev 1 |
 | `fishbowl-container-restarts` | RestartCount | > 2 total | 1 hour | Sev 2 |
-| `fishbowl-api-no-traffic` | Requests | < 1 total | 15 min | Sev 0 |
 
 **Function Code:** `functions/alert_bridge/__init__.py`
 - Parses Azure Monitor Common Alert Schema
-- Reads GitHub PAT from Key Vault via Managed Identity (`id-agent-fishbowl`)
-- Falls back to `GITHUB_TOKEN` env var for local dev
+- Authenticates as `fishbowl-sre[bot]` GitHub App (PEM from Key Vault → JWT → installation token)
+- Falls back to local PEM file via `GITHUB_APP_SRE_KEY_PATH` for local dev
 - Deploy: `cd functions && func azure functionapp publish func-fishbowl-alert-bridge --python`
 
 ## Project Structure
