@@ -47,6 +47,12 @@ jobs:
         if: steps.cap.outputs.skip != 'true'
         run: agents/reviewer.sh
 
+      - name: Dispatch PO for intake triage
+        if: steps.cap.outputs.skip != 'true' && success()
+        run: gh workflow run agent-po.yml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Dispatch feedback if changes requested
         if: steps.cap.outputs.skip != 'true' && success()
         run: |

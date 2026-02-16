@@ -1,13 +1,11 @@
 name: Agent - Product Owner
 
 on:
-  issues:
-    types: [labeled]
   repository_dispatch:
     types: [agent-pm-feedback]
   schedule:
     - cron: "0 6 * * *"   # Daily 06:00 UTC fallback
-  workflow_dispatch: {}
+  workflow_dispatch: {}     # Dispatched by reviewer/triage after creating issues
 
 concurrency:
   group: agent-po
@@ -18,10 +16,6 @@ jobs:
     name: Run PO agent
     runs-on: self-hosted
     timeout-minutes: 30
-    # Only trigger on source/* labels, not every label
-    if: >
-      github.event_name != 'issues' ||
-      startsWith(github.event.label.name, 'source/')
     steps:
       - uses: actions/checkout@v4
         with:
