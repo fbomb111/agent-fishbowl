@@ -53,7 +53,7 @@ export function ArticleCard({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imageUrl}
-            alt=""
+            alt={title}
             className="h-40 w-full object-cover transition-transform group-hover:scale-105"
           />
         </div>

@@ -14,8 +14,10 @@ logger = logging.getLogger(__name__)
 
 # In-memory rate limiter: {ip: [timestamps]}
 _rate_limits: dict[str, list[float]] = defaultdict(list)
+_rate_limit_call_count: int = 0
 RATE_LIMIT_WINDOW = 3600  # 1 hour
 RATE_LIMIT_MAX = 5
+_RATE_LIMIT_CLEANUP_INTERVAL = 100
 
 # Fake response for spam/honeypot (identical to real success)
 _FAKE_RESPONSE = FeedbackResponse(
@@ -27,8 +29,19 @@ _FAKE_RESPONSE = FeedbackResponse(
 
 def _check_rate_limit(ip: str) -> bool:
     """Return True if request is allowed, False if rate limited."""
+    global _rate_limit_call_count
     now = time.time()
     cutoff = now - RATE_LIMIT_WINDOW
+
+    # Periodic cleanup: prune IPs with no recent timestamps
+    _rate_limit_call_count += 1
+    if _rate_limit_call_count % _RATE_LIMIT_CLEANUP_INTERVAL == 0:
+        stale_ips = [
+            k for k, v in _rate_limits.items() if not any(ts > cutoff for ts in v)
+        ]
+        for k in stale_ips:
+            del _rate_limits[k]
+
     _rate_limits[ip] = [ts for ts in _rate_limits[ip] if ts > cutoff]
     if len(_rate_limits[ip]) >= RATE_LIMIT_MAX:
         return False

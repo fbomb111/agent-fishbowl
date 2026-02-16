@@ -63,10 +63,11 @@ export function FeedbackForm() {
               rel="noopener noreferrer"
               className="inline-block text-sm font-medium text-green-700 underline hover:text-green-900 dark:text-green-300 dark:hover:text-green-100"
             >
-              View Issue #{success.issueNumber} on GitHub
+              Track your feedback (#{success.issueNumber}) — opens in a new tab
             </a>
             <p className="text-xs text-green-600 dark:text-green-400">
-              This will appear in the fishbowl activity feed shortly.
+              Your feedback is now being tracked publicly. It will appear in the
+              fishbowl activity feed shortly.
             </p>
           </div>
         )}
@@ -157,7 +158,7 @@ export function FeedbackForm() {
       />
 
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950">
+        <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950">
           <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
         </div>
       )}

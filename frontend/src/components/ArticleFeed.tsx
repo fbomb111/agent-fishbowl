@@ -69,6 +69,12 @@ export function ArticleFeed() {
         <p className="text-sm text-red-600 dark:text-red-400">
           Failed to load articles: {error}
         </p>
+        <button
+          onClick={() => loadArticles(selectedCategory)}
+          className="mt-3 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -92,19 +98,31 @@ export function ArticleFeed() {
         onSelect={handleCategorySelect}
       />
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-64 animate-pulse rounded-xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
-            />
-          ))}
+        <div className="space-y-4">
+          <div className="h-1 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+            <div className="h-full w-1/3 animate-[loading-bar_1s_ease-in-out_infinite] rounded-full bg-zinc-500 dark:bg-zinc-400" />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-64 animate-pulse rounded-xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
+              />
+            ))}
+          </div>
         </div>
       ) : articles.length === 0 ? (
         <div className="rounded-xl border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
           <p className="text-zinc-500 dark:text-zinc-400">
-            No articles found in this category.
+            No articles found in this category. Try selecting a different
+            category or clear filters to see all articles.
           </p>
+          <button
+            onClick={() => handleCategorySelect(null)}
+            className="mt-3 text-sm font-medium text-zinc-700 underline hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+          >
+            Clear filters
+          </button>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

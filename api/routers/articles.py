@@ -16,9 +16,20 @@ async def list_articles(
         default=None,
         description="Filter articles by category (case-insensitive)",
     ),
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=200,
+        description="Maximum number of articles to return",
+    ),
+    offset: int = Query(
+        default=0,
+        ge=0,
+        description="Number of articles to skip",
+    ),
 ):
     """Get the article feed index, optionally filtered by category."""
-    return await get_article_index(category=category)
+    return await get_article_index(category=category, limit=limit, offset=offset)
 
 
 @router.get("/{article_id}", response_model=Article)

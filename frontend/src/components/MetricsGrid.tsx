@@ -1,4 +1,6 @@
+import Image from "next/image";
 import type { Metrics, TrendWindow, AgentStats } from "@/lib/api";
+import { getAgent } from "@/lib/agents";
 
 function TrendBar({
   label,
@@ -51,16 +53,6 @@ function StatCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-const AGENT_DISPLAY: Record<string, string> = {
-  engineer: "Engineer",
-  reviewer: "Reviewer",
-  "tech-lead": "Tech Lead",
-  pm: "PM",
-  po: "Product Owner",
-  triage: "Triage",
-  "ux-reviewer": "UX Reviewer",
-};
-
 function AgentTable({ byAgent }: { byAgent: Record<string, AgentStats> }) {
   const agents = Object.entries(byAgent).sort(
     ([, a], [, b]) =>
@@ -99,28 +91,42 @@ function AgentTable({ byAgent }: { byAgent: Record<string, AgentStats> }) {
           </tr>
         </thead>
         <tbody>
-          {agents.map(([role, stats]) => (
-            <tr
-              key={role}
-              className="border-b border-zinc-50 last:border-0 dark:border-zinc-800/50"
-            >
-              <td className="px-4 py-2 font-medium">
-                {AGENT_DISPLAY[role] || role}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">
-                {stats.commits}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">
-                {stats.prs_merged}/{stats.prs_opened}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">
-                {stats.issues_closed}/{stats.issues_opened}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">
-                {stats.reviews}
-              </td>
-            </tr>
-          ))}
+          {agents.map(([role, stats]) => {
+            const agent = getAgent(role);
+            return (
+              <tr
+                key={role}
+                className="border-b border-zinc-50 last:border-0 dark:border-zinc-800/50"
+              >
+                <td className="px-4 py-2 font-medium">
+                  <div className="flex items-center gap-2">
+                    {agent.avatar && (
+                      <Image
+                        src={agent.avatar}
+                        alt={agent.displayName}
+                        width={20}
+                        height={20}
+                        className="rounded-full"
+                      />
+                    )}
+                    {agent.displayName}
+                  </div>
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {stats.commits}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {stats.prs_merged}/{stats.prs_opened}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {stats.issues_closed}/{stats.issues_opened}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {stats.reviews}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

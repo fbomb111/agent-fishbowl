@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.config import get_settings
+from api.middleware import RequestIDMiddleware
 from api.routers import activity, articles, feedback, goals
 
 settings = get_settings()
@@ -28,6 +29,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Request ID (runs first — outermost middleware)
+app.add_middleware(RequestIDMiddleware)
 
 # CORS
 app.add_middleware(

@@ -22,14 +22,14 @@ class Settings(BaseSettings):
     ]
 
     # Azure Blob Storage
-    azure_storage_account: str = "agentfishbowlstorage"
+    azure_storage_account: str = ""
     azure_storage_container: str = "articles"
 
     # Azure User-Assigned Managed Identity — used in ALL environments
-    managed_identity_client_id: str = "e0e642cd-94c8-435f-9d0e-e23c4edaaaa9"
+    managed_identity_client_id: str = ""
 
     # GitHub (for activity feed)
-    github_repo: str = "YourMoveLabs/agent-fishbowl"
+    github_repo: str = ""
     github_token: str = ""
 
     # Microsoft Foundry (LLM access via OpenAI-compatible API)

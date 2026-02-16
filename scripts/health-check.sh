@@ -5,11 +5,11 @@
 set -euo pipefail
 
 # --- Config ---
-API_BASE="https://ca-agent-fishbowl-api.victoriousground-9f7e15f3.eastus.azurecontainerapps.io"
+API_BASE="${FISHBOWL_API_BASE:-https://ca-agent-fishbowl-api.victoriousground-9f7e15f3.eastus.azurecontainerapps.io}"
 HEALTH_URL="${API_BASE}/api/fishbowl/health"
 ARTICLES_URL="${API_BASE}/api/fishbowl/articles"
-INGEST_WORKFLOW="ingest.yml"
-DEPLOY_WORKFLOW="deploy.yml"
+INGEST_WORKFLOW="${FISHBOWL_INGEST_WORKFLOW:-ingest.yml}"
+DEPLOY_WORKFLOW="${FISHBOWL_DEPLOY_WORKFLOW:-deploy.yml}"
 
 # Freshness thresholds (hours)
 FRESH_THRESHOLD=12

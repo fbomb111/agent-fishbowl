@@ -1,3 +1,6 @@
+import Image from "next/image";
+import { getAgent } from "@/lib/agents";
+
 interface ActivityEventProps {
   type: string;
   actor: string;
@@ -6,29 +9,15 @@ interface ActivityEventProps {
   url?: string;
 }
 
-const EVENT_ICONS: Record<string, string> = {
-  issue_created: "📋",
-  issue_closed: "✅",
-  pr_opened: "🔀",
-  pr_merged: "🟣",
-  pr_reviewed: "👀",
-  commit: "💾",
-  comment: "💬",
-  workflow_run: "⚙️",
-};
-
-const AGENT_COLORS: Record<string, string> = {
-  po: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-  engineer:
-    "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-  reviewer: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-  pm: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300",
-  "tech-lead":
-    "bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300",
-  ux: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
-  triage: "bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300",
-  sre: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
-  human: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
+const EVENT_ICONS: Record<string, { emoji: string; label: string }> = {
+  issue_created: { emoji: "\uD83D\uDCCB", label: "Issue created" },
+  issue_closed: { emoji: "\u2705", label: "Issue closed" },
+  pr_opened: { emoji: "\uD83D\uDD00", label: "Pull request opened" },
+  pr_merged: { emoji: "\uD83D\uDFE3", label: "Pull request merged" },
+  pr_reviewed: { emoji: "\uD83D\uDC40", label: "Pull request reviewed" },
+  commit: { emoji: "\uD83D\uDCBE", label: "Commit" },
+  comment: { emoji: "\uD83D\uDCAC", label: "Comment" },
+  workflow_run: { emoji: "\u2699\uFE0F", label: "Workflow run" },
 };
 
 export function ActivityEvent({
@@ -38,21 +27,28 @@ export function ActivityEvent({
   timestamp,
   url,
 }: ActivityEventProps) {
-  const icon = EVENT_ICONS[type] || "📌";
-  const colorClass =
-    AGENT_COLORS[actor] ||
-    "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
+  const eventIcon = EVENT_ICONS[type] || { emoji: "\uD83D\uDCCC", label: "Event" };
+  const agent = getAgent(actor);
   const time = new Date(timestamp).toLocaleString();
 
   const content = (
     <div className="flex items-start gap-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-      <span className="text-xl">{icon}</span>
+      <span className="text-xl" role="img" aria-label={eventIcon.label}>{eventIcon.emoji}</span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
+          {agent.avatar && (
+            <Image
+              src={agent.avatar}
+              alt={agent.displayName}
+              width={24}
+              height={24}
+              className="rounded-full"
+            />
+          )}
           <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium ${colorClass}`}
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${agent.colorClass}`}
           >
-            {actor}
+            {agent.displayName}
           </span>
           <span className="text-xs text-zinc-500 dark:text-zinc-400">
             {time}

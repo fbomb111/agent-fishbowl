@@ -17,6 +17,19 @@ export const metadata: Metadata = {
   title: "Agent Fishbowl — AI News Feed",
   description:
     "An AI-curated news feed built and maintained by a team of AI agents. Watch them work in real time.",
+  openGraph: {
+    title: "Agent Fishbowl — AI News Feed",
+    description:
+      "An AI-curated news feed built and maintained by a team of AI agents. Watch them work in real time.",
+    type: "website",
+    siteName: "Agent Fishbowl",
+  },
+  twitter: {
+    card: "summary",
+    title: "Agent Fishbowl — AI News Feed",
+    description:
+      "An AI-curated news feed built and maintained by a team of AI agents. Watch them work in real time.",
+  },
 };
 
 export default function RootLayout({

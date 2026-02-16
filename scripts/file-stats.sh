@@ -69,33 +69,35 @@ if [[ ${#FIND_ARGS[@]} -eq 0 ]]; then
     exit 0
 fi
 
-# Build exclusion patterns
-PRUNE_ARGS=""
+# --- Find files and count lines ---
+# Build the full find command using arrays (no eval needed)
+find_cmd=(find "${FIND_ARGS[@]}")
+
+# Add prune args
+prune_parts=()
 for excl in "${EXCLUDE_DIRS[@]}"; do
-    if [[ -n "$PRUNE_ARGS" ]]; then
-        PRUNE_ARGS="$PRUNE_ARGS -o"
+    if [[ ${#prune_parts[@]} -gt 0 ]]; then
+        prune_parts+=(-o)
     fi
-    PRUNE_ARGS="$PRUNE_ARGS -name $excl"
+    prune_parts+=(-name "$excl")
 done
 
-# Build type filter
-TYPE_FILTER=""
+# Build type filter parts
+type_parts=()
 if [[ ${#TYPES[@]} -gt 0 ]]; then
     for t in "${TYPES[@]}"; do
-        if [[ -n "$TYPE_FILTER" ]]; then
-            TYPE_FILTER="$TYPE_FILTER -o"
+        if [[ ${#type_parts[@]} -gt 0 ]]; then
+            type_parts+=(-o)
         fi
-        TYPE_FILTER="$TYPE_FILTER -name '*.${t}'"
+        type_parts+=(-name "*.${t}")
     done
 else
-    TYPE_FILTER="-name '*.py' -o -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx'"
+    type_parts=(-name '*.py' -o -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx')
 fi
 
-# --- Find files and count lines ---
 # Get all matching files with line counts
-FILES_WITH_LINES=$(eval "find ${FIND_ARGS[*]} \\( $PRUNE_ARGS \\) -prune -o -type f \\( $TYPE_FILTER \\) -print" 2>/dev/null | while read -r f; do
+FILES_WITH_LINES=$("${find_cmd[@]}" \( "${prune_parts[@]}" \) -prune -o -type f \( "${type_parts[@]}" \) -print 2>/dev/null | while read -r f; do
     lines=$(wc -l < "$f" 2>/dev/null || echo "0")
-    # Make path relative to project root
     relpath="${f#$PROJECT_ROOT/}"
     ext="${f##*.}"
     echo "$lines $ext $relpath"

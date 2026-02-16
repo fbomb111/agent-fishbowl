@@ -5,23 +5,14 @@ import re
 from dataclasses import dataclass
 
 import httpx
-from lxml_html_clean import Cleaner
 from readability import Document
 
 logger = logging.getLogger(__name__)
 
 SCRAPE_TIMEOUT = 15.0
 
-# HTML cleaner for stripping tags after readability extraction
-_cleaner = Cleaner(
-    scripts=True,
-    javascript=True,
-    comments=True,
-    style=True,
-    forms=True,
-    annoying_tags=True,
-    remove_unknown_tags=True,
-)
+# Minimum text length (characters) for a scrape to be considered successful
+MIN_TEXT_LENGTH = 100
 
 
 @dataclass
@@ -74,7 +65,7 @@ async def scrape_article(url: str) -> ScrapedArticle | None:
         # Convert to plain text
         text = _html_to_text(content_html)
 
-        if not text or len(text) < 100:
+        if not text or len(text) < MIN_TEXT_LENGTH:
             logger.debug("Scrape produced too little text for %s", url[:80])
             return None
 
