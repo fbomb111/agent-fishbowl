@@ -57,6 +57,9 @@ ensure_label "review/changes-requested"  "e4e669" "Reviewer requested changes"
 # PM feedback labels
 ensure_label "pm/misaligned"    "d876e3" "PM flagged: issue misinterprets roadmap intent"
 
+# Harness labels
+ensure_label "harness/request"  "ff9800" "Agent needs a harness capability (tool, permission, config)"
+
 # Meta labels
 ensure_label "agent-created"    "bfdadc" "Created by an agent (not human)"
 

@@ -7,6 +7,17 @@ Agent Fishbowl is an AI-curated news feed built and maintained by a team of AI a
 **Repository**: `YourMoveLabs/agent-fishbowl` (public)
 **Main Branch**: `main`
 
+### GitHub Project (Roadmap)
+
+The product roadmap is managed as a GitHub Project:
+
+```
+PROJECT_NUMBER: 1
+OWNER: YourMoveLabs
+```
+
+Each roadmap item has fields: **Priority** (P1/P2/P3), **Goal**, **Phase**, and **Roadmap Status** (Proposed/Active/Done/Deferred). The PM agent manages roadmap items; the PO agent creates issues from them.
+
 ## Architecture
 
 - **Backend**: FastAPI (Python 3.12) — `api/`
@@ -209,6 +220,7 @@ Scopes: `api`, `frontend`, `ci`, `config`
 | `review/approved` | Reviewer approved this PR |
 | `review/changes-requested` | Reviewer requested changes |
 | `pm/misaligned` | PM flagged: issue misinterprets roadmap intent |
+| `harness/request` | Agent needs a harness capability (tool, permission, config) |
 | `agent-created` | Created by an agent (not human) |
 
 ## Agent Team
@@ -390,6 +402,18 @@ agents/ux.sh          # Review product UX
 agents/sre.sh         # Monitor system health
 ```
 
+## Infrastructure Reference
+
+```
+API Container App:  ca-agent-fishbowl-api
+Resource Group:     rg-agent-fishbowl
+API Health:         https://ca-agent-fishbowl-api.victoriousground-9f7e15f3.eastus.azurecontainerapps.io/api/fishbowl/health
+Articles Endpoint:  https://ca-agent-fishbowl-api.victoriousground-9f7e15f3.eastus.azurecontainerapps.io/api/fishbowl/articles
+Repository:         YourMoveLabs/agent-fishbowl
+Ingest Workflow:    ingest.yml
+Deploy Workflow:    deploy.yml
+```
+
 ## Blob Storage Schema
 
 ```
@@ -401,10 +425,22 @@ articles/
 
 ## The Human Role
 
-The human (Frankie) is the engineering leader:
-- Maintains `config/goals.md` (strategic objectives — the PM agent reads these to evolve the roadmap)
-- Monitors the loop execution and agent quality
-- Adjusts agent workflows, prompts, and guardrails
+The human is the engineering manager — not a coder on the team. They interact at two layers:
+
+1. **The Harness**: Building and improving the team's capabilities (prompts, tools, workflows, infrastructure)
+2. **Project Management**: Directing work via GitHub Issues, PR comments, and the GitHub Project board
+
+**What the human does:**
+- Sets strategic goals (read by the PM agent to shape the roadmap)
+- Monitors agent quality and adjusts workflows, prompts, and guardrails
 - Creates GitHub Apps for new agent identities
-- Intervenes when agents are stuck or going sideways
-- Does NOT write application code or manually merge PRs (agents handle the full cycle)
+- Responds to `harness/request` issues when agents need capabilities they don't have
+- Submits feature requests and feedback via GitHub Issues (treated like any stakeholder)
+
+**What the human does NOT do:**
+- Write application code or manually merge PRs (agents handle the full cycle)
+- Bypass the agent team to make code changes directly
+
+**Escalation**: When an agent is blocked by a missing capability (tool, permission, config), it creates an issue with the `harness/request` label. The human builds the capability, updates the harness, and the agent's work resumes.
+
+For the full philosophy, see `docs/harness-philosophy.md`.
