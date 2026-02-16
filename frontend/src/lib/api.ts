@@ -5,6 +5,22 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8500";
 const API_BASE = `${API_URL}/api/fishbowl`;
 
+function apiError(status: number): Error {
+  switch (status) {
+    case 429:
+      return new Error("Too many requests. Please try again later.");
+    case 500:
+      return new Error("Server error. Please try again later.");
+    case 502:
+    case 503:
+      return new Error("Service temporarily unavailable. Please try again.");
+    case 404:
+      return new Error("The requested resource was not found.");
+    default:
+      return new Error("Something went wrong. Please try again.");
+  }
+}
+
 export interface Insight {
   text: string;
   category: string;
@@ -44,7 +60,7 @@ export async function fetchArticles(category?: string): Promise<{
     url.searchParams.set("category", category);
   }
   const res = await fetch(url.toString());
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  if (!res.ok) throw apiError(res.status);
   return res.json();
 }
 
@@ -55,7 +71,7 @@ export async function fetchActivity(
   const res = await fetch(
     `${API_BASE}/activity?page=${page}&per_page=${perPage}`
   );
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  if (!res.ok) throw apiError(res.status);
   return res.json();
 }
 
@@ -120,7 +136,7 @@ export interface GoalsResponse {
 
 export async function fetchGoals(): Promise<GoalsResponse> {
   const res = await fetch(`${API_BASE}/goals`);
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  if (!res.ok) throw apiError(res.status);
   return res.json();
 }
 
@@ -147,9 +163,6 @@ export async function submitFeedback(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(submission),
   });
-  if (res.status === 429) {
-    throw new Error("Too many submissions. Please try again later.");
-  }
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  if (!res.ok) throw apiError(res.status);
   return res.json();
 }

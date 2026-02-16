@@ -1,7 +1,7 @@
 """Goals service — parses goals.md, fetches roadmap from GitHub Project, computes metrics.
 
 Data sources:
-- Goals: Parsed from config/goals.md (static, cached indefinitely until file changes)
+- Goals: Parsed from config/goals.md (static, cached by file mtime)
 - Roadmap: GitHub Project #1 via `gh` CLI (cached 5 min)
 - Metrics: GitHub API issues/PRs (cached 5 min)
 """
@@ -12,17 +12,29 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypedDict
 
 import httpx
 
 from api.config import get_settings
+from api.services.cache import TTLCache
 from api.services.github import ACTOR_MAP
+from api.services.http_client import get_shared_client, github_headers
 
-# Cache TTL matches activity feed
-CACHE_TTL = 300  # 5 minutes
+# Shared TTL cache for all goals-related data
+_cache = TTLCache(ttl=300, max_size=10)
 
-_cache: dict[str, tuple[Any, float]] = {}
+# File-based cache for goals.md (keyed by mtime)
+_goals_file_cache: dict[str, Any] | None = None
+_goals_file_mtime: float = 0.0
+
+
+class GoalsFileData(TypedDict):
+    """Parsed structure of goals.md."""
+
+    mission: str
+    goals: list[dict[str, Any]]
+    constraints: list[str]
 
 
 @dataclass
@@ -55,9 +67,25 @@ def _find_goals_file() -> str:
     return os.path.join("config", "goals.md")
 
 
-def parse_goals_file() -> dict[str, Any]:
-    """Parse config/goals.md into structured data."""
+def parse_goals_file() -> GoalsFileData:
+    """Parse config/goals.md into structured data.
+
+    Results are cached based on file modification time so the file is only
+    read and parsed once unless it changes on disk.
+    """
+    global _goals_file_cache, _goals_file_mtime
+
     path = _find_goals_file()
+
+    # Check mtime to avoid re-reading an unchanged file
+    try:
+        current_mtime = os.path.getmtime(path)
+    except OSError:
+        return {"mission": "", "goals": [], "constraints": []}
+
+    if _goals_file_cache is not None and current_mtime == _goals_file_mtime:
+        return _goals_file_cache
+
     try:
         with open(path) as f:
             content = f.read()
@@ -129,7 +157,14 @@ def parse_goals_file() -> dict[str, Any]:
                 if bold_match:
                     constraints.append(bold_match.group(1).rstrip("."))
 
-    return {"mission": mission, "goals": goals, "constraints": constraints}
+    result: GoalsFileData = {
+        "mission": mission,
+        "goals": goals,
+        "constraints": constraints,
+    }
+    _goals_file_cache = result
+    _goals_file_mtime = current_mtime
+    return result
 
 
 async def get_roadmap_snapshot() -> dict[str, Any]:
@@ -138,16 +173,19 @@ async def get_roadmap_snapshot() -> dict[str, Any]:
     Returns only what's actively being worked on, plus counts
     of how many items are in each status — a snapshot, not a mirror.
     """
-    cache_key = "roadmap"
-    if cache_key in _cache:
-        data, ts = _cache[cache_key]
-        if time.time() - ts < CACHE_TTL:
-            return data
+    cached = _cache.get("roadmap")
+    if cached is not None:
+        return cached
 
     empty: dict[str, Any] = {
         "active": [],
         "counts": {"proposed": 0, "active": 0, "done": 0, "deferred": 0},
     }
+
+    settings = get_settings()
+    owner = (
+        settings.github_repo.split("/")[0] if settings.github_repo else "YourMoveLabs"
+    )
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -156,7 +194,7 @@ async def get_roadmap_snapshot() -> dict[str, Any]:
             "item-list",
             "1",
             "--owner",
-            "YourMoveLabs",
+            owner,
             "--format",
             "json",
             "--limit",
@@ -167,9 +205,8 @@ async def get_roadmap_snapshot() -> dict[str, Any]:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
 
         if proc.returncode != 0:
-            if cache_key in _cache:
-                return _cache[cache_key][0]
-            return empty
+            stale = _cache.get("roadmap")
+            return stale if stale is not None else empty
 
         raw = json.loads(stdout.decode())
         active_items: list[dict[str, Any]] = []
@@ -194,13 +231,12 @@ async def get_roadmap_snapshot() -> dict[str, Any]:
                 )
 
         result: dict[str, Any] = {"active": active_items, "counts": counts}
-        _cache[cache_key] = (result, time.time())
+        _cache.set("roadmap", result)
         return result
 
     except (asyncio.TimeoutError, FileNotFoundError, json.JSONDecodeError):
-        if cache_key in _cache:
-            return _cache[cache_key][0]
-        return empty
+        stale = _cache.get("roadmap")
+        return stale if stale is not None else empty
 
 
 def _parse_event_timestamp(event: dict[str, Any]) -> float:
@@ -229,24 +265,115 @@ def _bucket_event(event_ts: float, now: float) -> str | None:
     return None
 
 
+async def _fetch_github_data(
+    headers: dict[str, str], repo: str
+) -> tuple[list[Any], list[Any], list[Any]]:
+    """Make the three parallel GitHub API calls for metrics.
+
+    Returns:
+        Tuple of (issues, prs, events) — each is a list of dicts or empty on error.
+    """
+    client = get_shared_client()
+    base = f"https://api.github.com/repos/{repo}"
+
+    issues_resp, prs_resp, events_resp = await asyncio.gather(
+        client.get(
+            f"{base}/issues",
+            headers=headers,
+            params={"state": "open", "per_page": "100"},
+        ),
+        client.get(
+            f"{base}/pulls",
+            headers=headers,
+            params={"state": "open", "per_page": "100"},
+        ),
+        client.get(
+            f"{base}/events",
+            headers=headers,
+            params={"per_page": "100"},
+        ),
+    )
+
+    issues = issues_resp.json() if issues_resp.status_code == 200 else []
+    prs = prs_resp.json() if prs_resp.status_code == 200 else []
+    events = events_resp.json() if events_resp.status_code == 200 else []
+
+    return issues, prs, events
+
+
+def _process_events(
+    events: list[dict[str, Any]], now: float
+) -> tuple[dict[str, dict[str, int]], dict[str, dict[str, int]]]:
+    """Process GitHub events into bucketed metrics and per-agent stats.
+
+    Returns:
+        Tuple of (windowed_counts, agent_stats).
+        windowed_counts has keys: issues_closed, prs_merged, commits — each with 24h/7d/30d.
+        agent_stats is keyed by agent role with action counts.
+    """
+    empty_window: dict[str, int] = {"24h": 0, "7d": 0, "30d": 0}
+    windowed: dict[str, dict[str, int]] = {
+        "issues_closed": {**empty_window},
+        "prs_merged": {**empty_window},
+        "commits": {**empty_window},
+    }
+    agent_stats: dict[str, dict[str, int]] = {}
+
+    for event in events:
+        login = event.get("actor", {}).get("login", "unknown")
+        role = ACTOR_MAP.get(login, login)
+        event_type = event.get("type", "")
+        payload = event.get("payload", {})
+        event_ts = _parse_event_timestamp(event)
+        bucket = _bucket_event(event_ts, now)
+
+        if role not in agent_stats:
+            agent_stats[role] = {
+                "issues_opened": 0,
+                "issues_closed": 0,
+                "prs_opened": 0,
+                "prs_merged": 0,
+                "reviews": 0,
+                "commits": 0,
+            }
+
+        if event_type == "IssuesEvent":
+            action = payload.get("action", "")
+            if action == "opened":
+                agent_stats[role]["issues_opened"] += 1
+            elif action == "closed":
+                agent_stats[role]["issues_closed"] += 1
+                if bucket:
+                    windowed["issues_closed"][bucket] += 1
+        elif event_type == "PullRequestEvent":
+            action = payload.get("action", "")
+            pr = payload.get("pull_request", {})
+            if action == "opened":
+                agent_stats[role]["prs_opened"] += 1
+            elif action == "closed" and pr.get("merged"):
+                agent_stats[role]["prs_merged"] += 1
+                if bucket:
+                    windowed["prs_merged"][bucket] += 1
+        elif event_type == "PullRequestReviewEvent":
+            agent_stats[role]["reviews"] += 1
+        elif event_type == "PushEvent":
+            commit_count = len(payload.get("commits", []))
+            agent_stats[role]["commits"] += commit_count
+            if bucket:
+                windowed["commits"][bucket] += commit_count
+
+    return windowed, agent_stats
+
+
 async def get_metrics() -> dict[str, Any]:
     """Compute agent metrics with trend windows (24h / 7d / 30d)."""
-    cache_key = "metrics"
-    if cache_key in _cache:
-        data, ts = _cache[cache_key]
-        if time.time() - ts < CACHE_TTL:
-            return data
+    cached = _cache.get("metrics")
+    if cached is not None:
+        return cached
 
     settings = get_settings()
-    headers: dict[str, str] = {
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-    if settings.github_token:
-        headers["Authorization"] = f"Bearer {settings.github_token}"
-
+    headers = github_headers()
     repo = settings.github_repo
-    base = f"https://api.github.com/repos/{repo}"
 
     empty_window: dict[str, int] = {"24h": 0, "7d": 0, "30d": 0}
     metrics: dict[str, Any] = {
@@ -260,88 +387,24 @@ async def get_metrics() -> dict[str, Any]:
 
     try:
         now = time.time()
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            issues_resp, prs_resp, events_resp = await asyncio.gather(
-                client.get(
-                    f"{base}/issues",
-                    headers=headers,
-                    params={"state": "open", "per_page": "100"},
-                ),
-                client.get(
-                    f"{base}/pulls",
-                    headers=headers,
-                    params={"state": "open", "per_page": "100"},
-                ),
-                client.get(
-                    f"{base}/events",
-                    headers=headers,
-                    params={"per_page": "100"},
-                ),
-            )
+        issues, prs, events = await _fetch_github_data(headers, repo)
 
-            if issues_resp.status_code == 200:
-                issues = issues_resp.json()
-                metrics["open_issues"] = sum(
-                    1 for i in issues if "pull_request" not in i
-                )
+        metrics["open_issues"] = sum(1 for i in issues if "pull_request" not in i)
+        metrics["open_prs"] = len(prs)
 
-            if prs_resp.status_code == 200:
-                metrics["open_prs"] = len(prs_resp.json())
-
-            if events_resp.status_code == 200:
-                events = events_resp.json()
-                agent_stats: dict[str, dict[str, int]] = {}
-
-                for event in events:
-                    login = event.get("actor", {}).get("login", "unknown")
-                    role = ACTOR_MAP.get(login, login)
-                    event_type = event.get("type", "")
-                    payload = event.get("payload", {})
-                    event_ts = _parse_event_timestamp(event)
-                    bucket = _bucket_event(event_ts, now)
-
-                    if role not in agent_stats:
-                        agent_stats[role] = {
-                            "issues_opened": 0,
-                            "issues_closed": 0,
-                            "prs_opened": 0,
-                            "prs_merged": 0,
-                            "reviews": 0,
-                            "commits": 0,
-                        }
-
-                    if event_type == "IssuesEvent":
-                        action = payload.get("action", "")
-                        if action == "opened":
-                            agent_stats[role]["issues_opened"] += 1
-                        elif action == "closed":
-                            agent_stats[role]["issues_closed"] += 1
-                            if bucket:
-                                metrics["issues_closed"][bucket] += 1
-                    elif event_type == "PullRequestEvent":
-                        action = payload.get("action", "")
-                        pr = payload.get("pull_request", {})
-                        if action == "opened":
-                            agent_stats[role]["prs_opened"] += 1
-                        elif action == "closed" and pr.get("merged"):
-                            agent_stats[role]["prs_merged"] += 1
-                            if bucket:
-                                metrics["prs_merged"][bucket] += 1
-                    elif event_type == "PullRequestReviewEvent":
-                        agent_stats[role]["reviews"] += 1
-                    elif event_type == "PushEvent":
-                        commit_count = len(payload.get("commits", []))
-                        agent_stats[role]["commits"] += commit_count
-                        if bucket:
-                            metrics["commits"][bucket] += commit_count
-
-                metrics["by_agent"] = agent_stats
+        if events:
+            windowed, agent_stats = _process_events(events, now)
+            metrics["issues_closed"] = windowed["issues_closed"]
+            metrics["prs_merged"] = windowed["prs_merged"]
+            metrics["commits"] = windowed["commits"]
+            metrics["by_agent"] = agent_stats
 
     except (httpx.HTTPError, httpx.TimeoutException):
-        if cache_key in _cache:
-            return _cache[cache_key][0]
+        stale = _cache.get("metrics")
+        if stale is not None:
+            return stale
 
-    _cache[cache_key] = (metrics, time.time())
+    _cache.set("metrics", metrics)
     return metrics
 
 

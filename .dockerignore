@@ -1,0 +1,19 @@
+.git
+.github
+.venv
+api/.venv
+frontend/node_modules
+frontend/.next
+frontend/out
+*.pyc
+__pycache__
+.env
+.env.*
+docs/
+agents/
+scripts/
+# Keep config/ intact — goals.md and sources.yaml are needed at runtime
+README.md
+CONTRIBUTING.md
+CHANGELOG.md
+LICENSE

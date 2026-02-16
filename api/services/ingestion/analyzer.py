@@ -49,6 +49,9 @@ class AnalysisResult:
     ai_summary: str | None = None
 
 
+MAX_CONTENT_LENGTH = 12000
+
+
 class AnalysisError(Exception):
     """Error during article analysis."""
 
@@ -100,9 +103,8 @@ async def analyze_article(
     Raises:
         AnalysisError: If analysis fails after retries.
     """
-    max_content_length = 12000
-    if len(content) > max_content_length:
-        content = content[:max_content_length] + "..."
+    if len(content) > MAX_CONTENT_LENGTH:
+        content = content[:MAX_CONTENT_LENGTH] + "..."
 
     prompt = ANALYSIS_PROMPT.format(title=title, content=content)
 
@@ -129,5 +131,3 @@ async def analyze_article(
         except APIError as e:
             logger.error("LLM API error: %s", e)
             raise AnalysisError(f"API error: {e}") from e
-
-    raise AnalysisError("Unexpected error in retry loop")

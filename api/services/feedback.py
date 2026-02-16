@@ -4,10 +4,9 @@ import json
 import logging
 from typing import Any
 
-import httpx
-
 from api.config import get_settings
 from api.models.feedback import FeedbackSubmission, TriageResult
+from api.services.http_client import get_shared_client, github_headers
 from api.services.llm import chat_completion
 
 logger = logging.getLogger(__name__)
@@ -113,19 +112,15 @@ async def create_github_issue(
     # Filter to labels that exist (avoid GitHub 422 on unknown labels)
     labels = [label for label in triage.labels if label]
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.post(
-            f"https://api.github.com/repos/{settings.github_repo}/issues",
-            headers={
-                "Accept": "application/vnd.github+json",
-                "Authorization": f"Bearer {settings.github_token}",
-                "X-GitHub-Api-Version": "2022-11-28",
-            },
-            json={
-                "title": submission.title,
-                "body": body,
-                "labels": labels,
-            },
-        )
-        resp.raise_for_status()
-        return resp.json()
+    client = get_shared_client()
+    resp = await client.post(
+        f"https://api.github.com/repos/{settings.github_repo}/issues",
+        headers=github_headers(),
+        json={
+            "title": submission.title,
+            "body": body,
+            "labels": labels,
+        },
+    )
+    resp.raise_for_status()
+    return resp.json()

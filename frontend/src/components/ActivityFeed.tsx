@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ActivityEvent } from "./ActivityEvent";
 import { fetchActivity, type ActivityEvent as ActivityEventType } from "@/lib/api";
 
@@ -9,17 +9,22 @@ export function ActivityFeed() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchActivity(1, 30)
-      .then((data) => {
-        setEvents(data.events);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
+  const loadActivity = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchActivity(1, 30);
+      setEvents(data.events);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadActivity();
+  }, [loadActivity]);
 
   if (loading) {
     return (
@@ -32,7 +37,13 @@ export function ActivityFeed() {
   if (error) {
     return (
       <div className="py-12 text-center text-sm text-red-500">
-        Failed to load activity: {error}
+        <p>Failed to load activity: {error}</p>
+        <button
+          onClick={loadActivity}
+          className="mt-3 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600"
+        >
+          Retry
+        </button>
       </div>
     );
   }

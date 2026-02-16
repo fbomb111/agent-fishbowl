@@ -3,6 +3,7 @@
 import json
 import logging
 
+from azure.core.exceptions import AzureError
 from azure.identity import ManagedIdentityCredential
 from azure.storage.blob import ContainerClient, ContentSettings
 
@@ -13,9 +14,19 @@ logger = logging.getLogger(__name__)
 
 INDEX_BLOB = "index.json"
 
+# Lazy singleton — lives for the process lifetime
+_container_client: ContainerClient | None = None
+
 
 def _get_container_client() -> ContainerClient:
-    """Create a blob container client using User-Assigned Managed Identity."""
+    """Return a shared blob container client (lazy singleton).
+
+    Uses User-Assigned Managed Identity for authentication.
+    """
+    global _container_client
+    if _container_client is not None:
+        return _container_client
+
     settings = get_settings()
     account_url = f"https://{settings.azure_storage_account}.blob.core.windows.net"
 
@@ -23,18 +34,25 @@ def _get_container_client() -> ContainerClient:
         client_id=settings.managed_identity_client_id
     )
 
-    return ContainerClient(
+    _container_client = ContainerClient(
         account_url=account_url,
         container_name=settings.azure_storage_container,
         credential=credential,
     )
+    return _container_client
 
 
-async def get_article_index(category: str | None = None) -> ArticleIndex:
+async def get_article_index(
+    category: str | None = None,
+    limit: int = 0,
+    offset: int = 0,
+) -> ArticleIndex:
     """Read the article index from blob storage.
 
     Args:
         category: Optional category to filter articles by (case-insensitive).
+        limit: Maximum number of articles to return (0 = unlimited).
+        offset: Number of articles to skip before returning results.
     """
     client = _get_container_client()
     try:
@@ -54,12 +72,21 @@ async def get_article_index(category: str | None = None) -> ArticleIndex:
                 if category_lower in [c.lower() for c in a.categories]
             ]
 
-        return ArticleIndex(articles=articles, total=len(articles))
-    except Exception as e:
+        total = len(articles)
+
+        # Apply offset/limit slicing
+        if offset > 0:
+            articles = articles[offset:]
+        if limit > 0:
+            articles = articles[:limit]
+
+        return ArticleIndex(articles=articles, total=total)
+    except AzureError as e:
         logger.warning("Failed to read article index: %s", e)
         return ArticleIndex(articles=[], total=0)
-    finally:
-        client.close()
+    except Exception as e:
+        logger.error("Unexpected error reading article index: %s", e)
+        return ArticleIndex(articles=[], total=0)
 
 
 async def get_article(article_id: str) -> Article | None:
@@ -70,11 +97,12 @@ async def get_article(article_id: str) -> Article | None:
         blob = client.get_blob_client(f"{article_id}.json")
         data = blob.download_blob().readall()
         return Article(**json.loads(data))
-    except Exception as e:
+    except AzureError as e:
         logger.warning("Failed to read article %s: %s", article_id, e)
         return None
-    finally:
-        client.close()
+    except Exception as e:
+        logger.error("Unexpected error reading article %s: %s", article_id, e)
+        return None
 
 
 async def write_article(article: Article) -> None:
@@ -97,14 +125,40 @@ async def write_article(article: Article) -> None:
             summary = ArticleSummary(**article.model_dump())
             index.articles.insert(0, summary)
 
-        index_blob = client.get_blob_client(INDEX_BLOB)
-        index_data = json.dumps(
-            [a.model_dump(mode="json") for a in index.articles], indent=2
-        )
-        index_blob.upload_blob(
-            index_data,
-            overwrite=True,
-            content_settings=ContentSettings(content_type="application/json"),
-        )
-    finally:
-        client.close()
+        await write_article_index(index.articles)
+    except AzureError as e:
+        logger.warning("Failed to write article %s: %s", article.id, e)
+        raise
+    except Exception as e:
+        logger.error("Unexpected error writing article %s: %s", article.id, e)
+        raise
+
+
+async def write_article_only(article: Article) -> None:
+    """Write only the article JSON to blob storage (no index update).
+
+    Used by the orchestrator during batch ingestion to avoid N+1 index writes.
+    """
+    client = _get_container_client()
+    blob = client.get_blob_client(f"{article.id}.json")
+    blob.upload_blob(
+        article.model_dump_json(indent=2),
+        overwrite=True,
+        content_settings=ContentSettings(content_type="application/json"),
+    )
+
+
+async def write_article_index(articles: list[ArticleSummary]) -> None:
+    """Write the full article index to blob storage.
+
+    Args:
+        articles: Complete list of article summaries to persist.
+    """
+    client = _get_container_client()
+    index_blob = client.get_blob_client(INDEX_BLOB)
+    index_data = json.dumps([a.model_dump(mode="json") for a in articles], indent=2)
+    index_blob.upload_blob(
+        index_data,
+        overwrite=True,
+        content_settings=ContentSettings(content_type="application/json"),
+    )

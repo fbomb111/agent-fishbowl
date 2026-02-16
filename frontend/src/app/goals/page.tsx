@@ -19,7 +19,7 @@ function timeAgo(iso: string): string {
 
 function LoadingSkeleton() {
   return (
-    <div className="space-y-10">
+    <div className="space-y-10" aria-busy="true" aria-label="Loading dashboard data">
       {/* Title + mission */}
       <div>
         <div className="h-9 w-32 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />

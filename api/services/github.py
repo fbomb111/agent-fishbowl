@@ -4,16 +4,14 @@ Fetches repository events (issues, PRs, commits, reviews) and maps them
 to ActivityEvent dicts for the frontend. Results are cached with a 5-min TTL.
 """
 
-import time
 from typing import Any
 
-import httpx
-
 from api.config import get_settings
+from api.services.cache import TTLCache
+from api.services.http_client import get_shared_client, github_headers
 
-# Simple in-memory cache: (events, timestamp)
-_cache: dict[str, tuple[list[dict[str, Any]], float]] = {}
-CACHE_TTL = 300  # 5 minutes
+# TTL cache for activity events
+_cache = TTLCache(ttl=300, max_size=20)
 
 # Map GitHub login to agent role for display
 ACTOR_MAP: dict[str, str] = {
@@ -164,29 +162,24 @@ async def get_activity_events(
     cache_key = f"{page}:{per_page}"
 
     # Check cache
-    if cache_key in _cache:
-        events, ts = _cache[cache_key]
-        if time.time() - ts < CACHE_TTL:
-            return events
+    cached = _cache.get(cache_key)
+    if cached is not None:
+        return cached
 
-    headers: dict[str, str] = {
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-    if settings.github_token:
-        headers["Authorization"] = f"Bearer {settings.github_token}"
+    headers = github_headers()
 
     url = f"https://api.github.com/repos/{settings.github_repo}/events"
     params = {"per_page": str(per_page), "page": str(page)}
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.get(url, headers=headers, params=params)
-        if resp.status_code == 200:
-            raw = resp.json()
-            events = _parse_events(raw)
-            _cache[cache_key] = (events, time.time())
-            return events
-        # On error, return cached data if available (stale), else empty
-        if cache_key in _cache:
-            return _cache[cache_key][0]
-        return []
+    client = get_shared_client()
+    resp = await client.get(url, headers=headers, params=params)
+    if resp.status_code == 200:
+        raw = resp.json()
+        events = _parse_events(raw)
+        _cache.set(cache_key, events)
+        return events
+    # On error, return cached data if available (stale), else empty
+    stale = _cache.get(cache_key)
+    if stale is not None:
+        return stale
+    return []

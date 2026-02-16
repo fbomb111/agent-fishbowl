@@ -4,10 +4,15 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   deploy-api:
     name: Deploy API
     runs-on: self-hosted
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -29,15 +34,23 @@ jobs:
 
       - name: Verify deployment
         run: |
-          echo "Waiting for container to start..."
-          sleep 15
-          curl -sf https://ca-agent-fishbowl-api.victoriousground-9f7e15f3.eastus.azurecontainerapps.io/api/articles \
-            && echo "API is responding" \
-            || echo "WARNING: API health check failed (may still be starting)"
+          echo "Verifying API health..."
+          for i in 1 2 3 4 5; do
+            if curl -sf --max-time 10 https://ca-agent-fishbowl-api.victoriousground-9f7e15f3.eastus.azurecontainerapps.io/api/fishbowl/health; then
+              echo ""
+              echo "API is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i/5 failed, waiting 15s..."
+            sleep 15
+          done
+          echo "ERROR: API health check failed after 5 attempts"
+          exit 1
 
   deploy-frontend:
     name: Deploy Frontend
     runs-on: self-hosted
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -69,6 +82,7 @@ jobs:
   notify-failure:
     name: Create issue on deploy failure
     runs-on: self-hosted
+    timeout-minutes: 15
     needs: [deploy-api, deploy-frontend]
     if: failure()
     steps:

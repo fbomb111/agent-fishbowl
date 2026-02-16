@@ -5,10 +5,14 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from api.models.article import Article
-from api.services.blob_storage import get_article_index, write_article
+from api.models.article import Article, ArticleSummary
+from api.services.blob_storage import (
+    get_article_index,
+    write_article_index,
+    write_article_only,
+)
 from api.services.ingestion.analyzer import AnalysisError, analyze_article
-from api.services.ingestion.rss import fetch_all_sources
+from api.services.ingestion.rss import fetch_all_sources, load_sources
 from api.services.ingestion.scraper import scrape_article
 
 logger = logging.getLogger(__name__)
@@ -43,7 +47,7 @@ class IngestionStats:
 
 
 async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionStats:
-    """Run a full ingestion cycle: fetch → dedup → scrape → analyze → write.
+    """Run a full ingestion cycle: fetch -> dedup -> scrape -> analyze -> write.
 
     Args:
         max_new: Maximum number of new articles to process per run.
@@ -51,16 +55,21 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
     Returns:
         Stats from the ingestion run.
     """
-    # 1. Fetch all RSS feeds
+    # 1. Load sources and fetch all RSS feeds
     logger.info("Starting ingestion run")
-    all_parsed = await fetch_all_sources()
+    sources = load_sources()
+    source_count = len(sources)
+    all_parsed = await fetch_all_sources(sources=sources)
     fetched_count = len(all_parsed)
-    logger.info("Fetched %d articles from RSS feeds", fetched_count)
+    logger.info("Fetched %d articles from %d RSS sources", fetched_count, source_count)
 
     # 2. Load existing index for dedup
     index = await get_article_index()
     existing_ids = {a.id for a in index.articles}
     logger.info("Existing index has %d articles", len(existing_ids))
+
+    # Keep a mutable copy of the index articles for batch update
+    index_articles = list(index.articles)
 
     # 3. Filter to new articles only
     new_parsed = [a for a in all_parsed if a["id"] not in existing_ids]
@@ -123,8 +132,13 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
                 ingested_at=datetime.now(timezone.utc),
             )
 
-            await write_article(article)
+            # Write article JSON only (no index update per article)
+            await write_article_only(article)
             new_count += 1
+
+            # Update in-memory index
+            summary = ArticleSummary(**article.model_dump())
+            index_articles.insert(0, summary)
 
             insight_count = len(analysis.insights)
             logger.info(
@@ -141,8 +155,13 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
             failed_count += 1
             logger.error("Failed to ingest '%s': %s", parsed["title"][:60], e)
 
+    # 6. Flush index once after all articles are processed
+    if new_count > 0:
+        await write_article_index(index_articles)
+        logger.info("Index updated with %d new articles", new_count)
+
     stats = IngestionStats(
-        sources=5,  # from config/sources.yaml
+        sources=source_count,
         fetched=fetched_count,
         new=new_count,
         scraped=scraped_count,

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
@@ -16,7 +17,14 @@ export function Header() {
   return (
     <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-        <Link href="/" className="text-lg font-bold tracking-tight">
+        <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
+          <Image
+            src="/agents/fishbowl-po.png"
+            alt="Agent Fishbowl"
+            width={28}
+            height={28}
+            className="rounded-full"
+          />
           Agent Fishbowl
         </Link>
         <nav className="flex gap-6">

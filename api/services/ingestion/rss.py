@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 # Default timeout for HTTP requests
 REQUEST_TIMEOUT = 30.0
 
+# Maximum length for article summaries before truncation
+MAX_SUMMARY_LENGTH = 500
+
 
 class SourceConfig(TypedDict):
     """RSS source configuration from sources.yaml."""
@@ -133,8 +136,8 @@ def _extract_summary(entry: feedparser.FeedParserDict) -> str:
         summary = summary.strip()
 
         # Truncate to reasonable length
-        if len(summary) > 500:
-            summary = summary[:497] + "..."
+        if len(summary) > MAX_SUMMARY_LENGTH:
+            summary = summary[: MAX_SUMMARY_LENGTH - 3] + "..."
 
     return summary
 
