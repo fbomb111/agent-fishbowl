@@ -57,6 +57,43 @@ source/* issue → PO → dispatch → Engineer → opens PR → Reviewer
 
 **Local scripts remain** as dev/testing fallbacks (`scripts/run-loop.sh`, etc.). Production runs via GitHub Actions.
 
+### Alert Bridge (Azure Function → GitHub)
+
+Real-time alerting bridge: Azure Monitor detects problems → fires alert → Action Group webhooks to an Azure Function → Function dispatches `azure-alert` to GitHub → `agent-sre.yml` triggers with alert context.
+
+**Flow:**
+```
+Container App metrics → Alert Rule fires → Action Group webhook
+  → func-fishbowl-alert-bridge (Azure Function)
+    → reads GitHub PAT from Key Vault (via Managed Identity)
+      → POST repos/{repo}/dispatches (event_type: azure-alert)
+        → agent-sre.yml triggers → run-sre.sh routes to playbooks/Claude
+```
+
+**Azure Resources** (all in `rg-agent-fishbowl`):
+
+| Resource | Name | Purpose |
+|----------|------|---------|
+| Function App | `func-fishbowl-alert-bridge` | HTTP trigger, parses alert, dispatches to GitHub |
+| Key Vault | `kv-fishbowl-sre` | Stores GitHub PAT (`github-dispatch-token`) |
+| App Insights | `fishbowl-appinsights` | Function App telemetry |
+| Storage Account | `stfuncfishbowl` | Functions runtime storage |
+| Action Group | `fishbowl-alerts` | Webhook to Function App |
+
+**Alert Rules:**
+
+| Alert | Metric | Condition | Window | Severity |
+|-------|--------|-----------|--------|----------|
+| `fishbowl-api-5xx` | Requests (5xx) | > 5 total | 5 min | Sev 1 |
+| `fishbowl-container-restarts` | RestartCount | > 2 total | 1 hour | Sev 2 |
+| `fishbowl-api-no-traffic` | Requests | < 1 total | 15 min | Sev 0 |
+
+**Function Code:** `functions/alert_bridge/__init__.py`
+- Parses Azure Monitor Common Alert Schema
+- Reads GitHub PAT from Key Vault via Managed Identity (`id-agent-fishbowl`)
+- Falls back to `GITHUB_TOKEN` env var for local dev
+- Deploy: `cd functions && func azure functionapp publish func-fishbowl-alert-bridge --python`
+
 ## Project Structure
 
 ```
@@ -92,6 +129,10 @@ agents/                 Agent runner infrastructure
   sre.sh                SRE — monitors system health, files issues for problems
   prompts/              Role-specific prompt files
   logs/                 Run logs (gitignored)
+functions/              Azure Function (alert bridge)
+  alert_bridge/         HTTP trigger: Azure Monitor → GitHub dispatch
+  host.json             Functions runtime config
+  requirements.txt      Python dependencies
 scripts/                Deterministic operations
   run-loop.sh           Dev loop (PO → Engineer → Reviewer)
   run-scans.sh          Scanning agents (Tech Lead + UX)
@@ -213,6 +254,11 @@ Engineer claims issues → opens PR → Reviewer merges (or backlogs via source/
 | Script | Purpose | When to Use |
 |--------|---------|-------------|
 | `dispatch-agent.sh` | Dispatch repository_dispatch event to trigger downstream agent | Agent-to-agent chaining |
+| `health-check.sh` | Full system health check (API, ingestion, deploys, GitHub) | SRE runs |
+| `workflow-status.sh` | GitHub Actions workflow run summary | SRE investigation |
+| `find-issues.sh` | Find existing issues by label | SRE dedup check |
+| `playbooks/restart-api.sh` | Auto-restart Container App revision | Automated remediation |
+| `playbooks/retrigger-ingest.sh` | Re-trigger ingest workflow | Automated remediation |
 | `run-loop.sh` | Dev loop (PO → Engineer → Reviewer) | Local dev/testing fallback |
 | `run-scans.sh` | Scanning agents (Tech Lead + UX) | Every 3-4 days |
 | `run-triage.sh` | Triage human-created issues | Every 12-24h |

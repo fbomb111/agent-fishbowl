@@ -1,0 +1,11 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "GITHUB_REPO": "YourMoveLabs/agent-fishbowl",
+    "GITHUB_TOKEN": "<your-github-pat-with-repo-scope>",
+    "KEY_VAULT_NAME": "",
+    "GITHUB_TOKEN_SECRET_NAME": ""
+  }
+}
