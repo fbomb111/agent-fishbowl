@@ -19,6 +19,7 @@ class Settings(BaseSettings):
         "http://localhost:8080",
         "http://localhost:8500",
         "https://polite-tree-06036620f.1.azurestaticapps.net",
+        "https://agentfishbowl.com",
     ]
 
     # Azure Blob Storage

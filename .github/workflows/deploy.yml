@@ -36,7 +36,7 @@ jobs:
         run: |
           echo "Verifying API health..."
           for i in 1 2 3 4 5; do
-            if curl -sf --max-time 10 https://ca-agent-fishbowl-api.victoriousground-9f7e15f3.eastus.azurecontainerapps.io/api/fishbowl/health; then
+            if curl -sf --max-time 10 https://api.agentfishbowl.com/api/fishbowl/health; then
               echo ""
               echo "API is healthy!"
               exit 0
@@ -66,7 +66,7 @@ jobs:
           npm ci
           npm run build
         env:
-          NEXT_PUBLIC_API_URL: https://ca-agent-fishbowl-api.victoriousground-9f7e15f3.eastus.azurecontainerapps.io
+          NEXT_PUBLIC_API_URL: https://api.agentfishbowl.com
 
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1

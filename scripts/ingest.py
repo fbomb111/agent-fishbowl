@@ -23,16 +23,13 @@ async def _clear_index() -> None:
     from azure.storage.blob import ContentSettings
 
     client = _get_container_client()
-    try:
-        blob = client.get_blob_client(INDEX_BLOB)
-        blob.upload_blob(
-            "[]",
-            overwrite=True,
-            content_settings=ContentSettings(content_type="application/json"),
-        )
-        print("Cleared article index.")
-    finally:
-        client.close()
+    blob = client.get_blob_client(INDEX_BLOB)
+    blob.upload_blob(
+        "[]",
+        overwrite=True,
+        content_settings=ContentSettings(content_type="application/json"),
+    )
+    print("Cleared article index.")
 
 
 async def main() -> int:
