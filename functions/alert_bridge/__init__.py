@@ -4,7 +4,6 @@ Receives Azure Monitor Common Alert Schema webhooks and dispatches
 repository_dispatch events to trigger the SRE agent workflow.
 """
 
-import json
 import logging
 import os
 
