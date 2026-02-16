@@ -28,14 +28,29 @@ Agents are deployed as GitHub Actions workflows running on the self-hosted runne
 
 **Workflows** (all in `.github/workflows/`):
 
-| Workflow | Agents | Schedule | Manual Trigger |
-|----------|--------|----------|----------------|
-| `agent-dev-loop.yml` | PO + Engineer + Reviewer | Daily 08:00 UTC | `workflow_dispatch` |
-| `agent-sre.yml` | SRE | Every 4h + Azure alerts | `workflow_dispatch` + `repository_dispatch` |
-| `agent-strategic.yml` | PM | Weekly Mon 06:00 UTC | `workflow_dispatch` |
-| `agent-scans.yml` | Tech Lead + UX | Every 3 days | `workflow_dispatch` |
-| `agent-triage.yml` | Triage | Every 12h | `workflow_dispatch` |
-| `promote.yml` | — | Manual only | `workflow_dispatch` |
+| Workflow | Agents | Triggers | Cap |
+|----------|--------|----------|-----|
+| `agent-po.yml` | PO | `issues.labeled` (source/*) + PM dispatch + daily | 5/day |
+| `agent-engineer.yml` | Engineer | PO/Reviewer dispatch + daily | 10/day |
+| `agent-reviewer.yml` | Reviewer | `pull_request` (opened/sync) + 12h | 10/day |
+| `agent-triage.yml` | Triage | `issues.opened` + 12h | 5/day |
+| `agent-strategic.yml` | PM | Weekly Mon 06:00 UTC | — |
+| `agent-scans.yml` | Tech Lead + UX | Every 3 days | — |
+| `promote.yml` | — | Manual only | — |
+
+**Event Chain:**
+```
+source/* issue → PO → dispatch → Engineer → opens PR → Reviewer
+                                              ↑ changes requested ↓
+                                              ← dispatch feedback ←
+```
+
+**Safety Controls:**
+- Concurrency groups prevent parallel runs of the same agent
+- Chain depth limit (max 3) prevents runaway dispatch cascading
+- Daily caps per agent prevent cost blowouts
+- Self-trigger prevention via `if:` conditions on bot events
+- `scripts/dispatch-agent.sh` handles agent-to-agent chaining
 
 **Environment:** Agent .env is staged at `~/.config/agent-fishbowl/.env` on the runner. Workflows copy it into the checkout. PEM keys are already at `~/.config/agent-fishbowl/*.pem`.
 
@@ -90,11 +105,12 @@ scripts/                Deterministic operations
   open-pr.md            Create draft PR with proper format
 .github/workflows/      CI + agent deployment workflows
   promote.yml           Promote main → stable
-  agent-dev-loop.yml    PO → Engineer → Reviewer (daily)
-  agent-sre.yml         SRE health check (4h + alerts)
-  agent-strategic.yml   PM review (weekly)
-  agent-scans.yml       Tech Lead + UX (every 3 days)
-  agent-triage.yml      Triage (every 12h)
+  agent-po.yml          PO (event-driven: source/* labels + dispatch)
+  agent-engineer.yml    Engineer (event-driven: PO/Reviewer dispatch)
+  agent-reviewer.yml    Reviewer (event-driven: PR opened/sync)
+  agent-triage.yml      Triage (event-driven: issues.opened + 12h)
+  agent-strategic.yml   PM review (weekly schedule)
+  agent-scans.yml       Tech Lead + UX (every 3 days schedule)
 ```
 
 ## Git Workflow
@@ -155,9 +171,9 @@ Scopes: `api`, `frontend`, `ci`, `config`
 
 | Role | Identity | Cadence | One-liner |
 |------|----------|---------|-----------|
-| **PO** | `fishbowl-po[bot]` | Every 24-48h | Central intake funnel — triages all inputs into a prioritized backlog |
-| **Engineer** | `fishbowl-engineer[bot]` | Part of dev loop | Picks issues, implements code, opens PRs |
-| **Reviewer** | `fishbowl-reviewer[bot]` | Part of dev loop | Reviews PRs, approves+merges or requests changes |
+| **PO** | `fishbowl-po[bot]` | Event-driven + daily | Central intake funnel — triages all inputs into a prioritized backlog |
+| **Engineer** | `fishbowl-engineer[bot]` | Event-driven + daily | Picks issues, implements code, opens PRs |
+| **Reviewer** | `fishbowl-reviewer[bot]` | Event-driven + 12h | Reviews PRs, approves+merges or requests changes |
 | **Tech Lead** | `fishbowl-techlead[bot]` | Every 3-4 days | Sets technical standards, identifies architecture needs |
 | **PM** | `fishbowl-pm[bot]` | Weekly | Strategic goals and GitHub Project roadmap management |
 | **Triage** | `fishbowl-triage[bot]` | Every 12-24h | Validates human-created issues |
@@ -195,7 +211,8 @@ Engineer claims issues → opens PR → Reviewer merges (or backlogs via source/
 
 | Script | Purpose | When to Use |
 |--------|---------|-------------|
-| `run-loop.sh` | Dev loop (PO → Engineer → Reviewer) | Manually or via cron (every 24-48h) |
+| `dispatch-agent.sh` | Dispatch repository_dispatch event to trigger downstream agent | Agent-to-agent chaining |
+| `run-loop.sh` | Dev loop (PO → Engineer → Reviewer) | Local dev/testing fallback |
 | `run-scans.sh` | Scanning agents (Tech Lead + UX) | Every 3-4 days |
 | `run-triage.sh` | Triage human-created issues | Every 12-24h |
 | `run-strategic.sh` | PM strategic review (goals → roadmap) | Weekly |

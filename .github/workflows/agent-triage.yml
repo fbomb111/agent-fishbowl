@@ -1,8 +1,10 @@
 name: Agent - Issue Triage
 
 on:
+  issues:
+    types: [opened]
   schedule:
-    - cron: "0 */12 * * *"   # Every 12 hours
+    - cron: "0 */12 * * *"   # Every 12h fallback
   workflow_dispatch: {}
 
 concurrency:
@@ -14,13 +16,32 @@ jobs:
     name: Run triage agent
     runs-on: self-hosted
     timeout-minutes: 20
+    # Skip agent-created issues (they don't need triage)
+    if: >
+      github.event_name != 'issues' ||
+      !contains(toJSON(github.event.issue.labels), 'agent-created')
     steps:
       - uses: actions/checkout@v4
         with:
           ref: stable
 
       - name: Load agent env
-        run: cp ~/.config/agent-fishbowl/.env .env
+        run: cp ~/.config/agent-fishbowl/.env .env 2>/dev/null || true
+
+      - name: Check daily run cap
+        id: cap
+        run: |
+          TODAY=$(date +%Y-%m-%d)
+          RUNS=$(gh run list --workflow agent-triage.yml --created "$TODAY" --status completed --json databaseId --jq 'length' 2>/dev/null || echo "0")
+          if [ "$RUNS" -ge 5 ]; then
+            echo "Daily cap reached ($RUNS/5). Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run triage
+        if: steps.cap.outputs.skip != 'true'
         run: scripts/run-triage.sh
