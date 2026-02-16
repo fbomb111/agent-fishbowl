@@ -21,9 +21,6 @@ jobs:
         with:
           ref: stable
 
-      - name: Load agent env
-        run: cp ~/.config/agent-fishbowl/.env .env 2>/dev/null || true
-
       - name: Determine run mode
         id: mode
         run: |
@@ -36,7 +33,9 @@ jobs:
           fi
 
       - name: Run SRE
-        run: scripts/run-sre.sh
+        uses: YourMoveLabs/agent-harness@main
+        with:
+          entry-point: scripts/run-sre.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SRE_MODE: ${{ steps.mode.outputs.mode }}

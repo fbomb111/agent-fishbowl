@@ -25,15 +25,11 @@ jobs:
         with:
           ref: stable
 
-      - name: Load agent env
-        run: cp ~/.config/agent-fishbowl/.env .env 2>/dev/null || true
-
       - name: Check daily run cap
         id: cap
         run: |
           TODAY=$(date +%Y-%m-%d)
           RUNS=$(gh run list --workflow agent-engineer.yml --created "$TODAY" --status completed --json databaseId --jq 'length' 2>/dev/null || echo "0")
-          echo "runs_today=$RUNS" >> "$GITHUB_OUTPUT"
           if [ "$RUNS" -ge 10 ]; then
             echo "Daily cap reached ($RUNS/10). Skipping."
             echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -45,4 +41,6 @@ jobs:
 
       - name: Run Engineer agent
         if: steps.cap.outputs.skip != 'true'
-        run: agents/engineer.sh
+        uses: YourMoveLabs/agent-harness@main
+        with:
+          entry-point: agents/engineer.sh

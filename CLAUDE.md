@@ -4,7 +4,8 @@
 
 Agent Fishbowl is an AI-curated news feed built and maintained by a team of AI agents. The project demonstrates multi-agent orchestration in the open — every issue, PR, commit, and review is done by agents coordinating through GitHub.
 
-**Repository**: `YourMoveLabs/agent-fishbowl` (public)
+**Project Repo**: `YourMoveLabs/agent-fishbowl` (public) — application code, project context, workflow stubs
+**Harness Repo**: `YourMoveLabs/agent-harness` (public) — agent prompts, runner, scripts, composite action
 **Main Branch**: `main`
 
 ### GitHub Project (Roadmap)
@@ -62,11 +63,9 @@ source/* issue → PO → dispatch → Engineer → opens PR → Reviewer
 - Chain depth limit (max 3) prevents runaway dispatch cascading
 - Daily caps per agent prevent cost blowouts
 - Self-trigger prevention via `if:` conditions on bot events
-- `scripts/dispatch-agent.sh` handles agent-to-agent chaining
+- `.harness/scripts/dispatch-agent.sh` handles agent-to-agent chaining (from harness checkout)
 
-**Environment:** Agent .env is staged at `~/.config/agent-fishbowl/.env` on the runner. Workflows copy it into the checkout. PEM keys are already at `~/.config/agent-fishbowl/*.pem`.
-
-**Local scripts remain** as dev/testing fallbacks (`scripts/run-loop.sh`, etc.). Production runs via GitHub Actions.
+**Environment:** Agent .env is staged at `~/.config/agent-harness/.env` on the runner. The harness composite action copies it into the checkout. PEM keys are at `~/.config/agent-harness/*.pem`.
 
 ### Alert Bridge (Azure Function → GitHub)
 
@@ -130,35 +129,23 @@ config/                 Configuration
   goals.md              Strategic goals (human-maintained, PM agent reads)
   conventions.md        Technical standards (Tech Lead maintains)
   ux-standards.md       UX checklist (UX agent reads — Phase 2)
-agents/                 Agent runner infrastructure
-  run-agent.sh          Shared runner (per-role tool allowlists)
-  po.sh                 Product Owner — triages intake, prioritizes backlog
-  engineer.sh           Engineer — picks issues, implements, opens PRs
-  reviewer.sh           Reviewer — reviews PRs, merges or requests changes
-  tech-lead.sh          Tech Lead — sets standards, spots architecture needs
-  triage.sh             Triage — validates human-created issues
-  ux.sh                 UX Reviewer — reviews product UX
-  pm.sh                 Product Manager — reads goals.md, manages GitHub Project roadmap
-  sre.sh                SRE — monitors system health, files issues for problems
-  prompts/              Role-specific prompt files
-  logs/                 Run logs (gitignored)
 functions/              Azure Function (alert bridge)
   alert_bridge/         HTTP trigger: Azure Monitor → GitHub dispatch
   host.json             Functions runtime config
   requirements.txt      Python dependencies
-scripts/                Deterministic operations
-  run-loop.sh           Dev loop (PO → Engineer → Reviewer)
-  run-scans.sh          Scanning agents (Tech Lead + UX)
-  run-triage.sh         Triage human issues
-  run-strategic.sh      PM strategic review (weekly)
+scripts/                Project-specific scripts
+  health-check.sh       Full system health check (API, ingestion, deploys, GitHub)
   run-checks.sh         All quality checks (ruff + tsc + eslint + conventions)
   create-branch.sh      Create branch from issue number
-  lint-conventions.sh   Convention checks with agent-friendly errors
-  setup-labels.sh       Create GitHub labels (idempotent)
+  playbooks/            SRE automated remediation playbooks
+    restart-api.sh      Auto-restart Container App revision
+    retrigger-ingest.sh Re-trigger ingest workflow
+  seed_articles.py      Seed initial articles
+  ingest.py             Article ingestion
 .claude/commands/       Claude Code skills (AI-guided workflows)
   pick-issue.md         Find + claim highest-priority issue
   open-pr.md            Create draft PR with proper format
-.github/workflows/      CI + agent deployment workflows
+.github/workflows/      CI + agent deployment (thin stubs → harness)
   promote.yml           Promote main → stable
   agent-po.yml          PO (event-driven: source/* labels + dispatch)
   agent-engineer.yml    Engineer (event-driven: PO/Reviewer dispatch)
@@ -166,6 +153,35 @@ scripts/                Deterministic operations
   agent-triage.yml      Triage (event-driven: issues.opened + 12h)
   agent-strategic.yml   PM review (weekly schedule)
   agent-scans.yml       Tech Lead + UX (every 3 days schedule)
+  agent-sre.yml         SRE health monitoring (every 4 hours + alerts)
+```
+
+### Harness Repo (YourMoveLabs/agent-harness)
+
+The harness is checked out to `.harness/` during workflow runs via composite action.
+
+```
+action.yml              Composite action (the bridge between repos)
+agents/
+  run-agent.sh          Core runner (identity, tools, Claude invocation)
+  {role}.sh             Role wrappers (engineer, po, reviewer, etc.)
+  prompts/{role}.md     Generic role prompts (read CLAUDE.md for project context)
+scripts/
+  dispatch-agent.sh     Agent-to-agent chaining (repository_dispatch)
+  run-sre.sh            SRE controller (playbook routing + Claude escalation)
+  run-scans.sh          Tech Lead + UX scan orchestration
+  run-strategic.sh      PM strategic review orchestration
+  run-triage.sh         Triage pre-check orchestration
+  find-issues.sh        Agent tool: issue queries
+  find-prs.sh           Agent tool: PR queries
+  check-duplicates.sh   Agent tool: duplicate detection
+  project-fields.sh     Agent tool: GitHub Project field mapping
+  roadmap-status.sh     Agent tool: roadmap status
+  workflow-status.sh    Agent tool: workflow queries
+  file-stats.sh         Agent tool: codebase metrics
+  setup-labels.sh       Label bootstrapping
+  lint-conventions.sh   Convention enforcement
+docs/philosophy.md      Full thesis on why this exists
 ```
 
 ## Git Workflow
@@ -263,25 +279,19 @@ Engineer claims issues → opens PR → Reviewer merges (or backlogs via source/
 
 ## Available Tools
 
-### Scripts (`scripts/`)
+### Project Scripts (`scripts/`)
 
 | Script | Purpose | When to Use |
 |--------|---------|-------------|
-| `dispatch-agent.sh` | Dispatch repository_dispatch event to trigger downstream agent | Agent-to-agent chaining |
 | `health-check.sh` | Full system health check (API, ingestion, deploys, GitHub) | SRE runs |
-| `workflow-status.sh` | GitHub Actions workflow run summary | SRE investigation |
-| `find-issues.sh` | Find existing issues by label | SRE dedup check |
-| `playbooks/restart-api.sh` | Auto-restart Container App revision | Automated remediation |
-| `playbooks/retrigger-ingest.sh` | Re-trigger ingest workflow | Automated remediation |
-| `run-loop.sh` | Dev loop (PO → Engineer → Reviewer) | Local dev/testing fallback |
-| `run-scans.sh` | Scanning agents (Tech Lead + UX) | Every 3-4 days |
-| `run-triage.sh` | Triage human-created issues | Every 12-24h |
-| `run-strategic.sh` | PM strategic review (goals → roadmap) | Weekly |
-| `run-sre.sh` | SRE health check (API, ingestion, deploys) | Every 4 hours |
 | `run-checks.sh` | Quality checks (ruff + tsc + eslint + conventions) | Before every PR |
 | `create-branch.sh` | Create named branch from issue number | When starting work on an issue |
-| `lint-conventions.sh` | Check branch naming, PR format, file sizes | Runs as part of run-checks.sh |
-| `setup-labels.sh` | Create/update GitHub labels | Setup only |
+| `playbooks/restart-api.sh` | Auto-restart Container App revision | Automated remediation |
+| `playbooks/retrigger-ingest.sh` | Re-trigger ingest workflow | Automated remediation |
+
+### Harness Scripts (via `.harness/scripts/` in CI, or `$HARNESS_ROOT/scripts/` locally)
+
+Agent tools, orchestration scripts, and infrastructure scripts live in the harness repo (`YourMoveLabs/agent-harness`). During workflow runs, they're available at `.harness/scripts/`. See the harness README for the full list.
 
 ### Skills (`.claude/commands/`)
 
@@ -374,33 +384,25 @@ docker-compose up
 scripts/run-checks.sh
 ```
 
-### Running the Agent Loop
+### Running Agents Locally
+
+Requires both repos cloned side by side:
+
 ```bash
-# Full dev cycle (PO → Engineer → Reviewer → merge)
-scripts/run-loop.sh
+# Clone both repos
+git clone git@github.com:YourMoveLabs/agent-harness.git
+git clone git@github.com:YourMoveLabs/agent-fishbowl.git
 
-# Scanning agents (tech lead + UX — run every 3-4 days)
-scripts/run-scans.sh
+# Run an individual agent
+cd agent-fishbowl
+HARNESS_ROOT=../agent-harness PROJECT_ROOT=$(pwd) ../agent-harness/agents/engineer.sh
 
-# Triage human issues (run every 12-24h)
-scripts/run-triage.sh
-
-# PM strategic review (run weekly)
-scripts/run-strategic.sh
-
-# SRE health check (run every 4 hours)
-scripts/run-sre.sh
-
-# Individual agents
-agents/pm.sh          # Evaluate goals + manage GitHub Project roadmap
-agents/po.sh          # Triage intake + create issues from roadmap project
-agents/engineer.sh    # Pick issue and implement
-agents/reviewer.sh    # Review and merge PRs
-agents/tech-lead.sh   # Set standards + create architecture issues
-agents/triage.sh      # Validate human-created issues
-agents/ux.sh          # Review product UX
-agents/sre.sh         # Monitor system health
+# Run orchestration scripts
+HARNESS_ROOT=../agent-harness PROJECT_ROOT=$(pwd) ../agent-harness/scripts/run-scans.sh
+HARNESS_ROOT=../agent-harness PROJECT_ROOT=$(pwd) ../agent-harness/scripts/run-sre.sh
 ```
+
+In production, agents run via GitHub Actions workflows which use the composite action to check out the harness automatically.
 
 ## Infrastructure Reference
 
@@ -427,7 +429,7 @@ articles/
 
 The human is the engineering manager — not a coder on the team. They interact at two layers:
 
-1. **The Harness**: Building and improving the team's capabilities (prompts, tools, workflows, infrastructure)
+1. **The Harness** (`agent-harness` repo): Building and improving the team's capabilities (prompts, tools, workflows, infrastructure)
 2. **Project Management**: Directing work via GitHub Issues, PR comments, and the GitHub Project board
 
 **What the human does:**
@@ -443,4 +445,4 @@ The human is the engineering manager — not a coder on the team. They interact 
 
 **Escalation**: When an agent is blocked by a missing capability (tool, permission, config), it creates an issue with the `harness/request` label. The human builds the capability, updates the harness, and the agent's work resumes.
 
-For the full philosophy, see `docs/harness-philosophy.md`.
+For the full philosophy, see `docs/philosophy.md` in the [agent-harness](https://github.com/YourMoveLabs/agent-harness) repo.

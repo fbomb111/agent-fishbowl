@@ -19,8 +19,7 @@ jobs:
         with:
           ref: stable
 
-      - name: Load agent env
-        run: cp ~/.config/agent-fishbowl/.env .env
-
       - name: Run PM agent
-        run: scripts/run-strategic.sh
+        uses: YourMoveLabs/agent-harness@main
+        with:
+          entry-point: scripts/run-strategic.sh

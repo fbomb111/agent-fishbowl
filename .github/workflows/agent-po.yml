@@ -21,15 +21,11 @@ jobs:
         with:
           ref: stable
 
-      - name: Load agent env
-        run: cp ~/.config/agent-fishbowl/.env .env 2>/dev/null || true
-
       - name: Check daily run cap
         id: cap
         run: |
           TODAY=$(date +%Y-%m-%d)
           RUNS=$(gh run list --workflow agent-po.yml --created "$TODAY" --status completed --json databaseId --jq 'length' 2>/dev/null || echo "0")
-          echo "runs_today=$RUNS" >> "$GITHUB_OUTPUT"
           if [ "$RUNS" -ge 5 ]; then
             echo "Daily cap reached ($RUNS/5). Skipping."
             echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -41,14 +37,16 @@ jobs:
 
       - name: Run PO agent
         if: steps.cap.outputs.skip != 'true'
-        run: agents/po.sh
+        uses: YourMoveLabs/agent-harness@main
+        with:
+          entry-point: agents/po.sh
 
       - name: Dispatch to engineer if work available
         if: steps.cap.outputs.skip != 'true' && success()
         run: |
           UNASSIGNED=$(gh issue list --state open --json assignees --jq '[.[] | select(.assignees | length == 0)] | length' 2>/dev/null || echo "0")
           if [ "$UNASSIGNED" -gt 0 ]; then
-            scripts/dispatch-agent.sh "agent-po-complete" '{"chain_depth": 1}'
+            .harness/scripts/dispatch-agent.sh "agent-po-complete" '{"chain_depth": 1}'
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
