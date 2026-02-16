@@ -24,6 +24,7 @@ ACTOR_MAP: dict[str, str] = {
     "fishbowl-triage[bot]": "triage",
     "fishbowl-sre[bot]": "sre",
     "fbomb111": "human",
+    "YourMoveLabs": "org",
 }
 
 
@@ -45,13 +46,15 @@ def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if event_type == "IssuesEvent":
             action = payload.get("action", "")
             issue = payload.get("issue", {})
+            number = issue.get("number", "?")
+            title = issue.get("title", "")
             if action == "opened":
                 parsed.append(
                     {
                         "id": event["id"],
                         "type": "issue_created",
                         "actor": actor,
-                        "description": f"Opened issue: {issue.get('title', '')}",
+                        "description": f"Opened issue #{number}: {title}",
                         "timestamp": created_at,
                         "url": issue.get("html_url"),
                     }
@@ -62,7 +65,7 @@ def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         "id": event["id"],
                         "type": "issue_closed",
                         "actor": actor,
-                        "description": f"Closed issue: {issue.get('title', '')}",
+                        "description": f"Closed issue #{number}: {title}",
                         "timestamp": created_at,
                         "url": issue.get("html_url"),
                     }
@@ -72,6 +75,7 @@ def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
             action = payload.get("action", "")
             pr = payload.get("pull_request", {})
             title = pr.get("title", "")
+            number = pr.get("number", "?")
             url = pr.get("html_url")
             if action == "opened":
                 parsed.append(
@@ -79,7 +83,7 @@ def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         "id": event["id"],
                         "type": "pr_opened",
                         "actor": actor,
-                        "description": f"Opened PR: {title}",
+                        "description": f"Opened PR #{number}: {title}",
                         "timestamp": created_at,
                         "url": url,
                     }
@@ -90,7 +94,7 @@ def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         "id": event["id"],
                         "type": "pr_merged",
                         "actor": actor,
-                        "description": f"Merged PR: {title}",
+                        "description": f"Merged PR #{number}: {title}",
                         "timestamp": created_at,
                         "url": url,
                     }
@@ -101,12 +105,13 @@ def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
             review = payload.get("review", {})
             state = review.get("state", "")
             title = pr.get("title", "")
+            number = pr.get("number", "?")
             if state == "approved":
-                desc = f"Approved PR: {title}"
+                desc = f"Approved PR #{number}: {title}"
             elif state == "changes_requested":
-                desc = f"Requested changes on PR: {title}"
+                desc = f"Requested changes on PR #{number}: {title}"
             else:
-                desc = f"Reviewed PR: {title}"
+                desc = f"Reviewed PR #{number}: {title}"
             parsed.append(
                 {
                     "id": event["id"],

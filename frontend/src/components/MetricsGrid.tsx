@@ -54,13 +54,16 @@ function StatCard({ label, value }: { label: string; value: number }) {
 }
 
 function AgentTable({ byAgent }: { byAgent: Record<string, AgentStats> }) {
-  const agents = Object.entries(byAgent).sort(
+  const allEntries = Object.entries(byAgent).sort(
     ([, a], [, b]) =>
       b.commits + b.prs_merged + b.issues_closed -
       (a.commits + a.prs_merged + a.issues_closed)
   );
 
-  if (agents.length === 0) {
+  const botAgents = allEntries.filter(([role]) => role !== "human");
+  const humanEntry = allEntries.find(([role]) => role === "human");
+
+  if (botAgents.length === 0 && !humanEntry) {
     return (
       <p className="py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
         No agent activity yet.
@@ -69,66 +72,104 @@ function AgentTable({ byAgent }: { byAgent: Record<string, AgentStats> }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="border-b border-zinc-100 dark:border-zinc-800">
-            <th className="px-4 py-2.5 text-left font-medium text-zinc-400 dark:text-zinc-500">
-              Agent
-            </th>
-            <th className="px-3 py-2.5 text-right font-medium text-zinc-400 dark:text-zinc-500">
-              Commits
-            </th>
-            <th className="px-3 py-2.5 text-right font-medium text-zinc-400 dark:text-zinc-500">
-              PRs (m/o)
-            </th>
-            <th className="px-3 py-2.5 text-right font-medium text-zinc-400 dark:text-zinc-500">
-              Issues (c/o)
-            </th>
-            <th className="px-3 py-2.5 text-right font-medium text-zinc-400 dark:text-zinc-500">
-              Reviews
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {agents.map(([role, stats]) => {
-            const agent = getAgent(role);
-            return (
-              <tr
-                key={role}
-                className="border-b border-zinc-50 last:border-0 dark:border-zinc-800/50"
-              >
-                <td className="px-4 py-2 font-medium">
-                  <div className="flex items-center gap-2">
-                    {agent.avatar && (
-                      <Image
-                        src={agent.avatar}
-                        alt={agent.displayName}
-                        width={20}
-                        height={20}
-                        className="rounded-full"
-                      />
-                    )}
-                    {agent.displayName}
-                  </div>
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">
-                  {stats.commits}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">
-                  {stats.prs_merged}/{stats.prs_opened}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">
-                  {stats.issues_closed}/{stats.issues_opened}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">
-                  {stats.reviews}
-                </td>
+    <div className="space-y-4">
+      {botAgents.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-zinc-100 dark:border-zinc-800">
+                <th className="px-4 py-2.5 text-left font-medium text-zinc-400 dark:text-zinc-500">
+                  Agent
+                </th>
+                <th className="px-3 py-2.5 text-right font-medium text-zinc-400 dark:text-zinc-500">
+                  Commits
+                </th>
+                <th className="px-3 py-2.5 text-right font-medium text-zinc-400 dark:text-zinc-500">
+                  PRs (m/o)
+                </th>
+                <th className="px-3 py-2.5 text-right font-medium text-zinc-400 dark:text-zinc-500">
+                  Issues (c/o)
+                </th>
+                <th className="px-3 py-2.5 text-right font-medium text-zinc-400 dark:text-zinc-500">
+                  Reviews
+                </th>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {botAgents.map(([role, stats]) => {
+                const agent = getAgent(role);
+                return (
+                  <tr
+                    key={role}
+                    className="border-b border-zinc-50 last:border-0 dark:border-zinc-800/50"
+                  >
+                    <td className="px-4 py-2 font-medium">
+                      <div className="flex items-center gap-2">
+                        {agent.avatar && (
+                          <Image
+                            src={agent.avatar}
+                            alt={agent.displayName}
+                            width={20}
+                            height={20}
+                            className="rounded-full"
+                          />
+                        )}
+                        {agent.displayName}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {stats.commits}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {stats.prs_merged}/{stats.prs_opened}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {stats.issues_closed}/{stats.issues_opened}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {stats.reviews}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {humanEntry && (
+        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            Human Contributions
+          </div>
+          <div className="mt-2 flex items-center gap-3">
+            {(() => {
+              const agent = getAgent("human");
+              const stats = humanEntry[1];
+              return (
+                <>
+                  {agent.avatar && (
+                    <Image
+                      src={agent.avatar}
+                      alt={agent.displayName}
+                      width={24}
+                      height={24}
+                      className="rounded-full"
+                    />
+                  )}
+                  <span className="text-sm font-medium">{agent.displayName}</span>
+                  <div className="flex gap-4 text-xs text-zinc-500 dark:text-zinc-400">
+                    <span>{stats.commits} commits</span>
+                    <span>{stats.prs_merged}/{stats.prs_opened} PRs</span>
+                    <span>{stats.issues_closed}/{stats.issues_opened} issues</span>
+                    <span>{stats.reviews} reviews</span>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

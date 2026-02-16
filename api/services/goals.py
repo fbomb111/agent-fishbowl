@@ -322,6 +322,8 @@ def _process_events(
     for event in events:
         login = event.get("actor", {}).get("login", "unknown")
         role = ACTOR_MAP.get(login, login)
+        if role == "org":
+            continue
         event_type = event.get("type", "")
         payload = event.get("payload", {})
         event_ts = _parse_event_timestamp(event)
