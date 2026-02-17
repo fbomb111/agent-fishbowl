@@ -68,6 +68,8 @@ def _make_event(
     subject_type: str | None = None,
     subject_number: int | None = None,
     subject_title: str | None = None,
+    comment_body: str | None = None,
+    comment_url: str | None = None,
 ) -> dict[str, Any]:
     """Build a parsed event dict with optional subject fields."""
     entry: dict[str, Any] = {
@@ -84,6 +86,10 @@ def _make_event(
         entry["subject_number"] = subject_number
     if subject_title:
         entry["subject_title"] = subject_title
+    if comment_body:
+        entry["comment_body"] = comment_body
+    if comment_url:
+        entry["comment_url"] = comment_url
     return entry
 
 
@@ -223,13 +229,23 @@ def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 desc = f"Requested changes on PR #{number}: {title}"
             else:
                 desc = f"Reviewed PR #{number}: {title}"
+
+            # Include review body text (up to 500 chars)
+            review_body_raw = review.get("body") or ""
+            review_body = review_body_raw[:500]
+            review_url = review.get("html_url") or pr.get("html_url")
+
             parsed.append(
                 _make_event(
                     event,
                     event_type="pr_reviewed",
                     actor=actor,
                     description=desc,
-                    url=review.get("html_url") or pr.get("html_url"),
+                    url=review_url,
+                    comment_body=review_body if review_body else None,
+                    comment_url=review_url
+                    if review_body_raw and len(review_body_raw) > 500
+                    else None,
                     **subject,
                 )
             )
@@ -255,18 +271,22 @@ def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
             comment = payload.get("comment", {})
             number = issue.get("number")
             title = issue.get("title", "")
-            body = comment.get("body", "")[:120]
+            body_raw = comment.get("body", "")
+            body = body_raw[:300]
             is_pr = "pull_request" in issue
+            html_url = comment.get("html_url")
             parsed.append(
                 _make_event(
                     event,
                     event_type="comment",
                     actor=actor,
-                    description=f"Commented on #{number}: {body}",
-                    url=comment.get("html_url"),
+                    description=f"Commented on #{number}: {title}",
+                    url=html_url,
                     subject_type="pr" if is_pr else "issue",
                     subject_number=number,
                     subject_title=title,
+                    comment_body=body if body else None,
+                    comment_url=html_url if len(body_raw) > 300 else None,
                 )
             )
 

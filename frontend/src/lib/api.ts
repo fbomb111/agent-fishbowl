@@ -52,6 +52,8 @@ export interface ActivityEvent {
   subject_type?: "issue" | "pr";
   subject_number?: number;
   subject_title?: string;
+  comment_body?: string;
+  comment_url?: string;
 }
 
 export interface ActivityThread {

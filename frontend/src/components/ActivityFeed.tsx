@@ -143,6 +143,8 @@ export function ActivityFeed({
               description={evt.description}
               timestamp={evt.timestamp}
               url={evt.url}
+              commentBody={evt.comment_body}
+              commentUrl={evt.comment_url}
             />
           );
         })}

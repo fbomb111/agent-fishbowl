@@ -8,6 +8,8 @@ interface ActivityEventProps {
   description: string;
   timestamp: string;
   url?: string;
+  commentBody?: string;
+  commentUrl?: string;
 }
 
 export function ActivityEvent({
@@ -15,6 +17,8 @@ export function ActivityEvent({
   description,
   timestamp,
   url,
+  commentBody,
+  commentUrl,
 }: ActivityEventProps) {
   const agent = getAgent(actor);
   const time = timeAgo(timestamp);
@@ -46,6 +50,21 @@ export function ActivityEvent({
         <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
           {description}
         </p>
+        {commentBody && (
+          <div className="mt-2 rounded-md bg-zinc-50 p-3 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+            <p className="whitespace-pre-line">{commentBody}</p>
+            {commentUrl && (
+              <a
+                href={commentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-block text-blue-600 hover:text-blue-500 dark:text-blue-400"
+              >
+                View full comment on GitHub &rarr;
+              </a>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
