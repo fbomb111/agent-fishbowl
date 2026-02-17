@@ -80,9 +80,7 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
     logger.info("%d new articles, %d already indexed", len(new_parsed), skipped)
 
     # 3b. Topic-based dedup — remove articles covering the same story
-    new_parsed, dedup_skipped = deduplicate_candidates(
-        new_parsed, list(index.articles)
-    )
+    new_parsed, dedup_skipped = deduplicate_candidates(new_parsed, list(index.articles))
     duplicates_removed = len(dedup_skipped)
     if duplicates_removed > 0:
         logger.info(

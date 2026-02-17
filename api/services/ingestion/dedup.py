@@ -81,9 +81,7 @@ def deduplicate_candidates(
     cutoff = datetime.now(timezone.utc) - timedelta(hours=DEDUP_WINDOW_HOURS)
 
     # Filter existing articles to the dedup window
-    recent_existing = [
-        a for a in existing_articles if a.published_at >= cutoff
-    ]
+    recent_existing = [a for a in existing_articles if a.published_at >= cutoff]
 
     unique: list[ParsedArticle] = []
     skipped: list[tuple[str, str]] = []
