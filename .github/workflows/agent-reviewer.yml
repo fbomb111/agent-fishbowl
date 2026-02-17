@@ -20,32 +20,35 @@ jobs:
     name: Run Reviewer agent
     runs-on: self-hosted
     timeout-minutes: 30
-    # Skip fork PRs (security: self-hosted runner) and bot PRs (prevent self-review loops)
+    # Skip fork PRs (security: self-hosted runner)
     if: >
       github.event_name != 'pull_request' ||
-      (github.event.pull_request.head.repo.full_name == github.repository &&
-       !contains(github.event.pull_request.user.login, '[bot]'))
+      github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@v4
         with:
           ref: stable
 
-      - name: Check daily run cap
-        id: cap
+      - name: Check review round limit
+        id: rounds
+        if: github.event_name == 'pull_request'
         run: |
-          TODAY=$(date +%Y-%m-%d)
-          RUNS=$(gh run list --workflow agent-reviewer.yml --created "$TODAY" --status completed --json databaseId --jq 'length' 2>/dev/null || echo "0")
-          if [ "$RUNS" -ge 10 ]; then
-            echo "Daily cap reached ($RUNS/10). Skipping."
+          PR=${{ github.event.pull_request.number }}
+          AUTHOR="fishbowl-reviewer[bot]"
+          REVIEWS=$(gh api "repos/${{ github.repository }}/pulls/$PR/reviews" \
+            --jq "[.[] | select(.user.login == \"$AUTHOR\")] | length")
+          if [ "$REVIEWS" -ge 3 ]; then
+            echo "Max review rounds (3) reached for PR #$PR — skipping"
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
+            echo "Review round $((REVIEWS + 1))/3 for PR #$PR"
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Reviewer agent
-        if: steps.cap.outputs.skip != 'true'
+        if: steps.rounds.outputs.skip != 'true'
         uses: YourMoveLabs/agent-harness@v1.0.0
         with:
           entry-point: agents/reviewer.sh
@@ -53,13 +56,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Dispatch PO for intake triage
-        if: steps.cap.outputs.skip != 'true' && success()
+        if: steps.rounds.outputs.skip != 'true' && success()
         run: gh workflow run agent-po.yml
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Dispatch feedback if changes requested
-        if: steps.cap.outputs.skip != 'true' && success()
+        if: steps.rounds.outputs.skip != 'true' && success()
         run: |
           # Check if reviewer requested changes on any PR
           CHANGES_REQUESTED=$(gh pr list --state open --json reviewDecision \

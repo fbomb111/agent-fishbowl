@@ -17,6 +17,7 @@ jobs:
   api-lint:
     name: API Lint & Test
     runs-on: self-hosted
+    timeout-minutes: 10
     if: >
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository
@@ -35,6 +36,7 @@ jobs:
   frontend-lint:
     name: Frontend Lint & Typecheck
     runs-on: self-hosted
+    timeout-minutes: 10
     if: >
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository

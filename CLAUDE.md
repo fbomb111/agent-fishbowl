@@ -40,29 +40,31 @@ Agents are deployed as GitHub Actions workflows running on the self-hosted runne
 
 **Workflows** (all in `.github/workflows/`):
 
-| Workflow | Agents | Triggers | Cap |
-|----------|--------|----------|-----|
-| `agent-po.yml` | PO | `issues.labeled` (source/*) + PM dispatch + daily | 5/day |
-| `agent-engineer.yml` | Engineer | PO/Reviewer dispatch + daily | 10/day |
-| `agent-reviewer.yml` | Reviewer | `pull_request` (opened/sync) + 12h | 10/day |
-| `agent-triage.yml` | Triage | `issues.opened` + 12h | 5/day |
-| `agent-sre.yml` | SRE | `repository_dispatch` (azure-alert) + 4h schedule | — |
-| `agent-strategic.yml` | PM | Weekly Mon 06:00 UTC | — |
-| `agent-scans.yml` | Tech Lead + UX | Every 3 days | — |
+| Workflow | Agents | Triggers | Protection |
+|----------|--------|----------|------------|
+| `agent-triage.yml` | Triage | `issues.opened` + manual | agent-created filter |
+| `agent-po.yml` | PO | Triage/reviewer/PM dispatch + daily 06:00 | Concurrency group |
+| `agent-engineer.yml` | Engineer | PO/reviewer dispatch + PR merged + manual | chain_depth ≤ 3, concurrency |
+| `agent-reviewer.yml` | Reviewer | `pull_request` (opened/sync) + 12h fallback | Max 3 rounds/PR, fork guard |
+| `agent-sre.yml` | SRE | `repository_dispatch` (azure-alert) + 4h schedule | Concurrency group |
+| `agent-strategic.yml` | PM | Daily 06:00 + manual | Concurrency group |
+| `agent-scans.yml` | Tech Lead + UX | Every 3 days | Concurrency group |
 | `promote.yml` | — | Manual only | — |
 
 **Event Chain:**
 ```
-source/* issue → PO → dispatch → Engineer → opens PR → Reviewer
-                                              ↑ changes requested ↓
-                                              ← dispatch feedback ←
+Human/PM creates issue → Triage → PO prioritizes → dispatches Engineer
+Engineer works issue → opens PR → Reviewer reviews (max 3 rounds)
+  → Approve → PR merged → dispatches Engineer for next issue
+  → Request changes → dispatches Engineer to fix
+PM reviews daily → adjusts roadmap → dispatches PO
 ```
 
 **Safety Controls:**
 - Concurrency groups prevent parallel runs of the same agent
 - Chain depth limit (max 3) prevents runaway dispatch cascading
-- Daily caps per agent prevent cost blowouts
-- Self-trigger prevention via `if:` conditions on bot events
+- Review round limit (max 3 per PR) prevents reviewer loops
+- Fork guard on reviewer (security: self-hosted runner)
 - `.harness/scripts/dispatch-agent.sh` handles agent-to-agent chaining (from harness checkout)
 
 **Environment:** Agent .env is staged at `~/.config/agent-harness/.env` on the runner. The harness composite action copies it into the checkout. PEM keys are at `~/.config/agent-harness/*.pem`.
@@ -147,11 +149,11 @@ scripts/                Project-specific scripts
   open-pr.md            Create draft PR with proper format
 .github/workflows/      CI + agent deployment (thin stubs → harness)
   promote.yml           Promote main → stable
-  agent-po.yml          PO (event-driven: source/* labels + dispatch)
-  agent-engineer.yml    Engineer (event-driven: PO/Reviewer dispatch)
-  agent-reviewer.yml    Reviewer (event-driven: PR opened/sync)
-  agent-triage.yml      Triage (event-driven: issues.opened + 12h)
-  agent-strategic.yml   PM review (weekly schedule)
+  agent-po.yml          PO (event-driven: dispatch + daily)
+  agent-engineer.yml    Engineer (event-driven: dispatch + PR merged)
+  agent-reviewer.yml    Reviewer (event-driven: PR opened/sync + 12h)
+  agent-triage.yml      Triage (event-driven: issues.opened)
+  agent-strategic.yml   PM review (daily schedule)
   agent-scans.yml       Tech Lead + UX (every 3 days schedule)
   agent-sre.yml         SRE health monitoring (every 4 hours + alerts)
 ```
@@ -244,13 +246,13 @@ Scopes: `api`, `frontend`, `ci`, `config`
 | Role | Identity | Cadence | One-liner |
 |------|----------|---------|-----------|
 | **PO** | `fishbowl-po[bot]` | Event-driven + daily | Central intake funnel — triages all inputs into a prioritized backlog |
-| **Engineer** | `fishbowl-engineer[bot]` | Event-driven + daily | Picks issues, implements code, opens PRs |
-| **Reviewer** | `fishbowl-reviewer[bot]` | Event-driven + 12h | Reviews PRs, approves+merges or requests changes |
-| **Tech Lead** | `fishbowl-techlead[bot]` | Every 3-4 days | Sets technical standards, identifies architecture needs |
-| **PM** | `fishbowl-pm[bot]` | Weekly | Strategic goals and GitHub Project roadmap management |
-| **Triage** | `fishbowl-triage[bot]` | Every 12-24h | Validates human-created issues |
-| **UX** | `fishbowl-ux[bot]` | Weekly | Reviews product UX, creates improvement issues |
-| **SRE** | `fishbowl-sre[bot]` | Every 4h | Monitors system health, files issues for problems |
+| **Engineer** | `fishbowl-engineer[bot]` | Event-driven (dispatch + PR merge) | Picks issues, implements code, opens PRs |
+| **Reviewer** | `fishbowl-reviewer[bot]` | Event-driven + 12h | Reviews PRs, approves+merges or requests changes (max 3 rounds/PR) |
+| **Tech Lead** | `fishbowl-techlead[bot]` | Every 3 days | Sets technical standards, identifies architecture needs |
+| **PM** | `fishbowl-pm[bot]` | Daily | Strategic goals and GitHub Project roadmap management |
+| **Triage** | `fishbowl-triage[bot]` | Event-driven (issues.opened) | Validates human-created issues |
+| **UX** | `fishbowl-ux[bot]` | Every 3 days | Reviews product UX, creates improvement issues |
+| **SRE** | `fishbowl-sre[bot]` | Every 4h + alerts | Monitors system health, files issues for problems |
 
 ### Information Flow
 
@@ -271,7 +273,7 @@ Engineer claims issues → opens PR → Reviewer merges (or backlogs via source/
 - **One task per run.** Pick one issue or fix one PR's feedback, not both.
 - **Reviewer merges.** Only the reviewer agent approves and squash-merges PRs. No other agent merges.
 - **Engineer creates ready PRs** (not drafts) so the reviewer can act on them.
-- **Max 2 review rounds.** If a PR still has issues after 2 rounds of change requests, the reviewer either approves with caveats or closes and backlogs.
+- **Max 3 review rounds.** If a PR still has issues after 3 rounds, the reviewer either approves with caveats, files a future-work ticket, or closes and backlogs.
 - **Comment your progress.** When you start an issue, comment. When you open a PR, comment on the issue with a link.
 - **All intake flows through the PO.** Scanning agents (tech lead, UX, triage) create issues with `source/*` labels. Only the PO sets final priority.
 - **Scanning agents never set `priority/high`.** They use `priority/medium`. The PO decides what's urgent.

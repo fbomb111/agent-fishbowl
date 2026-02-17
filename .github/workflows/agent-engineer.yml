@@ -3,8 +3,9 @@ name: Agent - Engineer
 on:
   repository_dispatch:
     types: [agent-po-complete, agent-reviewer-feedback]
-  schedule:
-    - cron: "0 8 * * *"   # Daily 08:00 UTC fallback
+  pull_request:
+    types: [closed]
+    branches: [main]
   workflow_dispatch: {}
 
 permissions:
@@ -19,31 +20,18 @@ jobs:
     name: Run Engineer agent
     runs-on: self-hosted
     timeout-minutes: 30
-    # Chain depth check -- prevent runaway cascading
+    # PR merge: only run on actual merges, not closed-without-merge
+    # Dispatch: chain depth guard prevents runaway cascading
     if: >
-      github.event_name != 'repository_dispatch' ||
-      github.event.client_payload.chain_depth <= 3
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'repository_dispatch' && github.event.client_payload.chain_depth <= 3) ||
+      github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
         with:
           ref: stable
 
-      - name: Check daily run cap
-        id: cap
-        run: |
-          TODAY=$(date +%Y-%m-%d)
-          RUNS=$(gh run list --workflow agent-engineer.yml --created "$TODAY" --status completed --json databaseId --jq 'length' 2>/dev/null || echo "0")
-          if [ "$RUNS" -ge 10 ]; then
-            echo "Daily cap reached ($RUNS/10). Skipping."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Run Engineer agent
-        if: steps.cap.outputs.skip != 'true'
         uses: YourMoveLabs/agent-harness@v1.0.0
         with:
           entry-point: agents/engineer.sh

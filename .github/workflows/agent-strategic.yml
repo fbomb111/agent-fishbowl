@@ -2,7 +2,7 @@ name: Agent - PM Strategic Review
 
 on:
   schedule:
-    - cron: "0 6 * * 1"   # Weekly, Monday 06:00 UTC
+    - cron: "0 6 * * *"   # Daily 06:00 UTC
   workflow_dispatch: {}
 
 permissions:
@@ -26,5 +26,11 @@ jobs:
         uses: YourMoveLabs/agent-harness@v1.0.0
         with:
           entry-point: scripts/run-strategic.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dispatch PO to process roadmap changes
+        if: success()
+        run: gh workflow run agent-po.yml
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

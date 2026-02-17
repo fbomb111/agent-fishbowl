@@ -26,22 +26,7 @@ jobs:
         with:
           ref: stable
 
-      - name: Check daily run cap
-        id: cap
-        run: |
-          TODAY=$(date +%Y-%m-%d)
-          RUNS=$(gh run list --workflow agent-triage.yml --created "$TODAY" --status completed --json databaseId --jq 'length' 2>/dev/null || echo "0")
-          if [ "$RUNS" -ge 5 ]; then
-            echo "Daily cap reached ($RUNS/5). Skipping."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Run triage
-        if: steps.cap.outputs.skip != 'true'
         uses: YourMoveLabs/agent-harness@v1.0.0
         with:
           entry-point: scripts/run-triage.sh
@@ -49,7 +34,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Dispatch PO for intake triage
-        if: steps.cap.outputs.skip != 'true' && success()
+        if: success()
         run: gh workflow run agent-po.yml
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
