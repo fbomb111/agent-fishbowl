@@ -9,10 +9,12 @@ from azure.storage.blob import ContainerClient, ContentSettings
 
 from api.config import get_settings
 from api.models.article import Article, ArticleIndex, ArticleSummary
+from api.models.blog import BlogIndex, BlogPost
 
 logger = logging.getLogger(__name__)
 
 INDEX_BLOB = "index.json"
+BLOG_INDEX_BLOB = "blog-index.json"
 
 # Lazy singleton — lives for the process lifetime
 _container_client: ContainerClient | None = None
@@ -146,6 +148,36 @@ async def write_article_only(article: Article) -> None:
         overwrite=True,
         content_settings=ContentSettings(content_type="application/json"),
     )
+
+
+async def get_blog_index(
+    limit: int = 0,
+    offset: int = 0,
+) -> BlogIndex:
+    """Read the blog post index from blob storage."""
+    client = _get_container_client()
+    try:
+        blob = client.get_blob_client(BLOG_INDEX_BLOB)
+        data = blob.download_blob().readall()
+        posts_data = json.loads(data)
+        if isinstance(posts_data, dict):
+            posts_data = posts_data.get("posts", [])
+        posts = [BlogPost(**p) for p in posts_data]
+
+        total = len(posts)
+
+        if offset > 0:
+            posts = posts[offset:]
+        if limit > 0:
+            posts = posts[:limit]
+
+        return BlogIndex(posts=posts, total=total)
+    except AzureError as e:
+        logger.warning("Failed to read blog index: %s", e)
+        return BlogIndex(posts=[], total=0)
+    except Exception as e:
+        logger.error("Unexpected error reading blog index: %s", e)
+        return BlogIndex(posts=[], total=0)
 
 
 async def write_article_index(articles: list[ArticleSummary]) -> None:

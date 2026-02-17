@@ -49,7 +49,26 @@ export interface ActivityEvent {
   description: string;
   timestamp: string;
   url?: string;
+  subject_type?: "issue" | "pr";
+  subject_number?: number;
+  subject_title?: string;
 }
+
+export interface ActivityThread {
+  type: "thread";
+  subject_type: "issue" | "pr";
+  subject_number: number;
+  subject_title: string;
+  events: ActivityEvent[];
+  latest_timestamp: string;
+}
+
+export interface StandaloneEvent {
+  type: "standalone";
+  event: ActivityEvent;
+}
+
+export type ThreadedItem = ActivityThread | StandaloneEvent;
 
 export async function fetchArticles(category?: string): Promise<{
   articles: ArticleSummary[];
@@ -71,6 +90,35 @@ export async function fetchActivity(
   const res = await fetch(
     `${API_BASE}/activity?page=${page}&per_page=${perPage}`
   );
+  if (!res.ok) throw apiError(res.status);
+  return res.json();
+}
+
+export async function fetchThreadedActivity(
+  perPage = 50
+): Promise<{ threads: ThreadedItem[]; mode: string }> {
+  const res = await fetch(
+    `${API_BASE}/activity?mode=threaded&per_page=${perPage}`
+  );
+  if (!res.ok) throw apiError(res.status);
+  return res.json();
+}
+
+// Agent status types
+
+export interface AgentStatus {
+  role: string;
+  status: "active" | "idle" | "failed";
+  started_at?: string;
+  trigger?: string;
+  last_completed_at?: string;
+  last_conclusion?: string;
+}
+
+export async function fetchAgentStatus(): Promise<{
+  agents: AgentStatus[];
+}> {
+  const res = await fetch(`${API_BASE}/activity/agent-status`);
   if (!res.ok) throw apiError(res.status);
   return res.json();
 }
@@ -136,6 +184,31 @@ export interface GoalsResponse {
 
 export async function fetchGoals(): Promise<GoalsResponse> {
   const res = await fetch(`${API_BASE}/goals`);
+  if (!res.ok) throw apiError(res.status);
+  return res.json();
+}
+
+// Blog types
+
+export interface BlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  published_at: string;
+  focus_keyphrase: string;
+  author: string;
+  category: string;
+  preview_url: string;
+  image_url?: string;
+  read_time_minutes?: number;
+}
+
+export async function fetchBlogPosts(): Promise<{
+  posts: BlogPost[];
+  total: number;
+}> {
+  const res = await fetch(`${API_BASE}/blog`);
   if (!res.ok) throw apiError(res.status);
   return res.json();
 }
