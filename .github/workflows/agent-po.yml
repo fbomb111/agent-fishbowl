@@ -7,6 +7,9 @@ on:
     - cron: "0 6 * * *"   # Daily 06:00 UTC fallback
   workflow_dispatch: {}     # Dispatched by reviewer/triage after creating issues
 
+permissions:
+  contents: read
+
 concurrency:
   group: agent-po
   cancel-in-progress: false
@@ -37,7 +40,7 @@ jobs:
 
       - name: Run PO agent
         if: steps.cap.outputs.skip != 'true'
-        uses: YourMoveLabs/agent-harness@main
+        uses: YourMoveLabs/agent-harness@v1.0.0
         with:
           entry-point: agents/po.sh
 

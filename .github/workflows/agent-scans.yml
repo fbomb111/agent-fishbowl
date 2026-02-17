@@ -5,6 +5,9 @@ on:
     - cron: "0 10 */3 * *"   # Every 3 days at 10:00 UTC
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 concurrency:
   group: agent-scans
   cancel-in-progress: false
@@ -20,6 +23,6 @@ jobs:
           ref: stable
 
       - name: Run scans
-        uses: YourMoveLabs/agent-harness@main
+        uses: YourMoveLabs/agent-harness@v1.0.0
         with:
           entry-point: scripts/run-scans.sh

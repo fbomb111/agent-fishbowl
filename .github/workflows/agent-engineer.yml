@@ -7,6 +7,9 @@ on:
     - cron: "0 8 * * *"   # Daily 08:00 UTC fallback
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 concurrency:
   group: agent-engineer
   cancel-in-progress: false
@@ -41,6 +44,6 @@ jobs:
 
       - name: Run Engineer agent
         if: steps.cap.outputs.skip != 'true'
-        uses: YourMoveLabs/agent-harness@main
+        uses: YourMoveLabs/agent-harness@v1.0.0
         with:
           entry-point: agents/engineer.sh

@@ -7,6 +7,9 @@ on:
     - cron: "30 */4 * * *"   # Every 4 hours
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 concurrency:
   group: agent-sre
   cancel-in-progress: false
@@ -33,7 +36,7 @@ jobs:
           fi
 
       - name: Run SRE
-        uses: YourMoveLabs/agent-harness@main
+        uses: YourMoveLabs/agent-harness@v1.0.0
         with:
           entry-point: scripts/run-sre.sh
         env:

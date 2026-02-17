@@ -6,10 +6,20 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   api-lint:
     name: API Lint & Test
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    if: >
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     defaults:
       run:
         working-directory: api
@@ -24,7 +34,10 @@ jobs:
 
   frontend-lint:
     name: Frontend Lint & Typecheck
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    if: >
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     defaults:
       run:
         working-directory: frontend

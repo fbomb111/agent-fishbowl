@@ -6,6 +6,13 @@ on:
     - cron: "0 */6 * * *"
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ingest
+  cancel-in-progress: true
+
 jobs:
   ingest:
     name: Fetch and ingest RSS articles
@@ -27,5 +34,5 @@ jobs:
           FOUNDRY_DEPLOYMENT: gpt-4.1
           AZURE_STORAGE_ACCOUNT: agentfishbowlstorage
           AZURE_STORAGE_CONTAINER: articles
-          MANAGED_IDENTITY_CLIENT_ID: e0e642cd-94c8-435f-9d0e-e23c4edaaaa9
+          MANAGED_IDENTITY_CLIENT_ID: ${{ secrets.MANAGED_IDENTITY_CLIENT_ID }}
         run: python -m scripts.ingest

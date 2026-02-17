@@ -7,6 +7,10 @@ on:
     - cron: "0 */12 * * *"   # Every 12h fallback
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+  pull-requests: read
+
 concurrency:
   group: agent-reviewer
   cancel-in-progress: false
@@ -16,10 +20,11 @@ jobs:
     name: Run Reviewer agent
     runs-on: self-hosted
     timeout-minutes: 30
-    # Don't review bot's own PRs (prevent self-review loops)
+    # Skip fork PRs (security: self-hosted runner) and bot PRs (prevent self-review loops)
     if: >
       github.event_name != 'pull_request' ||
-      !contains(github.event.pull_request.user.login, '[bot]')
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       !contains(github.event.pull_request.user.login, '[bot]'))
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,7 +46,7 @@ jobs:
 
       - name: Run Reviewer agent
         if: steps.cap.outputs.skip != 'true'
-        uses: YourMoveLabs/agent-harness@main
+        uses: YourMoveLabs/agent-harness@v1.0.0
         with:
           entry-point: agents/reviewer.sh
 
