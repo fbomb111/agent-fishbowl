@@ -14,6 +14,7 @@ def test_parse_response_valid_json():
             {"text": "Try LangGraph for agents", "category": "tool"},
         ],
         "ai_summary": "This article covers modern observability patterns and agent frameworks.",
+        "relevance_score": 8,
     }
     result = _parse_response(json.dumps(data))
     assert len(result.insights) == 2
@@ -21,6 +22,7 @@ def test_parse_response_valid_json():
     assert result.insights[0]["category"] == "technique"
     assert result.insights[1]["category"] == "tool"
     assert "observability" in result.ai_summary
+    assert result.relevance_score == 8
 
 
 def test_parse_response_empty_insights():
@@ -28,6 +30,7 @@ def test_parse_response_empty_insights():
     result = _parse_response(json.dumps(data))
     assert result.insights == []
     assert result.ai_summary is None
+    assert result.relevance_score == 5  # default when missing
 
 
 def test_parse_response_short_summary_becomes_none():
