@@ -59,6 +59,11 @@ def _mock_orchestrator_deps(mocker, existing_ids=None, parsed_articles=None):
             total=len(existing_ids),
         ),
     )
+    # Default dedup mock: pass through all candidates (no duplicates)
+    mocker.patch(
+        "api.services.ingestion.orchestrator.deduplicate_candidates",
+        side_effect=lambda candidates, existing: (candidates, []),
+    )
     mocker.patch(
         "api.services.ingestion.orchestrator.scrape_article",
         new_callable=AsyncMock,
@@ -106,6 +111,7 @@ async def test_deduplicates_existing_articles(mocker):
 
     assert stats.new == 1
     assert stats.skipped == 2
+    assert stats.duplicates_removed == 0
     assert mock_analyze.call_count == 1
     assert mock_write_only.call_count == 1
     mock_write_index.assert_called_once()
@@ -161,3 +167,47 @@ async def test_handles_analysis_failure_gracefully(mocker):
     from api.services.ingestion.orchestrator import write_article_index
 
     write_article_index.assert_called_once()
+
+
+async def test_topic_dedup_removes_duplicate_stories(mocker):
+    """Topic-based dedup removes articles covering the same story."""
+    from api.services.ingestion.orchestrator import run_ingestion
+
+    parsed = [
+        _make_parsed("article-a", title="OpenAI launches GPT-5"),
+        _make_parsed("article-b", title="OpenAI launches GPT-5 today"),
+        _make_parsed("article-c", title="Completely different story"),
+    ]
+
+    mock_analyze, mock_write_only, _ = _mock_orchestrator_deps(
+        mocker, existing_ids=[], parsed_articles=parsed
+    )
+
+    # Override dedup mock to simulate removing one duplicate
+    mocker.patch(
+        "api.services.ingestion.orchestrator.deduplicate_candidates",
+        return_value=(
+            [parsed[0], parsed[2]],  # keep first and third
+            [("OpenAI launches GPT-5 today", "OpenAI launches GPT-5")],
+        ),
+    )
+
+    stats = await run_ingestion()
+
+    assert stats.duplicates_removed == 1
+    assert stats.new == 2
+    assert mock_analyze.call_count == 2
+    assert mock_write_only.call_count == 2
+
+
+async def test_duplicates_removed_in_stats(mocker):
+    """duplicates_removed field appears in stats dict."""
+    from api.services.ingestion.orchestrator import run_ingestion
+
+    _mock_orchestrator_deps(mocker, existing_ids=[], parsed_articles=[])
+
+    stats = await run_ingestion()
+
+    stats_dict = stats.to_dict()
+    assert "duplicates_removed" in stats_dict
+    assert stats_dict["duplicates_removed"] == 0
