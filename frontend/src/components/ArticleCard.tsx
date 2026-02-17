@@ -1,5 +1,39 @@
 import type { Insight } from "@/lib/api";
 
+const FRESH_THRESHOLD_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+function formatRelativeTime(dateStr: string): string | null {
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return null;
+
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  if (diffMs < 0) return "just now";
+
+  const seconds = Math.floor(diffMs / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (seconds < 60) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days}d ago`;
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function isFresh(dateStr: string): boolean {
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return false;
+  return Date.now() - date.getTime() < FRESH_THRESHOLD_MS;
+}
+
 const CATEGORY_COLORS: Record<string, string> = {
   tool: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
   pattern: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
@@ -33,11 +67,8 @@ export function ArticleCard({
   insights,
   aiSummary,
 }: ArticleCardProps) {
-  const date = new Date(publishedAt).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const relativeTime = formatRelativeTime(publishedAt);
+  const fresh = isFresh(publishedAt);
 
   const displayInsights = insights?.filter((i) => i.text) ?? [];
 
@@ -60,8 +91,18 @@ export function ArticleCard({
       )}
       <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
         <span className="font-medium">{source}</span>
-        <span>&middot;</span>
-        <span>{date}</span>
+        {relativeTime && (
+          <>
+            <span>&middot;</span>
+            <span>{relativeTime}</span>
+          </>
+        )}
+        {fresh && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Fresh
+          </span>
+        )}
         {readTimeMinutes && (
           <>
             <span>&middot;</span>
