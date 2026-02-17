@@ -4,10 +4,6 @@ on:
   schedule:
     - cron: "0 10 * * *"  # Daily 10am UTC
   workflow_dispatch:
-    inputs:
-      topic_hint:
-        description: "Optional topic hint for the writer"
-        required: false
 
 permissions:
   contents: read
@@ -42,4 +38,3 @@ jobs:
           entry-point: agents/writer.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TOPIC_HINT: ${{ github.event.inputs.topic_hint || '' }}
