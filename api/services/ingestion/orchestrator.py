@@ -12,6 +12,7 @@ from api.services.blob_storage import (
     write_article_only,
 )
 from api.services.ingestion.analyzer import AnalysisError, analyze_article
+from api.services.ingestion.dedup import deduplicate_candidates
 from api.services.ingestion.rss import fetch_all_sources, load_sources
 from api.services.ingestion.scraper import scrape_article
 
@@ -33,6 +34,7 @@ class IngestionStats:
     new: int
     scraped: int
     skipped: int
+    duplicates_removed: int
     failed: int
 
     def to_dict(self) -> dict:
@@ -42,6 +44,7 @@ class IngestionStats:
             "new": self.new,
             "scraped": self.scraped,
             "skipped": self.skipped,
+            "duplicates_removed": self.duplicates_removed,
             "failed": self.failed,
         }
 
@@ -71,10 +74,21 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
     # Keep a mutable copy of the index articles for batch update
     index_articles = list(index.articles)
 
-    # 3. Filter to new articles only
+    # 3. Filter to new articles only (URL-based dedup)
     new_parsed = [a for a in all_parsed if a["id"] not in existing_ids]
     skipped = fetched_count - len(new_parsed)
     logger.info("%d new articles, %d already indexed", len(new_parsed), skipped)
+
+    # 3b. Topic-based dedup — remove articles covering the same story
+    new_parsed, dedup_skipped = deduplicate_candidates(
+        new_parsed, list(index.articles)
+    )
+    duplicates_removed = len(dedup_skipped)
+    if duplicates_removed > 0:
+        logger.info(
+            "Removed %d duplicate(s) based on topic similarity",
+            duplicates_removed,
+        )
 
     # 4. Cap to max_new
     if len(new_parsed) > max_new:
@@ -166,14 +180,16 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
         new=new_count,
         scraped=scraped_count,
         skipped=skipped,
+        duplicates_removed=duplicates_removed,
         failed=failed_count,
     )
 
     logger.info(
-        "Ingestion complete: %d new, %d scraped, %d skipped, %d failed",
+        "Ingestion complete: %d new, %d scraped, %d skipped, %d dupes, %d failed",
         new_count,
         scraped_count,
         skipped,
+        duplicates_removed,
         failed_count,
     )
 

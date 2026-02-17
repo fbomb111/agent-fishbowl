@@ -48,6 +48,7 @@ async def main() -> int:
     print(f"  New:      {stats.new}")
     print(f"  Scraped:  {stats.scraped}")
     print(f"  Skipped:  {stats.skipped}")
+    print(f"  Dupes:    {stats.duplicates_removed}")
     print(f"  Failed:   {stats.failed}")
 
     return 1 if stats.failed > 0 and stats.new == 0 else 0
