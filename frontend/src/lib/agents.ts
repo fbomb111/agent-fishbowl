@@ -58,6 +58,12 @@ export const AGENTS: Record<string, AgentConfig> = {
     colorClass:
       "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300",
   },
+  "github-actions": {
+    displayName: "GitHub Actions",
+    avatar: "/agents/github-actions.svg",
+    colorClass:
+      "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
+  },
   human: {
     displayName: "Frankie",
     avatar: "/agents/fishbowl-human.png",
@@ -66,7 +72,7 @@ export const AGENTS: Record<string, AgentConfig> = {
   },
   org: {
     displayName: "YourMoveLabs",
-    avatar: "/agents/yourmove-org.png",
+    avatar: "/agents/yourmove-org.svg",
     colorClass:
       "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
   },

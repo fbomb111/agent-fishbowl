@@ -32,13 +32,29 @@ ACTOR_MAP: dict[str, str] = {
     "fishbowl-triage[bot]": "triage",
     "fishbowl-sre[bot]": "sre",
     "fishbowl-writer[bot]": "writer",
-    "fbomb111": "human",
+    "github-actions[bot]": "github-actions",
     "YourMoveLabs": "org",
 }
 
+# Event types that represent interactive human actions (issues, comments, reviews)
+_HUMAN_EVENT_TYPES = {
+    "IssuesEvent",
+    "IssueCommentEvent",
+    "PullRequestEvent",
+    "PullRequestReviewEvent",
+    "PullRequestReviewCommentEvent",
+}
 
-def _map_actor(login: str) -> str:
-    """Map a GitHub login to a friendly agent name."""
+
+def _map_actor(login: str, event_type: str = "") -> str:
+    """Map a GitHub login to a friendly agent name.
+
+    For fbomb111 (Frankie), we split attribution based on event type:
+    interactive actions (issues, comments, reviews) → "human",
+    process actions (releases, pushes, branch ops) → "org".
+    """
+    if login == "fbomb111":
+        return "human" if event_type in _HUMAN_EVENT_TYPES else "org"
     return ACTOR_MAP.get(login, login)
 
 
@@ -93,7 +109,7 @@ def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     for event in raw_events:
         event_type = event.get("type", "")
-        actor = _map_actor(event.get("actor", {}).get("login", "unknown"))
+        actor = _map_actor(event.get("actor", {}).get("login", "unknown"), event_type)
         payload = event.get("payload", {})
 
         if event_type == "IssuesEvent":
@@ -415,7 +431,12 @@ async def get_threaded_activity(
 
     if threads:
         _cache.set(cache_key, threads)
-    return threads
+        return threads
+
+    stale = _cache.get(cache_key)
+    if stale is not None:
+        return stale
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -456,11 +477,13 @@ async def get_agent_status() -> list[dict[str, Any]]:
         resp = await client.get(url, headers=headers, params=params)
         if resp.status_code != 200:
             logger.warning("Failed to fetch workflow runs: %d", resp.status_code)
-            return []
+            stale = _status_cache.get(cache_key)
+            return stale if stale is not None else []
         runs = resp.json().get("workflow_runs", [])
     except Exception:
         logger.exception("Error fetching workflow runs")
-        return []
+        stale = _status_cache.get(cache_key)
+        return stale if stale is not None else []
 
     # Build a map of agent role -> most recent run
     agent_runs: dict[str, dict[str, Any]] = {}
