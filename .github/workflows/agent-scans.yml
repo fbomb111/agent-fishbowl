@@ -26,3 +26,5 @@ jobs:
         uses: YourMoveLabs/agent-harness@v1.0.0
         with:
           entry-point: scripts/run-scans.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

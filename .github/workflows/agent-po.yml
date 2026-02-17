@@ -43,6 +43,8 @@ jobs:
         uses: YourMoveLabs/agent-harness@v1.0.0
         with:
           entry-point: agents/po.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Dispatch to engineer if work available
         if: steps.cap.outputs.skip != 'true' && success()
