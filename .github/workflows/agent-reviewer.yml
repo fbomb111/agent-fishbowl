@@ -8,8 +8,9 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: read
+  contents: write        # dispatch-agent.sh (repository_dispatch)
   pull-requests: read
+  actions: write          # gh workflow run agent-po.yml
 
 concurrency:
   group: agent-reviewer

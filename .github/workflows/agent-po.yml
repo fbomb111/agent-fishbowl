@@ -8,7 +8,7 @@ on:
   workflow_dispatch: {}     # Dispatched by reviewer/triage after creating issues
 
 permissions:
-  contents: read
+  contents: write        # dispatch-agent.sh (repository_dispatch)
 
 concurrency:
   group: agent-po

@@ -20,6 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Azure login (Managed Identity)
+        run: az login --identity --client-id ${{ secrets.MANAGED_IDENTITY_CLIENT_ID }}
+
       - name: Build and push API image
         run: |
           az acr login --name agentfishbowlacr
