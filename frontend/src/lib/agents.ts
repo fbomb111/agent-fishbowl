@@ -52,6 +52,12 @@ export const AGENTS: Record<string, AgentConfig> = {
     avatar: "/agents/fishbowl-sre.png",
     colorClass: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
   },
+  writer: {
+    displayName: "Writer",
+    avatar: "/agents/fishbowl-writer.png",
+    colorClass:
+      "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300",
+  },
   human: {
     displayName: "Frankie",
     avatar: "/agents/fishbowl-human.png",
