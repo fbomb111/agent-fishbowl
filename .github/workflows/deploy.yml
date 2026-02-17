@@ -40,6 +40,8 @@ jobs:
             --image agentfishbowlacr.azurecr.io/agent-fishbowl-api:${{ github.sha }}
 
       - name: Verify deployment
+        id: health
+        continue-on-error: true
         run: |
           echo "Verifying API health..."
           for i in 1 2 3 4 5; do
@@ -53,6 +55,28 @@ jobs:
           done
           echo "ERROR: API health check failed after 5 attempts"
           exit 1
+
+      - name: Rollback on failure
+        if: steps.health.outcome == 'failure'
+        run: |
+          echo "Health check failed — rolling back to previous revision"
+          PREV=$(az containerapp revision list \
+            --name ca-agent-fishbowl-api \
+            --resource-group rg-agent-fishbowl \
+            --query "sort_by([?properties.active], &properties.createdTime)[-2].name" -o tsv)
+          if [ -n "$PREV" ]; then
+            az containerapp ingress traffic set \
+              --name ca-agent-fishbowl-api \
+              --resource-group rg-agent-fishbowl \
+              --revision-weight "$PREV=100"
+            echo "Rolled back to revision: $PREV"
+          else
+            echo "WARNING: No previous revision found — cannot auto-rollback"
+          fi
+
+      - name: Fail job if unhealthy
+        if: steps.health.outcome == 'failure'
+        run: exit 1
 
   deploy-frontend:
     name: Deploy Frontend

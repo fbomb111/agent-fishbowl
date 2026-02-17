@@ -30,13 +30,7 @@ Each roadmap item has fields: **Priority** (P1/P2/P3), **Goal**, **Phase**, and 
 
 ## Agent Deployment
 
-Agents are deployed as GitHub Actions workflows running on the self-hosted runner. They pull code from the `stable` branch — never from the dev workspace.
-
-**Branches:**
-- `main` — active development, CI tests pass
-- `stable` — production agent code, human-promoted from main
-
-**Promotion:** Trigger the `promote.yml` workflow (Actions UI → Run workflow → type "PROMOTE"). This fast-forwards `stable` to match `main`.
+Agents are deployed as GitHub Actions workflows running on the self-hosted runner. They run from `main` — the same branch they push to. There is no promotion gate; safety comes from automated rollback and SRE remediation.
 
 **Workflows** (all in `.github/workflows/`):
 
@@ -49,7 +43,6 @@ Agents are deployed as GitHub Actions workflows running on the self-hosted runne
 | `agent-sre.yml` | SRE | `repository_dispatch` (azure-alert) + 4h schedule | Concurrency group |
 | `agent-strategic.yml` | PM | Daily 06:00 + manual | Concurrency group |
 | `agent-scans.yml` | Tech Lead + UX | Every 3 days | Concurrency group |
-| `promote.yml` | — | Manual only | — |
 
 **Event Chain:**
 ```
@@ -65,6 +58,7 @@ PM reviews daily → adjusts roadmap → dispatches PO
 - Chain depth limit (max 3) prevents runaway dispatch cascading
 - Review round limit (max 3 per PR) prevents reviewer loops
 - Fork guard on reviewer (security: self-hosted runner)
+- Auto-rollback on deploy failure (Container App revision rollback)
 - `.harness/scripts/dispatch-agent.sh` handles agent-to-agent chaining (from harness checkout)
 
 **Environment:** Agent .env is staged at `~/.config/agent-harness/.env` on the runner. The harness composite action copies it into the checkout. PEM keys are at `~/.config/agent-harness/*.pem`.
@@ -141,6 +135,7 @@ scripts/                Project-specific scripts
   create-branch.sh      Create branch from issue number
   playbooks/            SRE automated remediation playbooks
     restart-api.sh      Auto-restart Container App revision
+    rollback-api.sh     Roll back to previous Container App revision
     retrigger-ingest.sh Re-trigger ingest workflow
   seed_articles.py      Seed initial articles
   ingest.py             Article ingestion
@@ -148,7 +143,6 @@ scripts/                Project-specific scripts
   pick-issue.md         Find + claim highest-priority issue
   open-pr.md            Create draft PR with proper format
 .github/workflows/      CI + agent deployment (thin stubs → harness)
-  promote.yml           Promote main → stable
   agent-po.yml          PO (event-driven: dispatch + daily)
   agent-engineer.yml    Engineer (event-driven: dispatch + PR merged)
   agent-reviewer.yml    Reviewer (event-driven: PR opened/sync + 12h)
@@ -289,6 +283,7 @@ Engineer claims issues → opens PR → Reviewer merges (or backlogs via source/
 | `run-checks.sh` | Quality checks (ruff + tsc + eslint + conventions) | Before every PR |
 | `create-branch.sh` | Create named branch from issue number | When starting work on an issue |
 | `playbooks/restart-api.sh` | Auto-restart Container App revision | Automated remediation |
+| `playbooks/rollback-api.sh` | Roll back to previous Container App revision | Automated remediation |
 | `playbooks/retrigger-ingest.sh` | Re-trigger ingest workflow | Automated remediation |
 
 ### Harness Scripts (via `.harness/scripts/` in CI, or `$HARNESS_ROOT/scripts/` locally)
