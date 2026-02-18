@@ -36,16 +36,24 @@ jobs:
       - name: Check for available work
         id: workcheck
         run: |
-          # Actionable = open, has priority/*, unassigned
+          # Actionable issues = open, has priority/*, unassigned
           ACTIONABLE=$(gh issue list --state open --json assignees,labels \
             --jq '[.[] | select(
               (.assignees | length == 0) and
               (.labels | map(.name) | any(test("^priority/")))
             )] | length')
 
-          echo "actionable=$ACTIONABLE"
+          # PRs needing fixes = ci/failed, changes requested, or conflicts
+          PR_FIXES=$(gh pr list --state open --json labels,reviewDecision,mergeable \
+            --jq '[.[] | select(
+              (.labels | map(.name) | any(. == "ci/failed")) or
+              .reviewDecision == "CHANGES_REQUESTED" or
+              .mergeable == "CONFLICTING"
+            )] | length')
 
-          if [ "$ACTIONABLE" -eq 0 ]; then
+          echo "actionable_issues=$ACTIONABLE pr_fixes=$PR_FIXES"
+
+          if [ "$ACTIONABLE" -eq 0 ] && [ "${PR_FIXES:-0}" -eq 0 ]; then
             echo "idle=true" >> "$GITHUB_OUTPUT"
           else
             echo "idle=false" >> "$GITHUB_OUTPUT"
