@@ -70,13 +70,27 @@ export interface StandaloneEvent {
 
 export type ThreadedItem = ActivityThread | StandaloneEvent;
 
-export async function fetchArticles(category?: string): Promise<{
+export async function fetchArticles(
+  category?: string,
+  limit?: number,
+  offset?: number,
+  search?: string
+): Promise<{
   articles: ArticleSummary[];
   total: number;
 }> {
   const url = new URL(`${API_BASE}/articles`);
   if (category) {
     url.searchParams.set("category", category);
+  }
+  if (limit !== undefined) {
+    url.searchParams.set("limit", String(limit));
+  }
+  if (offset !== undefined) {
+    url.searchParams.set("offset", String(offset));
+  }
+  if (search) {
+    url.searchParams.set("search", search);
   }
   const res = await fetch(url.toString());
   if (!res.ok) throw apiError(res.status);
@@ -106,6 +120,16 @@ export async function fetchThreadedActivity(
 
 // Agent status types
 
+export interface AgentUsage {
+  cost_usd: number | null;
+  num_turns: number | null;
+  duration_s: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_creation_input_tokens: number | null;
+  cache_read_input_tokens: number | null;
+}
+
 export interface AgentStatus {
   role: string;
   status: "active" | "idle" | "failed";
@@ -113,6 +137,7 @@ export interface AgentStatus {
   trigger?: string;
   last_completed_at?: string;
   last_conclusion?: string;
+  usage?: AgentUsage;
 }
 
 export async function fetchAgentStatus(): Promise<{
