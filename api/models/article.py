@@ -28,6 +28,7 @@ class ArticleSummary(BaseModel):
     insights: list[Insight] = []
     ai_summary: str | None = None
     has_full_text: bool = False
+    relevance_score: int | None = None
 
     @model_validator(mode="before")
     @classmethod
