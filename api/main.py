@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.config import get_settings
 from api.middleware import RequestIDMiddleware
-from api.routers import activity, articles, blog, feedback, goals
+from api.routers import activity, articles, blog, feedback, goals, stats
 
 settings = get_settings()
 
@@ -48,6 +48,7 @@ app.include_router(activity.router, prefix="/api/fishbowl")
 app.include_router(goals.router, prefix="/api/fishbowl")
 app.include_router(feedback.router, prefix="/api/fishbowl")
 app.include_router(blog.router, prefix="/api/fishbowl")
+app.include_router(stats.router, prefix="/api/fishbowl")
 
 
 @app.get("/api/fishbowl/health")
