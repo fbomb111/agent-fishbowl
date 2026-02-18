@@ -56,12 +56,12 @@ async def get_team_stats() -> dict[str, Any]:
     """Compute aggregate agent team statistics for the last 7 days.
 
     Returns a dict with:
-      - issues_closed: total issues closed in last 7 days
-      - prs_merged: total PRs merged in last 7 days
-      - avg_pr_cycle_hours: average hours from PR open to merge
-      - agents: per-agent activity counts
-      - period_start: ISO timestamp of the 7-day window start
-      - period_end: ISO timestamp of now
+    - issues_closed: total issues closed in last 7 days
+    - prs_merged: total PRs merged in last 7 days
+    - avg_pr_cycle_hours: average hours from PR open to merge
+    - agents: per-agent activity counts
+    - period_start: ISO timestamp of the 7-day window start
+    - period_end: ISO timestamp of now
     """
     cache_key = "team_stats"
     cached = _cache.get(cache_key)
