@@ -70,13 +70,23 @@ export interface StandaloneEvent {
 
 export type ThreadedItem = ActivityThread | StandaloneEvent;
 
-export async function fetchArticles(category?: string): Promise<{
+export async function fetchArticles(
+  category?: string,
+  limit?: number,
+  offset?: number
+): Promise<{
   articles: ArticleSummary[];
   total: number;
 }> {
   const url = new URL(`${API_BASE}/articles`);
   if (category) {
     url.searchParams.set("category", category);
+  }
+  if (limit !== undefined) {
+    url.searchParams.set("limit", String(limit));
+  }
+  if (offset !== undefined) {
+    url.searchParams.set("offset", String(offset));
   }
   const res = await fetch(url.toString());
   if (!res.ok) throw apiError(res.status);

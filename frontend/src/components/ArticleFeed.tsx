@@ -5,19 +5,24 @@ import { ArticleCard } from "./ArticleCard";
 import { CategoryFilter } from "./CategoryFilter";
 import { fetchArticles, type ArticleSummary } from "@/lib/api";
 
+const PAGE_SIZE = 20;
+
 export function ArticleFeed() {
   const [articles, setArticles] = useState<ArticleSummary[]>([]);
+  const [total, setTotal] = useState(0);
   const [allCategories, setAllCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadArticles = useCallback(async (category: string | null) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchArticles(category ?? undefined);
+      const data = await fetchArticles(category ?? undefined, PAGE_SIZE, 0);
       setArticles(data.articles);
+      setTotal(data.total);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -25,10 +30,28 @@ export function ArticleFeed() {
     }
   }, []);
 
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    try {
+      const data = await fetchArticles(
+        selectedCategory ?? undefined,
+        PAGE_SIZE,
+        articles.length
+      );
+      setArticles((prev) => [...prev, ...data.articles]);
+      setTotal(data.total);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [selectedCategory, articles.length]);
+
   useEffect(() => {
-    fetchArticles()
+    fetchArticles(undefined, PAGE_SIZE, 0)
       .then((data) => {
         setArticles(data.articles);
+        setTotal(data.total);
         const categories = new Set<string>();
         data.articles.forEach((article) => {
           article.categories.forEach((cat) => categories.add(cat));
@@ -46,6 +69,8 @@ export function ArticleFeed() {
     setSelectedCategory(category);
     loadArticles(category);
   };
+
+  const hasMore = articles.length < total;
 
   if (loading && articles.length === 0) {
     return (
@@ -125,23 +150,39 @@ export function ArticleFeed() {
           </button>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {articles.map((article) => (
-            <ArticleCard
-              key={article.id}
-              title={article.title}
-              source={article.source}
-              description={article.description}
-              originalUrl={article.original_url}
-              publishedAt={article.published_at}
-              categories={article.categories}
-              imageUrl={article.image_url}
-              readTimeMinutes={article.read_time_minutes}
-              insights={article.insights}
-              aiSummary={article.ai_summary}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {articles.map((article) => (
+              <ArticleCard
+                key={article.id}
+                title={article.title}
+                source={article.source}
+                description={article.description}
+                originalUrl={article.original_url}
+                publishedAt={article.published_at}
+                categories={article.categories}
+                imageUrl={article.image_url}
+                readTimeMinutes={article.read_time_minutes}
+                insights={article.insights}
+                aiSummary={article.ai_summary}
+              />
+            ))}
+          </div>
+          {hasMore && (
+            <div className="flex flex-col items-center gap-2 pt-2">
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="rounded-lg border border-zinc-300 px-6 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                {loadingMore ? "Loading..." : "Load More"}
+              </button>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                Showing {articles.length} of {total} articles
+              </p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
