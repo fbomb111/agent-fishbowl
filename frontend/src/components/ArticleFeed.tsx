@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { ArticleCard } from "./ArticleCard";
 import { CategoryFilter } from "./CategoryFilter";
 import { fetchArticles, type ArticleSummary } from "@/lib/api";
@@ -12,24 +12,34 @@ export function ArticleFeed() {
   const [total, setTotal] = useState(0);
   const [allCategories, setAllCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadArticles = useCallback(async (category: string | null) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchArticles(category ?? undefined, PAGE_SIZE, 0);
-      setArticles(data.articles);
-      setTotal(data.total);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const loadArticles = useCallback(
+    async (category: string | null, search?: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await fetchArticles(
+          category ?? undefined,
+          PAGE_SIZE,
+          0,
+          search || undefined
+        );
+        setArticles(data.articles);
+        setTotal(data.total);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
 
   const loadMore = useCallback(async () => {
     setLoadingMore(true);
@@ -38,7 +48,8 @@ export function ArticleFeed() {
       const data = await fetchArticles(
         selectedCategory ?? undefined,
         PAGE_SIZE,
-        articles.length
+        articles.length,
+        searchQuery || undefined
       );
       setArticles((prev) => [...prev, ...data.articles]);
       setTotal(data.total);
@@ -47,7 +58,7 @@ export function ArticleFeed() {
     } finally {
       setLoadingMore(false);
     }
-  }, [selectedCategory, articles.length]);
+  }, [selectedCategory, articles.length, searchQuery]);
 
   useEffect(() => {
     fetchArticles(undefined, PAGE_SIZE, 0)
@@ -69,7 +80,17 @@ export function ArticleFeed() {
 
   const handleCategorySelect = (category: string | null) => {
     setSelectedCategory(category);
-    loadArticles(category);
+    loadArticles(category, searchQuery);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+    debounceTimer.current = setTimeout(() => {
+      loadArticles(selectedCategory, value);
+    }, 300);
   };
 
   const hasMore = articles.length < total;
@@ -97,7 +118,7 @@ export function ArticleFeed() {
           Failed to load articles: {error}
         </p>
         <button
-          onClick={() => loadArticles(selectedCategory)}
+          onClick={() => loadArticles(selectedCategory, searchQuery)}
           className="mt-3 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600"
         >
           Retry
@@ -106,7 +127,7 @@ export function ArticleFeed() {
     );
   }
 
-  if (articles.length === 0 && !selectedCategory) {
+  if (articles.length === 0 && !selectedCategory && !searchQuery) {
     return (
       <div className="rounded-xl border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
         <p className="text-zinc-500 dark:text-zinc-400">
@@ -119,6 +140,30 @@ export function ArticleFeed() {
 
   return (
     <div className="space-y-6">
+      <div className="relative">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          placeholder="Search articles..."
+          aria-label="Search articles"
+          className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 pl-10 text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-400/20"
+        />
+        <svg
+          className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 dark:text-zinc-500"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
+      </div>
       <CategoryFilter
         categories={allCategories}
         selected={selectedCategory}
@@ -141,11 +186,15 @@ export function ArticleFeed() {
       ) : articles.length === 0 ? (
         <div className="rounded-xl border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
           <p className="text-zinc-500 dark:text-zinc-400">
-            No articles found in this category. Try selecting a different
-            category or clear filters to see all articles.
+            {searchQuery
+              ? `No articles found for "${searchQuery}". Try a different search term.`
+              : "No articles found in this category. Try selecting a different category or clear filters to see all articles."}
           </p>
           <button
-            onClick={() => handleCategorySelect(null)}
+            onClick={() => {
+              setSearchQuery("");
+              handleCategorySelect(null);
+            }}
             className="mt-3 text-sm font-medium text-zinc-700 underline hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
           >
             Clear filters
