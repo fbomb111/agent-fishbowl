@@ -346,9 +346,7 @@ sources:
     url: "https://example.com/b.xml"
     categories: ["news", "ai"]
 """
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(yaml_content)
             f.flush()
             sources = load_sources(f.name)
@@ -358,9 +356,7 @@ sources:
         assert sources[1]["categories"] == ["news", "ai"]
 
     def test_missing_sources_key_returns_empty(self) -> None:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("other_key: value\n")
             f.flush()
             sources = load_sources(f.name)
@@ -379,9 +375,7 @@ sources:
 
 class TestFetchAndParseSource:
     @pytest.mark.asyncio
-    async def test_http_error_returns_empty(
-        self, sample_source: SourceConfig
-    ) -> None:
+    async def test_http_error_returns_empty(self, sample_source: SourceConfig) -> None:
         with patch(
             "api.services.ingestion.rss.fetch_feed",
             side_effect=httpx.HTTPStatusError(
@@ -407,9 +401,7 @@ class TestFetchAndParseSource:
         assert articles == []
 
     @pytest.mark.asyncio
-    async def test_timeout_returns_empty(
-        self, sample_source: SourceConfig
-    ) -> None:
+    async def test_timeout_returns_empty(self, sample_source: SourceConfig) -> None:
         with patch(
             "api.services.ingestion.rss.fetch_feed",
             side_effect=httpx.TimeoutException("Request timed out"),
