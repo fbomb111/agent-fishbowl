@@ -99,7 +99,7 @@ export function ArticleFeed() {
     return (
       <div className="space-y-6">
         <div className="h-10 w-48 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
             <div
               key={i}
@@ -114,12 +114,12 @@ export function ArticleFeed() {
   if (error) {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-900 dark:bg-red-950">
-        <p className="text-sm text-red-600 dark:text-red-400">
+        <p className="text-base text-red-600 sm:text-sm dark:text-red-400">
           Failed to load articles: {error}
         </p>
         <button
           onClick={() => loadArticles(selectedCategory, searchQuery)}
-          className="mt-3 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600"
+          className="mt-3 min-h-[44px] rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600"
         >
           Retry
         </button>
@@ -174,7 +174,7 @@ export function ArticleFeed() {
           <div className="h-1 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
             <div className="h-full w-1/3 animate-[loading-bar_1s_ease-in-out_infinite] rounded-full bg-zinc-500 dark:bg-zinc-400" />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
@@ -202,7 +202,7 @@ export function ArticleFeed() {
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
             {articles.map((article) => (
               <ArticleCard
                 key={article.id}
