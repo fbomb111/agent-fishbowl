@@ -228,13 +228,17 @@ class TestExtractImageUrl:
         assert len(articles) == 1
         assert articles[0]["image_url"] == "https://example.com/media-image.jpg"
 
-    def test_thumbnail(self, feed_with_thumbnail: str, sample_source: SourceConfig) -> None:
+    def test_thumbnail(
+        self, feed_with_thumbnail: str, sample_source: SourceConfig
+    ) -> None:
         articles = parse_feed_entries(feed_with_thumbnail, sample_source)
 
         assert len(articles) == 1
         assert articles[0]["image_url"] == "https://example.com/thumbnail.jpg"
 
-    def test_enclosure(self, feed_with_enclosure: str, sample_source: SourceConfig) -> None:
+    def test_enclosure(
+        self, feed_with_enclosure: str, sample_source: SourceConfig
+    ) -> None:
         articles = parse_feed_entries(feed_with_enclosure, sample_source)
 
         assert len(articles) == 1
@@ -253,7 +257,9 @@ class TestExtractImageUrl:
 
 
 class TestParsePublishedDate:
-    def test_rss_pubdate(self, sample_rss_feed: str, sample_source: SourceConfig) -> None:
+    def test_rss_pubdate(
+        self, sample_rss_feed: str, sample_source: SourceConfig
+    ) -> None:
         articles = parse_feed_entries(sample_rss_feed, sample_source)
 
         assert articles[0]["published_at"].year == 2026
@@ -261,7 +267,9 @@ class TestParsePublishedDate:
         assert articles[0]["published_at"].day == 15
         assert articles[0]["published_at"].tzinfo == timezone.utc
 
-    def test_atom_updated(self, sample_atom_feed: str, sample_source: SourceConfig) -> None:
+    def test_atom_updated(
+        self, sample_atom_feed: str, sample_source: SourceConfig
+    ) -> None:
         articles = parse_feed_entries(sample_atom_feed, sample_source)
 
         assert articles[0]["published_at"].year == 2026
@@ -310,7 +318,9 @@ class TestFetchAndParseSource:
         assert articles == []
 
     @pytest.mark.asyncio
-    async def test_connection_error_returns_empty(self, sample_source: SourceConfig) -> None:
+    async def test_connection_error_returns_empty(
+        self, sample_source: SourceConfig
+    ) -> None:
         with patch(
             "api.services.ingestion.rss.fetch_feed",
             side_effect=httpx.ConnectError("Connection refused"),
