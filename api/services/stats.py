@@ -110,7 +110,9 @@ async def get_team_stats() -> dict[str, Any]:
         if hours is not None:
             cycle_times.append(hours)
 
-    avg_cycle = round(sum(cycle_times) / len(cycle_times), 1) if cycle_times else None
+    avg_cycle = (
+        round(sum(cycle_times) / len(cycle_times), 1) if cycle_times else None
+    )
 
     # Build per-agent list sorted by role name
     agents_list = [
