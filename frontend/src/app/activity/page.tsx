@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ActivityFeed, type TypeFilter } from "@/components/ActivityFeed";
 import { AgentStatusBar } from "@/components/AgentStatusBar";
 import { ActiveWorkSummary } from "@/components/ActiveWorkSummary";
+import { ActivityTeamStats } from "@/components/ActivityTeamStats";
 import { fetchAgentStatus, type AgentStatus, type ThreadedItem } from "@/lib/api";
 
 const STATUS_POLL_INTERVAL = 30_000;
@@ -77,6 +78,9 @@ export default function ActivityPage() {
           onFilterChange={setFilterAgent}
         />
       </div>
+
+      {/* Team performance stats */}
+      <ActivityTeamStats />
 
       {/* Type filter pills */}
       <div className="mb-4 flex items-center gap-2">
