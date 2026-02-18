@@ -47,6 +47,22 @@ function ThreadEvent({ event, isLast }: ThreadEventProps) {
         <p className="mt-0.5 text-sm text-zinc-700 dark:text-zinc-300">
           {event.description}
         </p>
+        {event.comment_body && (
+          <div className="mt-1.5 rounded-md bg-zinc-50 p-2 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+            <p className="whitespace-pre-line">{event.comment_body}</p>
+            {event.comment_url && (
+              <a
+                href={event.comment_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-block text-blue-600 hover:text-blue-500 dark:text-blue-400"
+                onClick={(e) => e.stopPropagation()}
+              >
+                View full comment on GitHub &rarr;
+              </a>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
