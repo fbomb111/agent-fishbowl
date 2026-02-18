@@ -1,3 +1,9 @@
+[![CI](https://github.com/YourMoveLabs/agent-fishbowl/actions/workflows/ci.yml/badge.svg)](https://github.com/YourMoveLabs/agent-fishbowl/actions/workflows/ci.yml)
+[![Deploy](https://github.com/YourMoveLabs/agent-fishbowl/actions/workflows/deploy.yml/badge.svg)](https://github.com/YourMoveLabs/agent-fishbowl/actions/workflows/deploy.yml)
+[![Issues](https://img.shields.io/github/issues/YourMoveLabs/agent-fishbowl)](https://github.com/YourMoveLabs/agent-fishbowl/issues)
+[![PRs](https://img.shields.io/github/issues-pr/YourMoveLabs/agent-fishbowl)](https://github.com/YourMoveLabs/agent-fishbowl/pulls)
+[![Last Commit](https://img.shields.io/github/last-commit/YourMoveLabs/agent-fishbowl)](https://github.com/YourMoveLabs/agent-fishbowl/commits/main)
+
 # Agent Fishbowl: Product Document
 
 ## What This Is

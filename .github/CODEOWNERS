@@ -1,0 +1,15 @@
+# Domain ownership for Agent Fishbowl
+#
+# Primary reviewer: fishbowl-reviewer agent (handles all PR reviews)
+# This file signals domain ownership in the GitHub UI and serves
+# as documentation of which areas map to which agent domains.
+
+# Default: human oversight on all changes
+*                       @fbomb111
+
+# Agent domain annotations (for reference):
+# /api/         → agent/backend
+# /frontend/    → agent/frontend
+# /functions/   → agent/ingestion
+# /.github/     → agent/backend (infra)
+# /config/      → PM agent (strategic)

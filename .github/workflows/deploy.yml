@@ -34,6 +34,10 @@ jobs:
             -f api/Dockerfile .
           docker push agentfishbowlacr.azurecr.io/agent-fishbowl-api --all-tags
 
+          echo "### API Deploy" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Image**: \`agentfishbowlacr.azurecr.io/agent-fishbowl-api:${GITHUB_SHA::8}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Commit**: [\`${GITHUB_SHA::8}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Update Container App
         run: |
           az containerapp update \
@@ -50,11 +54,13 @@ jobs:
             if curl -sf --max-time 10 https://api.agentfishbowl.com/api/fishbowl/health; then
               echo ""
               echo "API is healthy!"
+              echo "- **Health**: Healthy" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
             echo "Attempt $i/5 failed, waiting 15s..."
             sleep 15
           done
+          echo "- **Health**: FAILED (rolled back)" >> "$GITHUB_STEP_SUMMARY"
           echo "ERROR: API health check failed after 5 attempts"
           exit 1
 
@@ -111,6 +117,13 @@ jobs:
           output_location: ""
           skip_app_build: true
           is_static_export: true
+
+      - name: Post frontend deploy summary
+        if: success()
+        run: |
+          echo "### Frontend Deploy" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Target**: Azure Static Web Apps" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Status**: Deployed" >> "$GITHUB_STEP_SUMMARY"
 
   notify-failure:
     name: Create issue on deploy failure

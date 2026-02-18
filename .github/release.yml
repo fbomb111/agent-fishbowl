@@ -1,0 +1,18 @@
+changelog:
+  categories:
+    - title: New Features
+      labels:
+        - type/feature
+    - title: Bug Fixes
+      labels:
+        - type/bug
+    - title: UX Improvements
+      labels:
+        - type/ux
+    - title: Maintenance
+      labels:
+        - type/chore
+        - type/refactor
+    - title: Other Changes
+      labels:
+        - "*"
