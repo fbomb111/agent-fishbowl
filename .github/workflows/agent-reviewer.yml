@@ -79,9 +79,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Dispatch PO for intake triage
+      - name: Dispatch PO if intake batch ready
         if: steps.rounds.outputs.skip != 'true' && success()
-        run: gh workflow run agent-po.yml
+        run: |
+          # Count unprocessed intake: has source/* label but no priority/* yet
+          INTAKE=$(gh issue list --state open --json labels \
+            --jq '[.[] | select(
+              (.labels | map(.name) | any(test("^source/"))) and
+              (.labels | map(.name) | any(test("^priority/")) | not)
+            )] | length')
+
+          if [ "$INTAKE" -ge 5 ]; then
+            echo "Batch ready: $INTAKE unprocessed intake items — dispatching PO"
+            gh workflow run agent-po.yml
+          else
+            echo "Only $INTAKE unprocessed items — accumulating (threshold: 5)"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

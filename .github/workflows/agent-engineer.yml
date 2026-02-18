@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  actions: write          # gh workflow run agent-strategic.yml
 
 concurrency:
   group: agent-engineer
@@ -32,10 +33,51 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check for available work
+        id: workcheck
+        run: |
+          # Actionable = open, has priority/*, unassigned
+          ACTIONABLE=$(gh issue list --state open --json assignees,labels \
+            --jq '[.[] | select(
+              (.assignees | length == 0) and
+              (.labels | map(.name) | any(test("^priority/")))
+            )] | length')
+
+          echo "actionable=$ACTIONABLE"
+
+          if [ "$ACTIONABLE" -eq 0 ]; then
+            echo "idle=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "idle=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Run Engineer agent
+        if: steps.workcheck.outputs.idle != 'true'
         uses: YourMoveLabs/agent-harness@v1.0.0
         with:
           entry-point: agents/engineer.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Signal low backlog — trigger PM
+        if: steps.workcheck.outputs.idle == 'true'
+        run: |
+          # Check if PM ran recently (last 2 hours) — avoid spamming
+          RECENT_PM=$(gh run list --workflow agent-strategic.yml --limit 1 \
+            --json createdAt --jq '.[0].createdAt // "2000-01-01T00:00:00Z"')
+
+          RECENT_TS=$(date -d "$RECENT_PM" +%s 2>/dev/null || echo 0)
+          NOW_TS=$(date +%s)
+          HOURS_AGO=$(( (NOW_TS - RECENT_TS) / 3600 ))
+
+          if [ "$HOURS_AGO" -lt 2 ]; then
+            echo "PM ran ${HOURS_AGO}h ago — skipping to avoid loop"
+          else
+            echo "Backlog empty, PM hasn't run in ${HOURS_AGO}h — dispatching"
+            gh workflow run agent-strategic.yml
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

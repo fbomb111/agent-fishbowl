@@ -4,8 +4,8 @@ on:
   repository_dispatch:
     types: [agent-pm-feedback]
   schedule:
-    - cron: "0 6 * * *"   # Daily 06:00 UTC fallback
-  workflow_dispatch: {}     # Dispatched by reviewer/triage after creating issues
+    - cron: "0 6,18 * * *"   # Every 12 hours (sweep runs)
+  workflow_dispatch: {}        # Manual or batch-threshold dispatch
 
 permissions:
   contents: write        # dispatch-agent.sh (repository_dispatch)
@@ -22,7 +22,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Pre-flight — check if PO has work
+        id: preflight
+        if: github.event_name != 'schedule'
+        run: |
+          # Count unprocessed intake (source/* without priority/*)
+          INTAKE=$(gh issue list --state open --json labels \
+            --jq '[.[] | select(
+              (.labels | map(.name) | any(test("^source/"))) and
+              (.labels | map(.name) | any(test("^priority/")) | not)
+            )] | length')
+
+          # Count PM-flagged misaligned issues
+          MISALIGNED=$(gh issue list --state open --label "pm/misaligned" \
+            --json number --jq length)
+
+          echo "intake=$INTAKE misaligned=$MISALIGNED"
+
+          if [ "$((INTAKE + MISALIGNED))" -eq 0 ]; then
+            echo "No intake or misaligned issues — skipping PO run"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "PO has work: $INTAKE intake + $MISALIGNED misaligned"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Run PO agent
+        if: github.event_name == 'schedule' || steps.preflight.outputs.skip != 'true'
         uses: YourMoveLabs/agent-harness@v1.0.0
         with:
           entry-point: agents/po.sh
