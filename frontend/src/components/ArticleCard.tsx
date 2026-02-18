@@ -1,4 +1,5 @@
 import type { Insight } from "@/lib/api";
+import { timeAgo, isFresh } from "@/lib/timeUtils";
 
 const CATEGORY_COLORS: Record<string, string> = {
   tool: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
@@ -33,11 +34,8 @@ export function ArticleCard({
   insights,
   aiSummary,
 }: ArticleCardProps) {
-  const date = new Date(publishedAt).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const relativeTime = publishedAt ? timeAgo(publishedAt) : null;
+  const fresh = publishedAt ? isFresh(publishedAt) : false;
 
   const displayInsights = insights?.filter((i) => i.text) ?? [];
 
@@ -60,8 +58,18 @@ export function ArticleCard({
       )}
       <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
         <span className="font-medium">{source}</span>
-        <span>&middot;</span>
-        <span>{date}</span>
+        {relativeTime && (
+          <>
+            <span>&middot;</span>
+            <span>{relativeTime}</span>
+          </>
+        )}
+        {fresh && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Fresh
+          </span>
+        )}
         {readTimeMinutes && (
           <>
             <span>&middot;</span>
