@@ -11,3 +11,9 @@ export function timeAgo(iso: string): string {
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
 }
+
+/** Check if an ISO timestamp is within the last N hours (default 6). */
+export function isFresh(iso: string, hoursThreshold = 6): boolean {
+  const ms = Date.now() - new Date(iso).getTime();
+  return ms >= 0 && ms < hoursThreshold * 60 * 60 * 1000;
+}

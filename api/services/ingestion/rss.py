@@ -11,6 +11,8 @@ import feedparser
 import httpx
 import yaml
 
+from api.services.http_client import get_shared_client
+
 logger = logging.getLogger(__name__)
 
 # Default timeout for HTTP requests
@@ -205,18 +207,18 @@ async def fetch_feed(url: str, timeout: float = REQUEST_TIMEOUT) -> str:
     Raises:
         httpx.HTTPError: On network or HTTP errors.
     """
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            url,
-            timeout=timeout,
-            follow_redirects=True,
-            headers={
-                "User-Agent": "AgentFishbowl/1.0 (RSS Aggregator)",
-                "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml",
-            },
-        )
-        response.raise_for_status()
-        return response.text
+    client = get_shared_client()
+    response = await client.get(
+        url,
+        timeout=timeout,
+        follow_redirects=True,
+        headers={
+            "User-Agent": "AgentFishbowl/1.0 (RSS Aggregator)",
+            "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml",
+        },
+    )
+    response.raise_for_status()
+    return response.text
 
 
 async def fetch_and_parse_source(source: SourceConfig) -> list[ParsedArticle]:

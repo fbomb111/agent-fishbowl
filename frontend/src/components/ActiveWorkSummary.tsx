@@ -4,6 +4,7 @@ import { getAgent } from "@/lib/agents";
 import { assetPath } from "@/lib/assetPath";
 import { timeAgo } from "@/lib/timeUtils";
 import type { AgentStatus, ThreadedItem } from "@/lib/api";
+import { formatTokens } from "@/lib/formatTokens";
 
 interface ActiveWorkSummaryProps {
   agents: AgentStatus[];
@@ -130,6 +131,32 @@ export function ActiveWorkSummary({ agents, items }: ActiveWorkSummaryProps) {
         {latestTimestamp && (
           <span>Last activity {timeAgo(latestTimestamp)}</span>
         )}
+        {(() => {
+          const withUsage = agents.filter((a) => a.usage != null);
+          const totalIn = withUsage.reduce(
+            (s, a) => s + (a.usage!.input_tokens ?? 0),
+            0
+          );
+          const totalOut = withUsage.reduce(
+            (s, a) => s + (a.usage!.output_tokens ?? 0),
+            0
+          );
+          const totalCost = withUsage.reduce(
+            (s, a) => s + (a.usage!.cost_usd ?? 0),
+            0
+          );
+          if (totalIn === 0 && totalOut === 0) return null;
+          return (
+            <span className="font-mono text-zinc-500 dark:text-zinc-400">
+              Last cycle: ↑{formatTokens(totalIn)} ↓{formatTokens(totalOut)}
+              {totalCost > 0 && (
+                <span className="text-emerald-600 dark:text-emerald-400 ml-1">
+                  (${totalCost.toFixed(2)})
+                </span>
+              )}
+            </span>
+          );
+        })()}
       </div>
     </div>
   );
