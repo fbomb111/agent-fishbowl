@@ -24,4 +24,11 @@ if [ -n "$STAGED_PY" ]; then
     $RUFF check --fix $STAGED_PY 2>/dev/null || true
     # Re-stage after formatting
     git add $STAGED_PY
+
+    # Final lint check — abort commit if unfixable issues remain
+    if ! $RUFF check $STAGED_PY; then
+        echo ""
+        echo "Pre-commit: ruff check failed. Fix lint errors before committing."
+        exit 1
+    fi
 fi
