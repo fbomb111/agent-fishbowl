@@ -16,15 +16,19 @@ logger = logging.getLogger(__name__)
 INDEX_BLOB = "index.json"
 BLOG_INDEX_BLOB = "blog-index.json"
 
-# Lazy singleton — lives for the process lifetime
+# Lazy singletons — live for the process lifetime
 _container_client: ContainerClient | None = None
+_blog_container_client: ContainerClient | None = None
+
+
+def _get_credential() -> ManagedIdentityCredential:
+    """Return Managed Identity credential."""
+    settings = get_settings()
+    return ManagedIdentityCredential(client_id=settings.managed_identity_client_id)
 
 
 def _get_container_client() -> ContainerClient:
-    """Return a shared blob container client (lazy singleton).
-
-    Uses User-Assigned Managed Identity for authentication.
-    """
+    """Return a shared blob container client for articles (lazy singleton)."""
     global _container_client
     if _container_client is not None:
         return _container_client
@@ -32,16 +36,29 @@ def _get_container_client() -> ContainerClient:
     settings = get_settings()
     account_url = f"https://{settings.azure_storage_account}.blob.core.windows.net"
 
-    credential = ManagedIdentityCredential(
-        client_id=settings.managed_identity_client_id
-    )
-
     _container_client = ContainerClient(
         account_url=account_url,
         container_name=settings.azure_storage_container,
-        credential=credential,
+        credential=_get_credential(),
     )
     return _container_client
+
+
+def _get_blog_container_client() -> ContainerClient:
+    """Return a shared blob container client for blog content ($web)."""
+    global _blog_container_client
+    if _blog_container_client is not None:
+        return _blog_container_client
+
+    settings = get_settings()
+    account_url = f"https://{settings.azure_storage_account}.blob.core.windows.net"
+
+    _blog_container_client = ContainerClient(
+        account_url=account_url,
+        container_name=settings.azure_blog_container,
+        credential=_get_credential(),
+    )
+    return _blog_container_client
 
 
 async def get_article_index(
@@ -176,8 +193,8 @@ async def get_blog_index(
     limit: int = 0,
     offset: int = 0,
 ) -> BlogIndex:
-    """Read the blog post index from blob storage."""
-    client = _get_container_client()
+    """Read the blog post index from the $web container."""
+    client = _get_blog_container_client()
     try:
         blob = client.get_blob_client(BLOG_INDEX_BLOB)
         data = blob.download_blob().readall()
@@ -205,8 +222,8 @@ async def get_blog_index(
 
 
 async def write_blog_index(posts: list[BlogPost]) -> None:
-    """Write the full blog post index to blob storage."""
-    client = _get_container_client()
+    """Write the full blog post index to the $web container."""
+    client = _get_blog_container_client()
     index_blob = client.get_blob_client(BLOG_INDEX_BLOB)
     index_data = json.dumps([p.model_dump(mode="json") for p in posts], indent=2)
     index_blob.upload_blob(
