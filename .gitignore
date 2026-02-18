@@ -28,5 +28,9 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 
+# Scripts tooling
+scripts/ux/node_modules/
+scripts/ux/package-lock.json
+
 # Agent logs
 agents/logs/

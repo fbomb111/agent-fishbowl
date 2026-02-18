@@ -12,6 +12,7 @@ from typing import Any
 from api.config import get_settings
 from api.services.cache import TTLCache
 from api.services.http_client import get_shared_client, github_headers
+from api.services.usage_storage import get_run_usage
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +33,29 @@ ACTOR_MAP: dict[str, str] = {
     "fishbowl-triage[bot]": "triage",
     "fishbowl-sre[bot]": "sre",
     "fishbowl-writer[bot]": "writer",
-    "fbomb111": "human",
+    "github-actions[bot]": "github-actions",
     "YourMoveLabs": "org",
 }
 
+# Event types that represent interactive human actions (issues, comments, reviews)
+_HUMAN_EVENT_TYPES = {
+    "IssuesEvent",
+    "IssueCommentEvent",
+    "PullRequestEvent",
+    "PullRequestReviewEvent",
+    "PullRequestReviewCommentEvent",
+}
 
-def _map_actor(login: str) -> str:
-    """Map a GitHub login to a friendly agent name."""
+
+def _map_actor(login: str, event_type: str = "") -> str:
+    """Map a GitHub login to a friendly agent name.
+
+    For fbomb111 (Frankie), we split attribution based on event type:
+    interactive actions (issues, comments, reviews) → "human",
+    process actions (releases, pushes, branch ops) → "org".
+    """
+    if login == "fbomb111":
+        return "human" if event_type in _HUMAN_EVENT_TYPES else "org"
     return ACTOR_MAP.get(login, login)
 
 
@@ -93,7 +110,7 @@ def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     for event in raw_events:
         event_type = event.get("type", "")
-        actor = _map_actor(event.get("actor", {}).get("login", "unknown"))
+        actor = _map_actor(event.get("actor", {}).get("login", "unknown"), event_type)
         payload = event.get("payload", {})
 
         if event_type == "IssuesEvent":
@@ -415,7 +432,12 @@ async def get_threaded_activity(
 
     if threads:
         _cache.set(cache_key, threads)
-    return threads
+        return threads
+
+    stale = _cache.get(cache_key)
+    if stale is not None:
+        return stale
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -456,11 +478,13 @@ async def get_agent_status() -> list[dict[str, Any]]:
         resp = await client.get(url, headers=headers, params=params)
         if resp.status_code != 200:
             logger.warning("Failed to fetch workflow runs: %d", resp.status_code)
-            return []
+            stale = _status_cache.get(cache_key)
+            return stale if stale is not None else []
         runs = resp.json().get("workflow_runs", [])
     except Exception:
         logger.exception("Error fetching workflow runs")
-        return []
+        stale = _status_cache.get(cache_key)
+        return stale if stale is not None else []
 
     # Build a map of agent role -> most recent run
     agent_runs: dict[str, dict[str, Any]] = {}
@@ -476,6 +500,19 @@ async def get_agent_status() -> list[dict[str, Any]]:
         for role in roles:
             if role not in agent_runs:
                 agent_runs[role] = run
+
+    # Fetch usage data for completed runs (from blob storage, permanently cached)
+    completed_run_ids: set[int] = set()
+    for run in agent_runs.values():
+        if run.get("status") == "completed" and run.get("id"):
+            completed_run_ids.add(run["id"])
+
+    # Fetch all uncached usage in parallel
+    if completed_run_ids:
+        await asyncio.gather(
+            *(get_run_usage(rid) for rid in completed_run_ids),
+            return_exceptions=True,
+        )
 
     # Convert to response format
     result: list[dict[str, Any]] = []
@@ -514,6 +551,32 @@ async def get_agent_status() -> list[dict[str, Any]]:
         if status == "idle" and run.get("updated_at"):
             entry["last_completed_at"] = run.get("updated_at")
             entry["last_conclusion"] = conclusion
+
+        # Enrich with usage data from the most recent completed run
+        if run.get("status") == "completed" and run.get("id"):
+            usage_data = await get_run_usage(run["id"])
+            if usage_data:
+                agents_list = usage_data.get("agents", [])
+                role_usage = next(
+                    (a for a in agents_list if a.get("role") == role), None
+                )
+                if role_usage:
+                    raw_usage = role_usage.get("usage") or {}
+                    entry["usage"] = {
+                        "cost_usd": role_usage.get("total_cost_usd"),
+                        "num_turns": role_usage.get("num_turns"),
+                        "duration_s": round(
+                            (role_usage.get("duration_api_ms") or 0) / 1000
+                        ),
+                        "input_tokens": raw_usage.get("input_tokens"),
+                        "output_tokens": raw_usage.get("output_tokens"),
+                        "cache_creation_input_tokens": raw_usage.get(
+                            "cache_creation_input_tokens"
+                        ),
+                        "cache_read_input_tokens": raw_usage.get(
+                            "cache_read_input_tokens"
+                        ),
+                    }
 
         result.append(entry)
 

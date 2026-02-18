@@ -60,6 +60,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Dispatch Tech Lead if escalations exist
+        if: steps.rounds.outputs.skip != 'true' && success()
+        run: |
+          # Check if any open source/tech-lead issues need attention
+          INTAKE=$(gh issue list --state open --label "source/tech-lead" \
+            --json number --jq 'length' 2>/dev/null || echo "0")
+          if [ "$INTAKE" -gt 0 ]; then
+            echo "Found $INTAKE tech-lead escalation(s) — dispatching Tech Lead"
+            gh workflow run agent-scans.yml
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Dispatch feedback if changes requested
         if: steps.rounds.outputs.skip != 'true' && success()
         run: |
@@ -72,3 +85,13 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup workspace
+        if: always()
+        run: |
+          git gc --auto --quiet 2>/dev/null || true
+          git worktree prune 2>/dev/null || true
+          NPM_SIZE=$(du -sm ~/.npm 2>/dev/null | cut -f1)
+          if [ "${NPM_SIZE:-0}" -gt 500 ]; then
+            npm cache clean --force 2>/dev/null || true
+          fi

@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
+  issues: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -53,3 +55,18 @@ jobs:
       - run: npm ci
       - run: npx eslint .
       - run: npx tsc --noEmit
+
+  notify-ci-failure:
+    name: Notify CI failure
+    runs-on: self-hosted
+    needs: [api-lint, frontend-lint]
+    if: failure() && github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Label PR and notify
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR=${{ github.event.pull_request.number }}
+          gh pr edit "$PR" --add-label "ci/failed"
+          gh pr comment "$PR" --body "CI failed — see check results above. The engineer should fix and push."

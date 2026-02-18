@@ -6,6 +6,8 @@ on:
   pull_request:
     types: [closed]
     branches: [main]
+  check_suite:
+    types: [completed]
   workflow_dispatch: {}
 
 permissions:
@@ -25,6 +27,7 @@ jobs:
     if: >
       (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
       (github.event_name == 'repository_dispatch' && github.event.client_payload.chain_depth <= 3) ||
+      (github.event_name == 'check_suite' && github.event.check_suite.conclusion == 'failure') ||
       github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
@@ -35,3 +38,13 @@ jobs:
           entry-point: agents/engineer.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup workspace
+        if: always()
+        run: |
+          git gc --auto --quiet 2>/dev/null || true
+          git worktree prune 2>/dev/null || true
+          NPM_SIZE=$(du -sm ~/.npm 2>/dev/null | cut -f1)
+          if [ "${NPM_SIZE:-0}" -gt 500 ]; then
+            npm cache clean --force 2>/dev/null || true
+          fi

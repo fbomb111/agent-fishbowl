@@ -1,5 +1,6 @@
-import Image from "next/image";
 import { getAgent } from "@/lib/agents";
+import { assetPath } from "@/lib/assetPath";
+import { timeAgo } from "@/lib/timeUtils";
 
 interface ActivityEventProps {
   type: string;
@@ -16,13 +17,13 @@ export function ActivityEvent({
   url,
 }: ActivityEventProps) {
   const agent = getAgent(actor);
-  const time = new Date(timestamp).toLocaleString();
+  const time = timeAgo(timestamp);
 
   const content = (
     <div className="flex items-start gap-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
       {agent.avatar ? (
-        <Image
-          src={agent.avatar}
+        <img
+          src={assetPath(agent.avatar)}
           alt={agent.displayName}
           width={28}
           height={28}
