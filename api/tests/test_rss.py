@@ -160,7 +160,9 @@ def feed_with_missing_dates() -> str:
 
 
 class TestParseFeedEntries:
-    def test_extracts_articles(self, sample_rss_feed: str, sample_source: SourceConfig) -> None:
+    def test_extracts_articles(
+        self, sample_rss_feed: str, sample_source: SourceConfig
+    ) -> None:
         articles = parse_feed_entries(sample_rss_feed, sample_source)
         assert len(articles) == 2
         assert articles[0]["title"] == "RSS Article One"
