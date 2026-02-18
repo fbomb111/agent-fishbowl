@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArticleFeed } from "@/components/ArticleFeed";
+import { TeamStats } from "@/components/TeamStats";
 
 export default function FeedPage() {
   return (
@@ -31,6 +32,8 @@ export default function FeedPage() {
           </a>
         </div>
       </section>
+
+      <TeamStats />
 
       <div className="mb-6">
         <h2 className="text-2xl font-bold tracking-tight">Latest Articles</h2>
