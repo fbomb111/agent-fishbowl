@@ -1,0 +1,48 @@
+name: Auto-add to project board
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  add-to-project:
+    name: Add issue to project board
+    runs-on: self-hosted
+    timeout-minutes: 5
+    steps:
+      - name: Checkout harness (for token generation)
+        uses: actions/checkout@v4
+        with:
+          repository: YourMoveLabs/agent-harness
+          ref: main
+          path: .harness
+
+      - name: Add issue to project
+        shell: bash
+        run: |
+          # Load App credentials from runner config
+          ENV_FILE="$HOME/.config/agent-harness/.env"
+          if [ -f "$ENV_FILE" ]; then
+            set -a; source "$ENV_FILE"; set +a
+          else
+            echo "::error::No .env found at $ENV_FILE"
+            exit 1
+          fi
+
+          # Generate PM App token (PM has project management permissions)
+          source .harness/scripts/github-app-token.sh
+          GH_TOKEN=$(get_github_app_token \
+            "$GITHUB_APP_PM_ID" \
+            "$GITHUB_APP_PM_INSTALLATION_ID" \
+            "$GITHUB_APP_PM_KEY_PATH")
+          export GH_TOKEN
+
+          # Add issue to project board
+          gh project item-add 1 \
+            --owner YourMoveLabs \
+            --url "${{ github.event.issue.html_url }}"
+
+          echo "Added #${{ github.event.issue.number }} to project board"
