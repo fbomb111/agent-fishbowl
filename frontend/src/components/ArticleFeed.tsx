@@ -15,6 +15,7 @@ export function ArticleFeed() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
 
   const loadArticles = useCallback(async (category: string | null) => {
     setLoading(true);
@@ -32,6 +33,7 @@ export function ArticleFeed() {
 
   const loadMore = useCallback(async () => {
     setLoadingMore(true);
+    setLoadMoreError(null);
     try {
       const data = await fetchArticles(
         selectedCategory ?? undefined,
@@ -41,7 +43,7 @@ export function ArticleFeed() {
       setArticles((prev) => [...prev, ...data.articles]);
       setTotal(data.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setLoadMoreError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoadingMore(false);
     }
@@ -170,12 +172,17 @@ export function ArticleFeed() {
           </div>
           {hasMore && (
             <div className="flex flex-col items-center gap-2 pt-2">
+              {loadMoreError && (
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  Failed to load more articles: {loadMoreError}
+                </p>
+              )}
               <button
                 onClick={loadMore}
                 disabled={loadingMore}
                 className="rounded-lg border border-zinc-300 px-6 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
               >
-                {loadingMore ? "Loading..." : "Load More"}
+                {loadingMore ? "Loading..." : loadMoreError ? "Retry" : "Load More"}
               </button>
               <p className="text-xs text-zinc-400 dark:text-zinc-500">
                 Showing {articles.length} of {total} articles
