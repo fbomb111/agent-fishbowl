@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # Azure Blob Storage
     azure_storage_account: str = ""
     azure_storage_container: str = "articles"
+    azure_usage_container: str = "agent-usage"
 
     # Azure User-Assigned Managed Identity — used in ALL environments
     managed_identity_client_id: str = ""

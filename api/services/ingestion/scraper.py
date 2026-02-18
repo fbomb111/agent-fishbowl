@@ -7,6 +7,8 @@ from dataclasses import dataclass
 import httpx
 from readability import Document
 
+from api.services.http_client import get_shared_client
+
 logger = logging.getLogger(__name__)
 
 SCRAPE_TIMEOUT = 15.0
@@ -46,17 +48,17 @@ async def scrape_article(url: str) -> ScrapedArticle | None:
     Returns None on any failure — scraping is best-effort.
     """
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                url,
-                timeout=SCRAPE_TIMEOUT,
-                follow_redirects=True,
-                headers={
-                    "User-Agent": "AgentFishbowl/1.0 (Article Scraper)",
-                    "Accept": "text/html,application/xhtml+xml",
-                },
-            )
-            response.raise_for_status()
+        client = get_shared_client()
+        response = await client.get(
+            url,
+            timeout=SCRAPE_TIMEOUT,
+            follow_redirects=True,
+            headers={
+                "User-Agent": "AgentFishbowl/1.0 (Article Scraper)",
+                "Accept": "text/html,application/xhtml+xml",
+            },
+        )
+        response.raise_for_status()
 
         # Extract main content with readability
         doc = Document(response.text)

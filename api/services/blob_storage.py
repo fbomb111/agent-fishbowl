@@ -3,7 +3,7 @@
 import json
 import logging
 
-from azure.core.exceptions import AzureError
+from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import ManagedIdentityCredential
 from azure.storage.blob import ContainerClient, ContentSettings
 
@@ -46,6 +46,7 @@ def _get_container_client() -> ContainerClient:
 
 async def get_article_index(
     category: str | None = None,
+    search: str | None = None,
     limit: int = 0,
     offset: int = 0,
 ) -> ArticleIndex:
@@ -53,6 +54,7 @@ async def get_article_index(
 
     Args:
         category: Optional category to filter articles by (case-insensitive).
+        search: Optional search query to match against title and description.
         limit: Maximum number of articles to return (0 = unlimited).
         offset: Number of articles to skip before returning results.
     """
@@ -74,6 +76,15 @@ async def get_article_index(
                 if category_lower in [c.lower() for c in a.categories]
             ]
 
+        if search:
+            search_lower = search.lower()
+            articles = [
+                a
+                for a in articles
+                if search_lower in a.title.lower()
+                or search_lower in a.description.lower()
+            ]
+
         total = len(articles)
 
         # Apply offset/limit slicing
@@ -83,8 +94,10 @@ async def get_article_index(
             articles = articles[:limit]
 
         return ArticleIndex(articles=articles, total=total)
-    except AzureError as e:
-        logger.warning("Failed to read article index: %s", e)
+    except ResourceNotFoundError:
+        return ArticleIndex(articles=[], total=0)
+    except HttpResponseError as e:
+        logger.warning("Azure API error reading article index: %s", e.message)
         return ArticleIndex(articles=[], total=0)
     except Exception as e:
         logger.error("Unexpected error reading article index: %s", e)
@@ -99,8 +112,10 @@ async def get_article(article_id: str) -> Article | None:
         blob = client.get_blob_client(f"{article_id}.json")
         data = blob.download_blob().readall()
         return Article(**json.loads(data))
-    except AzureError as e:
-        logger.warning("Failed to read article %s: %s", article_id, e)
+    except ResourceNotFoundError:
+        return None
+    except HttpResponseError as e:
+        logger.warning("Azure API error reading article %s: %s", article_id, e.message)
         return None
     except Exception as e:
         logger.error("Unexpected error reading article %s: %s", article_id, e)
@@ -128,8 +143,8 @@ async def write_article(article: Article) -> None:
             index.articles.insert(0, summary)
 
         await write_article_index(index.articles)
-    except AzureError as e:
-        logger.warning("Failed to write article %s: %s", article.id, e)
+    except HttpResponseError as e:
+        logger.warning("Azure API error writing article %s: %s", article.id, e.message)
         raise
     except Exception as e:
         logger.error("Unexpected error writing article %s: %s", article.id, e)
@@ -142,12 +157,19 @@ async def write_article_only(article: Article) -> None:
     Used by the orchestrator during batch ingestion to avoid N+1 index writes.
     """
     client = _get_container_client()
-    blob = client.get_blob_client(f"{article.id}.json")
-    blob.upload_blob(
-        article.model_dump_json(indent=2),
-        overwrite=True,
-        content_settings=ContentSettings(content_type="application/json"),
-    )
+    try:
+        blob = client.get_blob_client(f"{article.id}.json")
+        blob.upload_blob(
+            article.model_dump_json(indent=2),
+            overwrite=True,
+            content_settings=ContentSettings(content_type="application/json"),
+        )
+    except HttpResponseError as e:
+        logger.warning("Azure API error writing article %s: %s", article.id, e.message)
+        raise
+    except Exception as e:
+        logger.error("Unexpected error writing article %s: %s", article.id, e)
+        raise
 
 
 async def get_blog_index(
@@ -172,8 +194,10 @@ async def get_blog_index(
             posts = posts[:limit]
 
         return BlogIndex(posts=posts, total=total)
-    except AzureError as e:
-        logger.warning("Failed to read blog index: %s", e)
+    except ResourceNotFoundError:
+        return BlogIndex(posts=[], total=0)
+    except HttpResponseError as e:
+        logger.warning("Azure API error reading blog index: %s", e.message)
         return BlogIndex(posts=[], total=0)
     except Exception as e:
         logger.error("Unexpected error reading blog index: %s", e)
