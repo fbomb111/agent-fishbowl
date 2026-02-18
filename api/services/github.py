@@ -561,17 +561,20 @@ async def get_agent_status() -> list[dict[str, Any]]:
                     (a for a in agents_list if a.get("role") == role), None
                 )
                 if role_usage:
+                    raw_usage = role_usage.get("usage") or {}
                     entry["usage"] = {
                         "cost_usd": role_usage.get("total_cost_usd"),
                         "num_turns": role_usage.get("num_turns"),
                         "duration_s": round(
                             (role_usage.get("duration_api_ms") or 0) / 1000
                         ),
-                        "input_tokens": (role_usage.get("usage") or {}).get(
-                            "input_tokens"
+                        "input_tokens": raw_usage.get("input_tokens"),
+                        "output_tokens": raw_usage.get("output_tokens"),
+                        "cache_creation_input_tokens": raw_usage.get(
+                            "cache_creation_input_tokens"
                         ),
-                        "output_tokens": (role_usage.get("usage") or {}).get(
-                            "output_tokens"
+                        "cache_read_input_tokens": raw_usage.get(
+                            "cache_read_input_tokens"
                         ),
                     }
 

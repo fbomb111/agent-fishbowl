@@ -4,6 +4,7 @@ import { getAgent, AGENTS } from "@/lib/agents";
 import { assetPath } from "@/lib/assetPath";
 import { timeAgo } from "@/lib/timeUtils";
 import type { AgentStatus } from "@/lib/api";
+import { formatTokens } from "@/lib/formatTokens";
 
 interface AgentStatusBarProps {
   agents: AgentStatus[];
@@ -81,6 +82,18 @@ export function AgentStatusBar({
                 {lastSeen}
               </span>
             )}
+            {status?.usage &&
+              (status.usage.input_tokens != null ||
+                status.usage.output_tokens != null) && (
+                <span className="text-[9px] text-zinc-500 dark:text-zinc-400 whitespace-nowrap font-mono">
+                  {status.usage.input_tokens != null && (
+                    <>↑{formatTokens(status.usage.input_tokens)}</>
+                  )}{" "}
+                  {status.usage.output_tokens != null && (
+                    <>↓{formatTokens(status.usage.output_tokens)}</>
+                  )}
+                </span>
+              )}
             {status?.usage?.cost_usd != null && (
               <span className="text-[9px] text-emerald-600 dark:text-emerald-400 whitespace-nowrap font-mono">
                 ${status.usage.cost_usd.toFixed(2)}
