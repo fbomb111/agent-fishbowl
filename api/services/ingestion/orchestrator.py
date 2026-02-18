@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -24,6 +25,9 @@ MAX_NEW_ARTICLES_PER_RUN = 20
 # Delay between articles to respect rate limits
 INTER_ARTICLE_DELAY = 1.5
 
+# Minimum relevance score to include an article (configurable via RELEVANCE_THRESHOLD env var)
+RELEVANCE_THRESHOLD = int(os.environ.get("RELEVANCE_THRESHOLD", "5"))
+
 
 @dataclass
 class IngestionStats:
@@ -36,6 +40,7 @@ class IngestionStats:
     skipped: int
     duplicates_removed: int
     failed: int
+    filtered: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -46,6 +51,7 @@ class IngestionStats:
             "skipped": self.skipped,
             "duplicates_removed": self.duplicates_removed,
             "failed": self.failed,
+            "filtered": self.filtered,
         }
 
 
@@ -97,6 +103,7 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
     new_count = 0
     scraped_count = 0
     failed_count = 0
+    filtered_count = 0
 
     for i, parsed in enumerate(new_parsed):
         try:
@@ -125,6 +132,17 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
                 content=content_for_ai,
             )
 
+            # Filter out low-relevance articles
+            if analysis.relevance_score < RELEVANCE_THRESHOLD:
+                filtered_count += 1
+                logger.info(
+                    "Filtered (score %d/%d): %s",
+                    analysis.relevance_score,
+                    RELEVANCE_THRESHOLD,
+                    parsed["title"][:60],
+                )
+                continue
+
             article = Article(
                 id=parsed["id"],
                 title=parsed["title"],
@@ -141,6 +159,7 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
                 ],
                 ai_summary=analysis.ai_summary,
                 has_full_text=has_full_text,
+                relevance_score=analysis.relevance_score,
                 ingested_at=datetime.now(timezone.utc),
             )
 
@@ -154,8 +173,9 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
 
             insight_count = len(analysis.insights)
             logger.info(
-                "Ingested: %s (%d insights, %s)",
+                "Ingested: %s (score %d, %d insights, %s)",
                 parsed["title"][:60],
+                analysis.relevance_score,
                 insight_count,
                 "full text" if has_full_text else "RSS only",
             )
@@ -180,14 +200,16 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
         skipped=skipped,
         duplicates_removed=duplicates_removed,
         failed=failed_count,
+        filtered=filtered_count,
     )
 
     logger.info(
-        "Ingestion complete: %d new, %d scraped, %d skipped, %d dupes, %d failed",
+        "Ingestion complete: %d new, %d scraped, %d skipped, %d dupes, %d filtered, %d failed",
         new_count,
         scraped_count,
         skipped,
         duplicates_removed,
+        filtered_count,
         failed_count,
     )
 

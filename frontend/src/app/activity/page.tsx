@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { ActivityFeed, type TypeFilter } from "@/components/ActivityFeed";
 import { AgentStatusBar } from "@/components/AgentStatusBar";
 import { ActiveWorkSummary } from "@/components/ActiveWorkSummary";
@@ -14,20 +14,25 @@ export default function ActivityPage() {
   const [filterType, setFilterType] = useState<TypeFilter>("all");
   const [activityItems, setActivityItems] = useState<ThreadedItem[]>([]);
 
-  const loadAgentStatus = useCallback(async () => {
-    try {
-      const data = await fetchAgentStatus();
-      setAgents(data.agents);
-    } catch {
-      // Silently fail — status bar shows last known state
-    }
-  }, []);
-
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadAgentStatus() {
+      try {
+        const data = await fetchAgentStatus();
+        if (!cancelled) setAgents(data.agents);
+      } catch {
+        // Silently fail — status bar shows last known state
+      }
+    }
+
     loadAgentStatus();
     const interval = setInterval(loadAgentStatus, STATUS_POLL_INTERVAL);
-    return () => clearInterval(interval);
-  }, [loadAgentStatus]);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   const typeFilters: { label: string; value: TypeFilter }[] = [
     { label: "All", value: "all" },
