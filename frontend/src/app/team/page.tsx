@@ -5,6 +5,7 @@ interface TeamMember {
   key: string;
   role: string;
   description: string;
+  personality: string;
   responsibilities: string[];
 }
 
@@ -14,6 +15,8 @@ const TEAM: TeamMember[] = [
     role: "Product Owner",
     description:
       "Central intake funnel. Triages all inputs into a prioritized backlog and decides what gets built next.",
+    personality:
+      "Pragmatic and decisive. Values clarity over completeness and isn't afraid to cut scope or say no. Everything they do keeps momentum — move the backlog forward.",
     responsibilities: [
       "Prioritizes issues from all intake sources",
       "Creates actionable issues from roadmap items",
@@ -26,6 +29,8 @@ const TEAM: TeamMember[] = [
     role: "Engineer",
     description:
       "Picks issues, implements code changes, and opens pull requests. The builder of the team.",
+    personality:
+      "Earnest and focused. Gets satisfaction from shipping clean solutions and tends to be concise — lets the work speak for itself. Prefers action over discussion.",
     responsibilities: [
       "Claims and implements issues from the backlog",
       "Opens pull requests with passing quality checks",
@@ -38,6 +43,8 @@ const TEAM: TeamMember[] = [
     role: "Reviewer",
     description:
       "Reviews pull requests for quality, correctness, and adherence to standards. The quality gate.",
+    personality:
+      "Encouraging and thorough. Genuinely appreciates good work and says so. When giving critical feedback, cares about explaining the reasoning so the engineer learns, not just telling them what to fix.",
     responsibilities: [
       "Reviews all incoming pull requests",
       "Approves and merges PRs that meet standards",
@@ -50,6 +57,8 @@ const TEAM: TeamMember[] = [
     role: "Product Manager",
     description:
       "Sets strategic direction and manages the product roadmap. Thinks about where the product should go.",
+    personality:
+      "Strategic and reflective. Connects individual features to the bigger picture and thinks in terms of trajectory and momentum. Measured in tone — weighs their words because roadmap decisions carry weight.",
     responsibilities: [
       "Maintains the GitHub Project roadmap",
       "Reviews issues for strategic alignment",
@@ -62,6 +71,8 @@ const TEAM: TeamMember[] = [
     role: "Tech Lead",
     description:
       "Sets technical standards and identifies architecture improvements. Keeps the codebase healthy.",
+    personality:
+      "Principled but practical. Sees patterns across the codebase that others miss and believes good defaults beat rigid enforcement. Can be opinionated, but always backs it up with evidence.",
     responsibilities: [
       "Maintains coding conventions and standards",
       "Scans codebase for technical debt and improvements",
@@ -74,6 +85,8 @@ const TEAM: TeamMember[] = [
     role: "Triage",
     description:
       "Validates incoming issues from humans and external sources. First line of quality control.",
+    personality:
+      "Warm and genuinely curious. Treats every report as worth investigating and asks questions to understand, not to gatekeep. Patient with ambiguity.",
     responsibilities: [
       "Validates human-created issues",
       "Checks for duplicates and completeness",
@@ -86,6 +99,8 @@ const TEAM: TeamMember[] = [
     role: "UX Reviewer",
     description:
       "Reviews the product experience and identifies usability improvements. The user advocate.",
+    personality:
+      "Detail-oriented and empathetic. Sees the product entirely through the user's eyes and notices the small friction that others overlook. Advocates for the experience, not just the interface.",
     responsibilities: [
       "Periodically reviews the live product UX",
       "Creates issues for usability improvements",
@@ -98,11 +113,27 @@ const TEAM: TeamMember[] = [
     role: "SRE",
     description:
       "Monitors system health and responds to incidents. Keeps the lights on.",
+    personality:
+      "Calm and methodical, even when describing problems. Has a dry, understated quality — treats systems with clinical curiosity rather than alarm. Lets the data tell the story.",
     responsibilities: [
       "Runs health checks every 4 hours",
       "Responds to automated alerts from Azure Monitor",
       "Executes remediation playbooks (restart, rollback)",
       "Files issues for recurring infrastructure problems",
+    ],
+  },
+  {
+    key: "writer",
+    role: "Writer",
+    description:
+      "Researches trending topics, writes SEO-optimized blog posts, and publishes them to the site. The content creator.",
+    personality:
+      "Thoughtful and deliberate about topic selection. Has conviction about what makes content worth reading and takes pride in finding the angle that connects. Cares about craft.",
+    responsibilities: [
+      "Researches trending AI agent topics via RSS and news APIs",
+      "Writes full blog posts with SEO optimization",
+      "Publishes posts with proper metadata and images",
+      "Maintains a consistent publishing cadence",
     ],
   },
 ];
@@ -153,6 +184,9 @@ export default function TeamPage() {
               </div>
               <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
                 {member.description}
+              </p>
+              <p className="mt-2 text-xs italic leading-relaxed text-zinc-500 dark:text-zinc-400">
+                &ldquo;{member.personality}&rdquo;
               </p>
               <ul className="mt-3 space-y-1">
                 {member.responsibilities.map((item, i) => (

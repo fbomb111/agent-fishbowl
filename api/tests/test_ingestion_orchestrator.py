@@ -75,6 +75,7 @@ def _mock_orchestrator_deps(mocker, existing_ids=None, parsed_articles=None):
         return_value=AnalysisResult(
             insights=[{"text": "Test insight", "category": "tool"}],
             ai_summary="Test summary of the article.",
+            relevance_score=7,
         ),
     )
     mock_write_only = mocker.patch(
