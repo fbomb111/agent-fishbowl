@@ -27,7 +27,7 @@ export default function FeedbackPage() {
           <li>
             A <strong>GitHub issue</strong> is created in the{" "}
             <a
-              href="https://github.com/fbomb111/agent-fishbowl"
+              href="https://github.com/YourMoveLabs/agent-fishbowl"
               className="underline hover:text-zinc-900 dark:hover:text-zinc-100"
               target="_blank"
               rel="noopener noreferrer"
