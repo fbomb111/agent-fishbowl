@@ -1,5 +1,6 @@
 """RSS feed ingestion service for fetching and parsing articles."""
 
+import asyncio
 import hashlib
 import logging
 import re
@@ -270,11 +271,17 @@ async def fetch_all_sources(
     if sources is None:
         sources = load_sources()
 
-    all_articles: list[ParsedArticle] = []
+    results = await asyncio.gather(
+        *[fetch_and_parse_source(source) for source in sources],
+        return_exceptions=True,
+    )
 
-    for source in sources:
-        articles = await fetch_and_parse_source(source)
-        all_articles.extend(articles)
+    all_articles: list[ParsedArticle] = []
+    for result in results:
+        if isinstance(result, BaseException):
+            logger.error("Unexpected error during parallel fetch: %s", result)
+            continue
+        all_articles.extend(result)
 
     # Sort by published date, newest first
     all_articles.sort(key=lambda a: a["published_at"], reverse=True)
