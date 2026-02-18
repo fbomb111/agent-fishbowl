@@ -73,7 +73,8 @@ export type ThreadedItem = ActivityThread | StandaloneEvent;
 export async function fetchArticles(
   category?: string,
   limit?: number,
-  offset?: number
+  offset?: number,
+  search?: string
 ): Promise<{
   articles: ArticleSummary[];
   total: number;
@@ -87,6 +88,9 @@ export async function fetchArticles(
   }
   if (offset !== undefined) {
     url.searchParams.set("offset", String(offset));
+  }
+  if (search) {
+    url.searchParams.set("search", search);
   }
   const res = await fetch(url.toString());
   if (!res.ok) throw apiError(res.status);

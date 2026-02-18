@@ -46,6 +46,7 @@ def _get_container_client() -> ContainerClient:
 
 async def get_article_index(
     category: str | None = None,
+    search: str | None = None,
     limit: int = 0,
     offset: int = 0,
 ) -> ArticleIndex:
@@ -53,6 +54,7 @@ async def get_article_index(
 
     Args:
         category: Optional category to filter articles by (case-insensitive).
+        search: Optional search query to match against title and description.
         limit: Maximum number of articles to return (0 = unlimited).
         offset: Number of articles to skip before returning results.
     """
@@ -72,6 +74,15 @@ async def get_article_index(
                 a
                 for a in articles
                 if category_lower in [c.lower() for c in a.categories]
+            ]
+
+        if search:
+            search_lower = search.lower()
+            articles = [
+                a
+                for a in articles
+                if search_lower in a.title.lower()
+                or search_lower in a.description.lower()
             ]
 
         total = len(articles)
