@@ -1,10 +1,17 @@
 """Blog post endpoints."""
 
+import logging
+
+import httpx
 from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi.responses import HTMLResponse
 
 from api.config import get_settings
 from api.models.blog import BlogIndex, BlogPost
 from api.services.blob_storage import get_blog_index, write_blog_index
+from api.services.http_client import get_shared_client
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/blog", tags=["blog"])
 
@@ -32,6 +39,41 @@ async def add_blog_post(post: BlogPost, x_ingest_key: str = Header()):
     index.posts.insert(0, post)
     await write_blog_index(index.posts)
     return {"status": "created", "id": post.id}
+
+
+@router.get("/by-slug/{slug}")
+async def get_blog_post_by_slug(slug: str):
+    """Get a single blog post by its slug."""
+    index = await get_blog_index()
+    for post in index.posts:
+        if post.slug == slug:
+            return post
+    raise HTTPException(status_code=404, detail="Blog post not found")
+
+
+@router.get("/{post_id}/content")
+async def get_blog_post_content(post_id: str):
+    """Proxy the blog post HTML content from its preview URL."""
+    index = await get_blog_index()
+    post = None
+    for p in index.posts:
+        if p.id == post_id:
+            post = p
+            break
+    if not post:
+        raise HTTPException(status_code=404, detail="Blog post not found")
+
+    try:
+        client = get_shared_client()
+        resp = await client.get(post.preview_url)
+        resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        logger.warning("Failed to fetch blog content from %s", post.preview_url)
+        raise HTTPException(
+            status_code=502, detail="Failed to fetch blog content"
+        ) from exc
+
+    return HTMLResponse(content=resp.text)
 
 
 @router.get("/{post_id}")

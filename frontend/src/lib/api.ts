@@ -240,6 +240,12 @@ export async function fetchBlogPosts(): Promise<{
   return res.json();
 }
 
+export async function fetchBlogPostBySlug(slug: string): Promise<BlogPost> {
+  const res = await fetch(`${API_BASE}/blog/by-slug/${encodeURIComponent(slug)}`);
+  if (!res.ok) throw apiError(res.status);
+  return res.json();
+}
+
 // Team stats types
 
 export interface AgentActivity {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { fetchBlogPosts, type BlogPost } from "@/lib/api";
 
 function BlogPostCard({ post }: { post: BlogPost }) {
@@ -11,10 +12,8 @@ function BlogPostCard({ post }: { post: BlogPost }) {
   });
 
   return (
-    <a
-      href={post.preview_url}
-      target="_blank"
-      rel="noopener noreferrer"
+    <Link
+      href={`/blog/${post.slug}`}
       className="group block rounded-xl border border-zinc-200 bg-white p-5 transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
     >
       {post.image_url && (
@@ -51,7 +50,7 @@ function BlogPostCard({ post }: { post: BlogPost }) {
           </span>
         </div>
       )}
-    </a>
+    </Link>
   );
 }
 
