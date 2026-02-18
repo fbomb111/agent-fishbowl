@@ -154,9 +154,7 @@ async def write_article_only(article: Article) -> None:
             content_settings=ContentSettings(content_type="application/json"),
         )
     except HttpResponseError as e:
-        logger.warning(
-            "Azure API error writing article %s: %s", article.id, e.message
-        )
+        logger.warning("Azure API error writing article %s: %s", article.id, e.message)
         raise
     except Exception as e:
         logger.error("Unexpected error writing article %s: %s", article.id, e)
