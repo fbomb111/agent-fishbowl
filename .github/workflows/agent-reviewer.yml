@@ -10,6 +10,7 @@ on:
 permissions:
   contents: write        # dispatch-agent.sh (repository_dispatch)
   pull-requests: read
+  issues: write           # unassign engineer after approval
   actions: write          # gh workflow run agent-po.yml
 
 concurrency:
@@ -51,6 +52,30 @@ jobs:
         uses: YourMoveLabs/agent-harness@v1.0.0
         with:
           entry-point: agents/reviewer.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Free engineer from approved PRs
+        if: steps.rounds.outputs.skip != 'true' && success()
+        run: |
+          # Find open PRs with review/approved label and unassign the engineer
+          # so the PO can dispatch new work. Swap status/in-progress → status/awaiting-merge.
+          gh pr list --state open --label "review/approved" \
+            --json number,body --jq '.[] | "\(.number)\t\(.body)"' | while IFS=$'\t' read -r PR BODY; do
+            [ -z "$PR" ] && continue
+
+            # Extract linked issue number (Closes #N, Fixes #N, Resolves #N)
+            ISSUE=$(echo "$BODY" | grep -oP '(?:Closes|Fixes|Resolves)\s+#\K\d+' | head -1)
+            [ -z "$ISSUE" ] && continue
+
+            # Skip if issue is already unassigned (already processed)
+            ASSIGNEES=$(gh issue view "$ISSUE" --json assignees --jq '.assignees | length' 2>/dev/null || echo "0")
+            [ "$ASSIGNEES" -eq 0 ] && continue
+
+            echo "PR #$PR approved → freeing engineer from issue #$ISSUE"
+            gh issue edit "$ISSUE" --remove-assignee "" 2>/dev/null || true
+            gh issue edit "$ISSUE" --remove-label "status/in-progress" --add-label "status/awaiting-merge" 2>/dev/null || true
+          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

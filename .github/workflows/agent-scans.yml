@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: write          # gh workflow run agent-po.yml
 
 concurrency:
   group: agent-scans
@@ -24,5 +25,11 @@ jobs:
         uses: YourMoveLabs/agent-harness@v1.0.0
         with:
           entry-point: agents/tech-lead.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dispatch PO to process new issues
+        if: success()
+        run: gh workflow run agent-po.yml
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
