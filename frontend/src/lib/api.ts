@@ -240,6 +240,29 @@ export async function fetchBlogPosts(): Promise<{
   return res.json();
 }
 
+// Team stats types
+
+export interface AgentActivity {
+  role: string;
+  issues_closed: number;
+  prs_merged: number;
+}
+
+export interface TeamStatsResponse {
+  issues_closed: number;
+  prs_merged: number;
+  avg_pr_cycle_hours: number | null;
+  agents: AgentActivity[];
+  period_start: string;
+  period_end: string;
+}
+
+export async function fetchTeamStats(): Promise<TeamStatsResponse> {
+  const res = await fetch(`${API_BASE}/stats`);
+  if (!res.ok) throw apiError(res.status);
+  return res.json();
+}
+
 // Feedback types
 
 export interface FeedbackSubmission {
