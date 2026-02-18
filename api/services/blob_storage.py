@@ -146,12 +146,21 @@ async def write_article_only(article: Article) -> None:
     Used by the orchestrator during batch ingestion to avoid N+1 index writes.
     """
     client = _get_container_client()
-    blob = client.get_blob_client(f"{article.id}.json")
-    blob.upload_blob(
-        article.model_dump_json(indent=2),
-        overwrite=True,
-        content_settings=ContentSettings(content_type="application/json"),
-    )
+    try:
+        blob = client.get_blob_client(f"{article.id}.json")
+        blob.upload_blob(
+            article.model_dump_json(indent=2),
+            overwrite=True,
+            content_settings=ContentSettings(content_type="application/json"),
+        )
+    except HttpResponseError as e:
+        logger.warning(
+            "Azure API error writing article %s: %s", article.id, e.message
+        )
+        raise
+    except Exception as e:
+        logger.error("Unexpected error writing article %s: %s", article.id, e)
+        raise
 
 
 async def get_blog_index(
