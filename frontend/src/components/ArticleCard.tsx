@@ -44,7 +44,7 @@ export function ArticleCard({
       href={originalUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="group block rounded-xl border border-zinc-200 bg-white p-5 transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+      className="group block rounded-xl border border-zinc-200 bg-white p-4 transition-shadow hover:shadow-md sm:p-5 dark:border-zinc-800 dark:bg-zinc-900"
     >
       {imageUrl && (
         <div className="mb-4 overflow-hidden rounded-lg">
@@ -52,11 +52,11 @@ export function ArticleCard({
           <img
             src={imageUrl}
             alt={title}
-            className="h-40 w-full object-cover transition-transform group-hover:scale-105"
+            className="h-36 w-full object-cover transition-transform group-hover:scale-105 sm:h-40"
           />
         </div>
       )}
-      <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+      <div className="flex items-center gap-2 text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">
         <span className="font-medium">{source}</span>
         {relativeTime && (
           <>
@@ -80,7 +80,7 @@ export function ArticleCard({
       <h3 className="mt-2 text-lg font-semibold leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400">
         {title}
       </h3>
-      <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+      <p className="mt-2 text-base leading-relaxed text-zinc-600 sm:text-sm dark:text-zinc-400">
         {aiSummary || description}
       </p>
       {displayInsights.length > 0 && (
@@ -88,11 +88,11 @@ export function ArticleCard({
           {displayInsights.map((insight, idx) => (
             <div key={idx} className="flex items-start gap-2">
               <span
-                className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight ${CATEGORY_COLORS[insight.category] || CATEGORY_COLORS.concept}`}
+                className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-xs font-medium leading-tight sm:text-[10px] ${CATEGORY_COLORS[insight.category] || CATEGORY_COLORS.concept}`}
               >
                 {insight.category}
               </span>
-              <span className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+              <span className="text-sm leading-relaxed text-zinc-600 sm:text-xs dark:text-zinc-400">
                 {insight.text}
               </span>
             </div>
@@ -104,7 +104,7 @@ export function ArticleCard({
           {categories.map((cat) => (
             <span
               key={cat}
-              className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+              className="rounded-full bg-zinc-100 px-3 py-1 text-sm font-medium text-zinc-600 sm:px-2.5 sm:py-0.5 sm:text-xs dark:bg-zinc-800 dark:text-zinc-400"
             >
               {cat}
             </span>
