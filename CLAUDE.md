@@ -43,6 +43,7 @@ Agents are deployed as GitHub Actions workflows running on the self-hosted runne
 | `agent-sre.yml` | SRE | `repository_dispatch` (azure-alert) + 4h schedule | Concurrency group |
 | `agent-strategic.yml` | PM | Daily 06:00 + manual | Concurrency group |
 | `agent-scans.yml` | Tech Lead + UX | Every 3 days | Concurrency group |
+| `agent-writer.yml` | Writer | Daily 10am UTC + `workflow_dispatch` | Daily cap: 1/day |
 
 **Event Chain:**
 ```
@@ -248,6 +249,7 @@ Scopes: `api`, `frontend`, `ci`, `config`
 | **Triage** | `fishbowl-triage[bot]` | Event-driven (issues.opened) | Validates human-created issues |
 | **UX** | `fishbowl-ux[bot]` | Every 3 days | Reviews product UX, creates improvement issues |
 | **SRE** | `fishbowl-sre[bot]` | Every 4h + alerts | Monitors system health, files issues for problems |
+| **Writer** | `fishbowl-writer[bot]` | Daily 10am UTC | Generates one blog post per day via Captain AI headless API |
 
 ### Information Flow
 
