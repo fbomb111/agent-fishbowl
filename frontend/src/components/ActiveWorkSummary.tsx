@@ -130,6 +130,16 @@ export function ActiveWorkSummary({ agents, items }: ActiveWorkSummaryProps) {
         {latestTimestamp && (
           <span>Last activity {timeAgo(latestTimestamp)}</span>
         )}
+        {(() => {
+          const totalCost = agents
+            .filter((a) => a.usage?.cost_usd != null)
+            .reduce((sum, a) => sum + (a.usage!.cost_usd ?? 0), 0);
+          return totalCost > 0 ? (
+            <span className="font-mono text-emerald-600 dark:text-emerald-400">
+              Last cycle: ${totalCost.toFixed(2)}
+            </span>
+          ) : null;
+        })()}
       </div>
     </div>
   );

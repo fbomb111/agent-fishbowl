@@ -12,6 +12,7 @@ from typing import Any
 from api.config import get_settings
 from api.services.cache import TTLCache
 from api.services.http_client import get_shared_client, github_headers
+from api.services.usage_storage import get_run_usage
 
 logger = logging.getLogger(__name__)
 
@@ -500,6 +501,19 @@ async def get_agent_status() -> list[dict[str, Any]]:
             if role not in agent_runs:
                 agent_runs[role] = run
 
+    # Fetch usage data for completed runs (from blob storage, permanently cached)
+    completed_run_ids: set[int] = set()
+    for run in agent_runs.values():
+        if run.get("status") == "completed" and run.get("id"):
+            completed_run_ids.add(run["id"])
+
+    # Fetch all uncached usage in parallel
+    if completed_run_ids:
+        await asyncio.gather(
+            *(get_run_usage(rid) for rid in completed_run_ids),
+            return_exceptions=True,
+        )
+
     # Convert to response format
     result: list[dict[str, Any]] = []
     all_roles = ["po", "engineer", "reviewer", "triage", "sre", "pm", "tech-lead", "ux"]
@@ -537,6 +551,29 @@ async def get_agent_status() -> list[dict[str, Any]]:
         if status == "idle" and run.get("updated_at"):
             entry["last_completed_at"] = run.get("updated_at")
             entry["last_conclusion"] = conclusion
+
+        # Enrich with usage data from the most recent completed run
+        if run.get("status") == "completed" and run.get("id"):
+            usage_data = await get_run_usage(run["id"])
+            if usage_data:
+                agents_list = usage_data.get("agents", [])
+                role_usage = next(
+                    (a for a in agents_list if a.get("role") == role), None
+                )
+                if role_usage:
+                    entry["usage"] = {
+                        "cost_usd": role_usage.get("total_cost_usd"),
+                        "num_turns": role_usage.get("num_turns"),
+                        "duration_s": round(
+                            (role_usage.get("duration_api_ms") or 0) / 1000
+                        ),
+                        "input_tokens": (role_usage.get("usage") or {}).get(
+                            "input_tokens"
+                        ),
+                        "output_tokens": (role_usage.get("usage") or {}).get(
+                            "output_tokens"
+                        ),
+                    }
 
         result.append(entry)
 

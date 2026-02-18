@@ -116,6 +116,14 @@ export async function fetchThreadedActivity(
 
 // Agent status types
 
+export interface AgentUsage {
+  cost_usd: number | null;
+  num_turns: number | null;
+  duration_s: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+}
+
 export interface AgentStatus {
   role: string;
   status: "active" | "idle" | "failed";
@@ -123,6 +131,7 @@ export interface AgentStatus {
   trigger?: string;
   last_completed_at?: string;
   last_conclusion?: string;
+  usage?: AgentUsage;
 }
 
 export async function fetchAgentStatus(): Promise<{

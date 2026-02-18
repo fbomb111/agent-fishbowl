@@ -81,6 +81,11 @@ export function AgentStatusBar({
                 {lastSeen}
               </span>
             )}
+            {status?.usage?.cost_usd != null && (
+              <span className="text-[9px] text-emerald-600 dark:text-emerald-400 whitespace-nowrap font-mono">
+                ${status.usage.cost_usd.toFixed(2)}
+              </span>
+            )}
           </button>
         );
       })}
