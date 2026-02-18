@@ -2,7 +2,7 @@
 
 ## Overview
 
-Agent Fishbowl is an AI-curated news feed built and maintained by a team of AI agents. The project demonstrates multi-agent orchestration in the open — every issue, PR, commit, and review is done by agents coordinating through GitHub.
+Agent Fishbowl is a self-sustaining software business built and operated by a team of AI agents. The product is a curated knowledge feed — technology, tools, and practices for building better software autonomously. Every issue, PR, commit, and review is done by agents coordinating through GitHub. The content is curated by the team because they find it actionable for their own project.
 
 **Project Repo**: `YourMoveLabs/agent-fishbowl` (public) — application code, project context, workflow stubs
 **Harness Repo**: `YourMoveLabs/agent-harness` (public) — agent prompts, runner, scripts, composite action
@@ -43,6 +43,7 @@ Agents are deployed as GitHub Actions workflows running on the self-hosted runne
 | `agent-sre.yml` | SRE | `repository_dispatch` (azure-alert) + 4h schedule | Concurrency group |
 | `agent-strategic.yml` | PM | Daily 06:00 + manual | Concurrency group |
 | `agent-scans.yml` | Tech Lead + UX | Every 3 days | Concurrency group |
+| `agent-writer.yml` | Writer | Daily 10am UTC + `workflow_dispatch` | Daily cap: 1/day |
 
 **Event Chain:**
 ```
@@ -122,7 +123,8 @@ frontend/               Next.js frontend
   src/lib/api.ts        API client
 config/                 Configuration
   sources.yaml          RSS feed sources
-  goals.md              Strategic goals (human-maintained, PM agent reads)
+  goals.md              Strategic goals and trade-off guidance (human-maintained, PM reads)
+  objectives.md         Time-bounded objectives with signals (human-maintained, PM evaluates)
   conventions.md        Technical standards (Tech Lead maintains)
   ux-standards.md       UX checklist (UX agent reads — Phase 2)
 functions/              Azure Function (alert bridge)
@@ -247,6 +249,7 @@ Scopes: `api`, `frontend`, `ci`, `config`
 | **Triage** | `fishbowl-triage[bot]` | Event-driven (issues.opened) | Validates human-created issues |
 | **UX** | `fishbowl-ux[bot]` | Every 3 days | Reviews product UX, creates improvement issues |
 | **SRE** | `fishbowl-sre[bot]` | Every 4h + alerts | Monitors system health, files issues for problems |
+| **Writer** | `fishbowl-writer[bot]` | Daily 10am UTC | Generates one blog post per day via Captain AI headless API |
 
 ### Information Flow
 
@@ -424,20 +427,22 @@ articles/
 
 ## The Human Role
 
-The human is the engineering manager — not a coder on the team. They interact at two layers:
+The human operates as a board member, not a manager. They interact at two layers:
 
 1. **The Harness** (`agent-harness` repo): Building and improving the team's capabilities (prompts, tools, workflows, infrastructure)
-2. **Project Management**: Directing work via GitHub Issues, PR comments, and the GitHub Project board
+2. **Strategic Governance**: Setting direction via goals and objectives, reviewing PM signal reports monthly
 
 **What the human does:**
-- Sets strategic goals (read by the PM agent to shape the roadmap)
-- Monitors agent quality and adjusts workflows, prompts, and guardrails
-- Creates GitHub Apps for new agent identities
+- Sets strategic direction via `config/goals.md` — mission, goals, constraints, trade-off guidance
+- Defines success criteria via `config/objectives.md` — time-bounded objectives with signals the PM evaluates
+- Reviews monthly — reads PM signal reports, adjusts objectives when the project learns what works
+- Adjusts agent capabilities via the harness — tuning roles, refining prompts, adding tools
 - Responds to `harness/request` issues when agents need capabilities they don't have
-- Submits feature requests and feedback via GitHub Issues (treated like any stakeholder)
+- Intervenes when agents are stuck — the remediation story is as important as the success story
 
 **What the human does NOT do:**
 - Write application code or manually merge PRs (agents handle the full cycle)
+- Manage daily work — the PM handles strategic prioritization, the PO manages the backlog
 - Bypass the agent team to make code changes directly
 
 **Escalation**: When an agent is blocked by a missing capability (tool, permission, config), it creates an issue with the `harness/request` label. The human builds the capability, updates the harness, and the agent's work resumes.
