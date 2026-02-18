@@ -162,8 +162,7 @@ if (loading) {
 
 - Place tests in `api/tests/`.
 - Use `pytest` with `pytest-asyncio` for async tests.
-- Use `respx` to mock `httpx` calls (not `unittest.mock.patch` on the client).
-- Use `mocker` (pytest-mock) for patching services.
+- Use `mocker` (pytest-mock) with `AsyncMock` for patching services and mocking HTTP calls.
 - Reset global state in `conftest.py` fixtures — module-level singletons (caches, clients) need cleanup between tests.
 
 ### Test File Naming
