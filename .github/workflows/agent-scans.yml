@@ -2,7 +2,7 @@ name: Agent - Tech Lead Scan
 
 on:
   schedule:
-    - cron: "0 10 */3 * *"   # Every 3 days at 10:00 UTC
+    - cron: "0 10 * * *"   # Daily at 10:00 UTC
   workflow_dispatch: {}
 
 permissions:
