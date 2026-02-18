@@ -1,0 +1,47 @@
+name: Maintenance - Weekly Cleanup
+
+on:
+  schedule:
+    - cron: "0 8 * * 0"   # Sundays at 08:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Runner cleanup
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - name: Docker cleanup
+        run: |
+          docker image prune -f 2>/dev/null || true
+          docker builder prune -f 2>/dev/null || true
+          echo "=== Disk usage ==="
+          df -h /
+          echo "=== Docker usage ==="
+          docker system df 2>/dev/null || true
+
+      - name: Cache cleanup
+        run: |
+          npm cache clean --force 2>/dev/null || true
+          pip cache purge 2>/dev/null || true
+          echo "=== Cache sizes ==="
+          du -sh ~/.npm ~/.cache 2>/dev/null || true
+
+      - name: Runner workspace cleanup
+        run: |
+          for dir in ~/agent-fishbowl-runner/_work/*/*; do
+            if [ -d "$dir/.git" ]; then
+              echo "GC: $dir"
+              git -C "$dir" gc --aggressive --quiet 2>/dev/null || true
+            fi
+          done
+
+      - name: Report
+        run: |
+          echo "=== System resources ==="
+          free -h
+          df -h /
+          echo "=== Done ==="
