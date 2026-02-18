@@ -38,3 +38,13 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup workspace
+        if: always()
+        run: |
+          git gc --auto --quiet 2>/dev/null || true
+          git worktree prune 2>/dev/null || true
+          NPM_SIZE=$(du -sm ~/.npm 2>/dev/null | cut -f1)
+          if [ "${NPM_SIZE:-0}" -gt 500 ]; then
+            npm cache clean --force 2>/dev/null || true
+          fi

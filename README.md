@@ -2,18 +2,18 @@
 
 ## What This Is
 
-A public demonstration of AI agent orchestration across a real software product. The project serves two purposes simultaneously:
+A self-sustaining software business built and operated entirely by AI agents in public. The project serves two purposes simultaneously:
 
-1. **The Product**: An AI-curated news feed that aggregates, summarizes, and presents AI/tech news articles with rich previews.
+1. **The Product**: A curated knowledge feed — technology, tools, and practices for building better software autonomously. The content is curated by the agent team because they find it actionable for their own project, not because it's trending.
 2. **The Showcase**: A live, transparent window into how a team of AI agents builds, maintains, and evolves that product — visible through a public activity feed and a fully public GitHub repository.
 
-The product is intentionally simple. The orchestration is the point.
+The orchestration is the point. The product is the proof it works.
 
 ## Why This Exists
 
-The industry knows how to use AI agents as solo coding assistants. What nobody is demonstrating publicly is how to orchestrate multiple agents across a shared codebase the way an engineering leader manages a team — with role separation, a prioritized backlog, coordinated execution, code review, deployment, and continuous maintenance.
+The industry knows how to use AI agents as solo coding assistants. What nobody is demonstrating publicly is a team of AI agents that builds a real business — orchestrating across a shared codebase the way an engineering leader manages a team, with role separation, a prioritized backlog, coordinated execution, code review, deployment, and continuous maintenance.
 
-This project proves that capability in the open. The demonstration is the pattern: work gets planned, agents execute across their domains, code gets reviewed and deployed, and the product works in production. The value is in showing that pattern functioning end-to-end, not in the complexity of any individual feature.
+This project proves that capability in the open. The agents plan work, execute across their domains, review and deploy code, curate content they find useful for their own improvement, and eventually generate revenue. The value is in showing the full pattern functioning end-to-end, not in the complexity of any individual feature.
 
 ### Target Audience
 
@@ -21,11 +21,11 @@ This project proves that capability in the open. The demonstration is the patter
 - AI engineers curious about multi-agent orchestration patterns
 - The broader developer community following the evolution of agentic workflows
 
-## The Product: AI News Feed
+## The Product: Curated Knowledge Feed
 
 ### What It Does
 
-An automatically curated feed of AI and technology news. Content is ingested from public sources, summarized by AI, and presented through a clean web interface with rich previews.
+A curated feed of technology, tools, and practices for building better software autonomously. Content is ingested from sources the agent team selects, summarized by AI, and presented through a clean web interface with rich previews. The content domain is not fixed — the team curates what they find actionable for their own project, which naturally evolves over time.
 
 ### Core Features
 
@@ -39,7 +39,7 @@ An automatically curated feed of AI and technology news. Content is ingested fro
 
 - **Immediately legible**: Anyone visiting understands what they're looking at in seconds. No explanation needed.
 - **Visually verifiable**: You can see when it's working (new articles appear, summaries make sense) and when it's broken
-- **Real, not contrived**: It's a product that makes sense on its own. It doesn't feel like a toy built just to demo agents.
+- **Self-reinforcing**: The product feeds back into the team's capabilities. Agents curate content that helps them build better software, which improves the product, which produces better content.
 - **Cleanly separable domains**: Ingestion, summarization/processing, backend API, frontend UI, infrastructure/DevOps — each maps naturally to a distinct agent role
 - **Generates ongoing work**: There are always new sources to add, UI improvements to make, edge cases in parsing, summarization quality to improve, tests to write, documentation to update. The PM agent will always have something reasonable to prioritize.
 
@@ -104,13 +104,16 @@ There are three distinct modes of agent operation running against this codebase.
 
 ## The Human Role
 
-The human (Frankie) is the engineering leader. Not writing application code. Instead:
+The human (Frankie) operates as a board member, not a manager:
 
-- **Defines the product vision and goals** via a lightweight roadmap document that the PM agent consumes
-- **Reviews and merges PRs** — the final quality gate. No code ships without human approval.
-- **Adjusts agent configuration and workflows** as the system evolves — tuning roles, refining prompts, adding guardrails
-- **Intervenes when agents are stuck or going sideways** — the remediation story is as important as the success story
-- **Narrates the journey** through LinkedIn posts, blog entries, and interview discussions
+- **Sets strategic direction** via `config/goals.md` — mission, goals, constraints, and trade-off guidance that the PM agent consumes daily
+- **Defines success criteria** via `config/objectives.md` — time-bounded objectives with signals the PM evaluates to assess whether shipped work actually serves the goals
+- **Reviews monthly** — reads PM signal reports, adjusts objectives when the project learns something new about what works
+- **Adjusts agent capabilities** via the harness — tuning roles, refining prompts, adding tools, improving infrastructure
+- **Intervenes when agents are stuck** — the remediation story is as important as the success story
+- **Narrates the journey** through LinkedIn posts, blog entries, and discussions
+
+The human does not write application code, approve deployments, or manage daily work. The PM handles strategic prioritization, the PO manages the backlog, and the engineering team executes autonomously.
 
 ## Cadence and Cost Management
 

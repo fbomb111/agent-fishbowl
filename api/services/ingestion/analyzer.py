@@ -31,14 +31,16 @@ Respond with valid JSON in this exact format:
   "insights": [
     {{"text": "Concise, actionable insight description", "category": "tool|pattern|trend|technique|concept"}}
   ],
-  "ai_summary": "A 2-3 sentence summary of the article's key points. Only include if the content is substantial enough to warrant a summary beyond the RSS description."
+  "ai_summary": "A 2-3 sentence summary of the article's key points. Only include if the content is substantial enough to warrant a summary beyond the RSS description.",
+  "relevance_score": 7
 }}
 
 Rules:
 - insights: 0-5 items. Empty list is perfectly fine for non-actionable content.
 - category must be one of: tool, pattern, trend, technique, concept
 - ai_summary: null if the content is too short or is just an RSS snippet
-- Each insight should be self-contained and understandable without reading the article"""
+- Each insight should be self-contained and understandable without reading the article
+- relevance_score: integer 1-10 rating of how relevant and valuable this article is for AI/ML practitioners. Score based on: practical value (can readers apply this?), technical depth (beyond surface-level coverage?), and novelty (new information vs rehashed content?). Generic announcements, opinion pieces, and corporate press releases score low (1-4). In-depth technical content, novel research, and practical tutorials score high (7-10)."""
 
 
 @dataclass
@@ -47,6 +49,7 @@ class AnalysisResult:
 
     insights: list[dict[str, str]] = field(default_factory=list)
     ai_summary: str | None = None
+    relevance_score: int = 5
 
 
 MAX_CONTENT_LENGTH = 12000
@@ -77,7 +80,14 @@ def _parse_response(response_text: str) -> AnalysisResult:
         if ai_summary and len(ai_summary.strip()) < 20:
             ai_summary = None
 
-        return AnalysisResult(insights=insights, ai_summary=ai_summary)
+        relevance_score = data.get("relevance_score", 5)
+        if not isinstance(relevance_score, int):
+            relevance_score = 5
+        relevance_score = max(1, min(10, relevance_score))
+
+        return AnalysisResult(
+            insights=insights, ai_summary=ai_summary, relevance_score=relevance_score
+        )
 
     except json.JSONDecodeError as e:
         raise AnalysisError(f"Invalid JSON response: {e}") from e
