@@ -1,9 +1,10 @@
 """Blog post endpoints."""
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query
 
-from api.models.blog import BlogIndex
-from api.services.blob_storage import get_blog_index
+from api.config import get_settings
+from api.models.blog import BlogIndex, BlogPost
+from api.services.blob_storage import get_blog_index, write_blog_index
 
 router = APIRouter(prefix="/blog", tags=["blog"])
 
@@ -15,6 +16,22 @@ async def list_blog_posts(
 ):
     """Get the blog post index."""
     return await get_blog_index(limit=limit, offset=offset)
+
+
+@router.post("")
+async def add_blog_post(post: BlogPost, x_ingest_key: str = Header()):
+    """Add a new blog post to the index. Protected by API key."""
+    settings = get_settings()
+    if not settings.ingest_api_key or x_ingest_key != settings.ingest_api_key:
+        raise HTTPException(status_code=403, detail="Invalid ingest key")
+
+    index = await get_blog_index()
+    if any(p.id == post.id for p in index.posts):
+        return {"status": "exists", "id": post.id}
+
+    index.posts.insert(0, post)
+    await write_blog_index(index.posts)
+    return {"status": "created", "id": post.id}
 
 
 @router.get("/{post_id}")

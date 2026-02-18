@@ -204,6 +204,18 @@ async def get_blog_index(
         return BlogIndex(posts=[], total=0)
 
 
+async def write_blog_index(posts: list[BlogPost]) -> None:
+    """Write the full blog post index to blob storage."""
+    client = _get_container_client()
+    index_blob = client.get_blob_client(BLOG_INDEX_BLOB)
+    index_data = json.dumps([p.model_dump(mode="json") for p in posts], indent=2)
+    index_blob.upload_blob(
+        index_data,
+        overwrite=True,
+        content_settings=ContentSettings(content_type="application/json"),
+    )
+
+
 async def write_article_index(articles: list[ArticleSummary]) -> None:
     """Write the full article index to blob storage.
 
