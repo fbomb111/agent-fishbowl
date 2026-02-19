@@ -7,7 +7,7 @@
 
 This is a living document. The tech lead reviews and updates it regularly based on codebase patterns, reviewer feedback, and upcoming roadmap needs.
 
-Last updated: 2026-02-18
+Last updated: 2026-02-19
 
 ---
 
@@ -105,6 +105,24 @@ Routers should raise `HTTPException` only for client-facing error conditions (40
 - Group imports: stdlib, third-party, local (`api.`) — ruff enforces this
 - Logger: always `logger = logging.getLogger(__name__)`
 
+### Logging
+
+Every service file must define and use a logger. Services that make external calls (HTTP, blob storage, GitHub API) should log:
+- Errors and exceptions (always)
+- Warnings for degraded states (e.g., cache misses, retries, fallbacks)
+
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+```
+
+Don't log success paths at INFO level in hot paths — it creates noise. Use DEBUG for those.
+
+### Dead Code
+
+Remove unused functions, imports, and variables. Don't keep code "for later" — version control is the backup. If a utility function exists but no caller imports it, delete it.
+
 ## Frontend (TypeScript/React)
 
 ### Utility Reuse
@@ -116,7 +134,12 @@ Existing utilities:
 - `src/lib/formatTokens.ts` — token count formatting
 - `src/lib/assetPath.ts` — base path helper
 - `src/lib/agents.ts` — agent config lookup, avatar/color mapping
-- `src/lib/api.ts` — all API fetch functions and shared types
+- `src/lib/api.ts` — API fetch functions and shared types
+- `src/lib/navigation.ts` — shared nav items (Header, Footer)
+
+### Type Organization
+
+Keep types co-located with the code that uses them. For shared types used across many components, define them in `src/lib/api.ts` alongside the fetch functions that return them. If `api.ts` exceeds 300 lines, split types into `src/lib/types.ts` and re-export from `api.ts` for backwards compatibility.
 
 ### Component Patterns
 
@@ -150,7 +173,7 @@ if (loading) {
 
 ### Tailwind Styling
 
-- Use Tailwind's standard scale for text sizes (`text-xs`, `text-sm`, `text-base`, etc.). Avoid arbitrary values like `text-[10px]` or `text-[11px]`.
+- Use Tailwind's standard scale for text sizes (`text-xs`, `text-sm`, `text-base`, etc.) for body text. For badges, timestamps, and metadata labels where `text-xs` (12px) is too large, `text-[10px]` is acceptable. Avoid all other arbitrary text sizes.
 - Always include dark mode variants: every `bg-zinc-*` needs a `dark:bg-zinc-*` counterpart.
 - Use the zinc palette for neutrals, consistent with the existing design system.
 - Standard card pattern: `rounded-xl border border-zinc-200 dark:border-zinc-800`.
