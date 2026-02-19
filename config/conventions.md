@@ -202,6 +202,24 @@ Keep types co-located with the code that uses them. For shared types used across
 - **Client Components**: Add `"use client"` only when the component uses hooks (`useState`, `useEffect`, `useCallback`, `usePathname`, etc.) or browser APIs.
 - Keep components under 200 lines. Split complex state logic into custom hooks if a component grows beyond this.
 
+### Ref Mutations (React 19)
+
+React 19's `react-hooks/refs` ESLint rule forbids mutating `ref.current` during the render phase. Always update refs inside `useEffect`, event handlers, or callbacks — never in the component body.
+
+```tsx
+// Good — ref updated in useEffect (runs after render)
+const fnRef = useRef(fn);
+useEffect(() => {
+  fnRef.current = fn;
+});
+
+// Bad — ref mutated during render (ESLint error in React 19)
+const fnRef = useRef(fn);
+fnRef.current = fn; // ← violates react-hooks/refs
+```
+
+This is the standard pattern for keeping a ref in sync with a prop or state value that changes on every render. The `useEffect` with no dependency array runs after every render, which is correct for this use case.
+
 ### Data Fetching
 
 Client components that fetch data on mount should use the `useFetch` hook from `src/hooks/useFetch.ts`. It handles loading, error, and retry state in one call:
