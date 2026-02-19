@@ -27,7 +27,10 @@ jobs:
 
       - name: Build and push API image
         run: |
-          az acr login --name agentfishbowlacr
+          # Use --expose-token for reliable auth on self-hosted runners
+          # (bypasses Docker credential helper which can accumulate stale tokens)
+          TOKEN=$(az acr login --name agentfishbowlacr --expose-token --output tsv --query accessToken)
+          echo "$TOKEN" | docker login agentfishbowlacr.azurecr.io --username 00000000-0000-0000-0000-000000000000 --password-stdin
           docker build \
             -t agentfishbowlacr.azurecr.io/agent-fishbowl-api:${{ github.sha }} \
             -t agentfishbowlacr.azurecr.io/agent-fishbowl-api:latest \
