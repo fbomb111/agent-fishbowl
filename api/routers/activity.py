@@ -2,11 +2,8 @@
 
 from fastapi import APIRouter, Query
 
-from api.services.github import (
-    get_activity_events,
-    get_agent_status,
-    get_threaded_activity,
-)
+from api.services.github_activity import get_activity_events, get_threaded_activity
+from api.services.github_status import get_agent_status
 from api.services.usage_storage import get_recent_usage
 
 router = APIRouter(prefix="/activity", tags=["activity"])

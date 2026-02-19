@@ -11,7 +11,7 @@ from typing import Any
 
 from api.config import get_settings
 from api.services.cache import TTLCache
-from api.services.github import ACTOR_MAP
+from api.services.github_events import ACTOR_MAP
 from api.services.http_client import get_shared_client, github_headers
 
 logger = logging.getLogger(__name__)
