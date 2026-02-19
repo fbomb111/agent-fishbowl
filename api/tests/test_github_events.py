@@ -1,6 +1,6 @@
 """Tests for GitHub event parsing — verifies activity feed correctness."""
 
-from api.services.github import _parse_events
+from api.services.github_events import _parse_events
 
 
 def _make_event(event_type, actor_login, payload, event_id="1"):

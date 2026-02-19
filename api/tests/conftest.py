@@ -39,9 +39,9 @@ def _reset_global_state():
     fb_mod._rate_limit_call_count = 0
 
     # 6. GitHub activity cache
-    import api.services.github as gh_mod
+    import api.services.github_activity as gh_activity_mod
 
-    gh_mod._cache = TTLCache(ttl=300, max_size=20)
+    gh_activity_mod._cache = TTLCache(ttl=300, max_size=20)
 
 
 @pytest.fixture
