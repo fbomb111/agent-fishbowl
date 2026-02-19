@@ -5,36 +5,23 @@ Results are cached with a 5-minute TTL.
 """
 
 import asyncio
-import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from api.config import get_settings
 from api.services.cache import TTLCache
 from api.services.github_events import ACTOR_MAP
-from api.services.http_client import get_shared_client, github_headers
-
-logger = logging.getLogger(__name__)
+from api.services.http_client import github_api_get
 
 _cache = TTLCache(ttl=300, max_size=5)
 
 
 async def _search_issues(query: str) -> list[dict[str, Any]]:
     """Run a GitHub issue/PR search query and return all items."""
-    client = get_shared_client()
-    headers = github_headers()
     url = "https://api.github.com/search/issues"
     params = {"q": query, "per_page": "100"}
-
-    try:
-        resp = await client.get(url, headers=headers, params=params)
-        if resp.status_code != 200:
-            logger.warning("GitHub search failed (%d): %s", resp.status_code, query)
-            return []
-        return resp.json().get("items", [])
-    except Exception:
-        logger.exception("Error searching issues: %s", query)
-        return []
+    result = await github_api_get(url, params, response_key="items", context=query)
+    return result if result is not None else []
 
 
 def _agent_role(login: str) -> str | None:
