@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import Link from "next/link";
 import { fetchBlogPosts, type BlogPost } from "@/lib/api";
 import { useFetch } from "@/hooks/useFetch";
+import { ErrorFallback } from "@/components/ErrorFallback";
 
 function BlogPostCard({ post }: { post: BlogPost }) {
   const date = new Date(post.published_at).toLocaleDateString("en-US", {
@@ -82,11 +83,7 @@ export default function BlogPage() {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold">Blog</h1>
-        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-900 dark:bg-red-950">
-          <p className="text-sm text-red-600 dark:text-red-400">
-            Failed to load blog posts: {error}
-          </p>
-        </div>
+        <ErrorFallback message={`Failed to load blog posts: ${error}`} />
       </div>
     );
   }

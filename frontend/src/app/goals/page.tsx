@@ -2,6 +2,7 @@
 
 import { fetchGoals, type GoalsResponse } from "@/lib/api";
 import { useFetch } from "@/hooks/useFetch";
+import { ErrorFallback } from "@/components/ErrorFallback";
 import { GoalCard } from "@/components/GoalCard";
 import { RoadmapList } from "@/components/RoadmapList";
 import { MetricsGrid } from "@/components/MetricsGrid";
@@ -62,13 +63,7 @@ export default function GoalsPage() {
   if (loading) return <LoadingSkeleton />;
 
   if (error) {
-    return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-900/30 dark:bg-red-950/30">
-        <p className="text-sm text-red-600 dark:text-red-400">
-          Failed to load goals: {error}
-        </p>
-      </div>
-    );
+    return <ErrorFallback message={`Failed to load goals: ${error}`} />;
   }
 
   if (!data) return null;
