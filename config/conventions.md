@@ -82,10 +82,10 @@ Always pass `return_exceptions=True` to `asyncio.gather()` so one failure doesn'
 
 ### Error Handling
 
-Services should catch exceptions and return safe defaults (empty lists, `None`) rather than propagating exceptions to the router layer. Log the error with context.
+**Read operations** (fetching data to display): Catch exceptions and return safe defaults (empty lists, `None`) rather than propagating to the router layer. Log the error with context. This keeps the UI functional when an upstream API is down.
 
 ```python
-# Service layer — catch and return safe default
+# Read operation — catch and return safe default
 async def get_items() -> list[Item]:
     try:
         return await _fetch_items()
@@ -94,7 +94,24 @@ async def get_items() -> list[Item]:
         return []
 ```
 
-Routers should raise `HTTPException` only for client-facing error conditions (404 for missing resources, 429 for rate limits). Don't raise 500 — let FastAPI's default handler deal with unhandled exceptions.
+**Write operations** (creating/updating resources): Let exceptions propagate so the caller knows the write failed. Returning a fake "success" from a failed write is worse than an error. The router should catch and convert to a user-friendly HTTP error.
+
+```python
+# Write operation — propagate so caller knows it failed
+async def create_item(data: ItemCreate) -> dict:
+    resp = await client.post(url, json=data.model_dump())
+    resp.raise_for_status()
+    return resp.json()
+
+# Router catches and converts to user-facing error
+try:
+    result = await create_item(data)
+except Exception as e:
+    logger.error("Create failed: %s", e)
+    raise HTTPException(status_code=500, detail="Failed to create. Please try again.")
+```
+
+Routers should raise `HTTPException` only for client-facing error conditions (404 for missing resources, 429 for rate limits, 500 for failed writes). For read failures, let the service return safe defaults instead.
 
 ### Naming: Public vs Private
 
