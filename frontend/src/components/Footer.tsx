@@ -1,12 +1,5 @@
 import Link from "next/link";
-
-const NAV_ITEMS = [
-  { href: "/blog", label: "Blog" },
-  { href: "/activity", label: "Fishbowl" },
-  { href: "/team", label: "Team" },
-  { href: "/goals", label: "Goals" },
-  { href: "/feedback", label: "Feedback" },
-];
+import { NAV_ITEMS } from "@/lib/navigation";
 
 export function Footer() {
   return (
@@ -14,7 +7,7 @@ export function Footer() {
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
           <nav className="flex flex-wrap justify-center gap-4">
-            {NAV_ITEMS.map((item) => (
+            {NAV_ITEMS.filter((item) => item.href !== "/").map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

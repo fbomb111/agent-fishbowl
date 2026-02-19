@@ -5,17 +5,7 @@ import { fetchGoals, type GoalsResponse } from "@/lib/api";
 import { GoalCard } from "@/components/GoalCard";
 import { RoadmapList } from "@/components/RoadmapList";
 import { MetricsGrid } from "@/components/MetricsGrid";
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins === 1) return "1 minute ago";
-  if (mins < 60) return `${mins} minutes ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs === 1) return "1 hour ago";
-  return `${hrs} hours ago`;
-}
+import { timeAgo } from "@/lib/timeUtils";
 
 function LoadingSkeleton() {
   return (
@@ -153,7 +143,7 @@ export default function GoalsPage() {
       {/* Freshness */}
       {data.fetched_at && (
         <p className="text-center text-xs text-zinc-400 dark:text-zinc-500">
-          Updated {timeAgo(data.fetched_at)}
+          Updated {timeAgo(data.fetched_at, true)}
         </p>
       )}
     </div>
