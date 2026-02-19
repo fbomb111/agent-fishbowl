@@ -191,6 +191,29 @@ if (loading) {
 }
 ```
 
+### Constants and Magic Numbers
+
+Define numeric constants (poll intervals, page sizes, debounce delays, thresholds) as named constants at the top of the file that uses them. Don't scatter raw numbers in component bodies.
+
+```tsx
+// Good — named constant with clear intent
+const POLL_INTERVAL_MS = 30_000;
+const PAGE_SIZE = 20;
+
+useEffect(() => {
+  const interval = setInterval(loadData, POLL_INTERVAL_MS);
+  return () => clearInterval(interval);
+}, [loadData]);
+
+// Bad — magic number buried in logic
+useEffect(() => {
+  const interval = setInterval(loadData, 30000);
+  return () => clearInterval(interval);
+}, [loadData]);
+```
+
+When two or more files share the same constant value for the same purpose, extract it to a shared module in `src/lib/` rather than defining it in each file independently.
+
 ### Tailwind Styling
 
 - Use Tailwind's standard scale for text sizes (`text-xs`, `text-sm`, `text-base`, etc.) for body text. For badges, timestamps, and metadata labels where `text-xs` (12px) is too large, `text-[10px]` is acceptable. Avoid all other arbitrary text sizes.
