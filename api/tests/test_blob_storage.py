@@ -124,8 +124,12 @@ class TestGetArticleIndex:
     async def test_search_filter(self, mock_settings, monkeypatch):
         """Search matches against title and description (case-insensitive)."""
         articles = [
-            _make_article_summary("a1", title="FastAPI Guide", description="Build APIs"),
-            _make_article_summary("a2", title="React Tips", description="UI tricks"),
+            _make_article_summary(
+                "a1", title="FastAPI Guide", description="Build APIs"
+            ),
+            _make_article_summary(
+                "a2", title="React Tips", description="UI tricks"
+            ),
         ]
         mock_container = MagicMock()
         mock_container.get_blob_client.return_value = _mock_blob_download(articles)
@@ -159,9 +163,7 @@ class TestGetArticleIndex:
     @pytest.mark.asyncio
     async def test_offset_and_limit(self, mock_settings, monkeypatch):
         """Offset and limit slice the results; total reflects pre-slice count."""
-        articles = [
-            _make_article_summary(f"a{i}") for i in range(5)
-        ]
+        articles = [_make_article_summary(f"a{i}") for i in range(5)]
         mock_container = MagicMock()
         mock_container.get_blob_client.return_value = _mock_blob_download(articles)
 
