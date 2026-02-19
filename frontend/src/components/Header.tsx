@@ -35,7 +35,7 @@ export function Header() {
               key={item.href}
               href={item.href}
               className={`text-sm font-medium transition-colors ${
-                pathname === item.href
+                pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
                   ? "text-zinc-900 dark:text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
               }`}
