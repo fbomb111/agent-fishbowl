@@ -2,7 +2,7 @@ name: Agent - Product Owner
 
 on:
   repository_dispatch:
-    types: [agent-pm-feedback]
+    types: [agent-product-manager-feedback]
   schedule:
     - cron: "0 6,18 * * *"   # Every 12 hours (sweep runs)
   workflow_dispatch: {}        # Manual or batch-threshold dispatch
@@ -11,12 +11,12 @@ permissions:
   contents: write        # dispatch-agent.sh (repository_dispatch)
 
 concurrency:
-  group: agent-po
+  group: agent-product-owner
   cancel-in-progress: false
 
 jobs:
-  po:
-    name: Run PO agent
+  product-owner:
+    name: Run Product Owner agent
     runs-on: self-hosted
     timeout-minutes: 30
     steps:
@@ -49,11 +49,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run PO agent
+      - name: Run Product Owner agent
         if: github.event_name == 'schedule' || steps.preflight.outputs.skip != 'true'
-        uses: YourMoveLabs/agent-harness@v1.1.0
+        uses: YourMoveLabs/agent-harness@v1.2.0
         with:
-          entry-point: agents/po.sh
+          role: product-owner
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -63,17 +63,7 @@ jobs:
           UNASSIGNED=$(gh issue list --state open --json assignees --jq '[.[] | select(.assignees | length == 0)] | length' 2>/dev/null || echo "0")
           if [ "$UNASSIGNED" -gt 0 ]; then
             gh api "repos/$GITHUB_REPOSITORY/dispatches" \
-              --input - <<< '{"event_type":"agent-po-complete","client_payload":{"chain_depth":1}}'
+              --input - <<< '{"event_type":"agent-product-owner-complete","client_payload":{"chain_depth":1}}'
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cleanup workspace
-        if: always()
-        run: |
-          git gc --auto --quiet 2>/dev/null || true
-          git worktree prune 2>/dev/null || true
-          NPM_SIZE=$(du -sm ~/.npm 2>/dev/null | cut -f1)
-          if [ "${NPM_SIZE:-0}" -gt 500 ]; then
-            npm cache clean --force 2>/dev/null || true
-          fi

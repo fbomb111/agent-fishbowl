@@ -37,7 +37,7 @@ Agents are deployed as GitHub Actions workflows running on the self-hosted runne
 | Workflow | Agents | Triggers | Protection |
 |----------|--------|----------|------------|
 | `agent-triage.yml` | Triage | `issues.opened` + manual | agent-created filter |
-| `agent-po.yml` | PO | Triage/reviewer/PM dispatch + daily 06:00 | Concurrency group |
+| `agent-product-owner.yml` | PO | Triage/reviewer/PM dispatch + daily 06:00 | Concurrency group |
 | `agent-engineer.yml` | Engineer | PO/reviewer dispatch + PR merged + manual | chain_depth ≤ 3, concurrency |
 | `agent-reviewer.yml` | Reviewer | `pull_request` (opened/sync) + 12h fallback | Max 3 rounds/PR, fork guard |
 | `agent-sre.yml` | SRE | `repository_dispatch` (azure-alert) + 4h schedule | Concurrency group |
@@ -145,7 +145,7 @@ scripts/                Project-specific scripts
   pick-issue.md         Find + claim highest-priority issue
   open-pr.md            Create draft PR with proper format
 .github/workflows/      CI + agent deployment (thin stubs → harness)
-  agent-po.yml          PO (event-driven: dispatch + daily)
+  agent-product-owner.yml PO (event-driven: dispatch + daily)
   agent-engineer.yml    Engineer (event-driven: dispatch + PR merged)
   agent-reviewer.yml    Reviewer (event-driven: PR opened/sync + 12h)
   agent-triage.yml      Triage (event-driven: issues.opened)
@@ -162,8 +162,9 @@ The harness is checked out to `.harness/` during workflow runs via composite act
 action.yml              Composite action (the bridge between repos)
 agents/
   run-agent.sh          Core runner (identity, tools, Claude invocation)
-  {role}.sh             Role wrappers (engineer, po, reviewer, etc.)
   prompts/{role}.md     Generic role prompts (read CLAUDE.md for project context)
+config/
+  roles.json            Central role configuration (tools, partials, instances)
 scripts/
   dispatch-agent.sh     Agent-to-agent chaining (repository_dispatch)
   run-sre.sh            SRE controller (playbook routing + Claude escalation)
@@ -395,7 +396,7 @@ git clone git@github.com:YourMoveLabs/agent-fishbowl.git
 
 # Run an individual agent
 cd agent-fishbowl
-HARNESS_ROOT=../agent-harness PROJECT_ROOT=$(pwd) ../agent-harness/agents/engineer.sh
+HARNESS_ROOT=../agent-harness PROJECT_ROOT=$(pwd) ../agent-harness/agents/run-agent.sh engineer
 
 # Run orchestration scripts
 HARNESS_ROOT=../agent-harness PROJECT_ROOT=$(pwd) ../agent-harness/scripts/run-scans.sh

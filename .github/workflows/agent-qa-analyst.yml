@@ -1,8 +1,10 @@
-name: Agent - Product Analyst
+name: Agent - QA Analyst
 
 on:
   schedule:
-    - cron: "0 14 * * *"   # Daily 14:00 UTC (after PM at 06:00)
+    - cron: "0 16 */2 * *"   # Every 2 days at 16:00 UTC
+  repository_dispatch:
+    types: [deploy-complete]
   workflow_dispatch: {}
 
 permissions:
@@ -13,5 +15,5 @@ jobs:
   run:
     uses: ./.github/workflows/reusable-agent.yml
     with:
-      entry-point: scripts/run-product-analyst.sh
+      role: qa-analyst
     secrets: inherit

@@ -1,4 +1,4 @@
-name: Agent - UX Review
+name: Agent - User Experience Review
 
 on:
   workflow_dispatch: {}

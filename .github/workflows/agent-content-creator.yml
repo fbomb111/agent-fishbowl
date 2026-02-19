@@ -1,8 +1,8 @@
-name: Agent - Product Analyst
+name: Agent - Content Creator
 
 on:
   schedule:
-    - cron: "0 14 * * *"   # Daily 14:00 UTC (after PM at 06:00)
+    - cron: "0 10 * * *"   # Daily 10:00 UTC
   workflow_dispatch: {}
 
 permissions:
@@ -13,5 +13,5 @@ jobs:
   run:
     uses: ./.github/workflows/reusable-agent.yml
     with:
-      entry-point: scripts/run-product-analyst.sh
+      entry-point: scripts/run-content-creator.sh
     secrets: inherit

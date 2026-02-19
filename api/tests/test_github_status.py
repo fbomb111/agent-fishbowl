@@ -14,7 +14,7 @@ class TestWorkflowAgentMap:
         expected_workflows = {
             "agent-engineer.yml",
             "agent-reviewer.yml",
-            "agent-po.yml",
+            "agent-product-owner.yml",
             "agent-triage.yml",
             "agent-sre.yml",
             "agent-scans.yml",
@@ -132,7 +132,7 @@ class TestGetAgentStatus:
         """Completed-success workflow run maps to 'idle' agent status."""
         runs = [
             self._make_workflow_run(
-                "agent-po.yml", status="completed", conclusion="success"
+                "agent-product-owner.yml", status="completed", conclusion="success"
             ),
         ]
 

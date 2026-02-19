@@ -19,7 +19,7 @@ _status_cache = TTLCache(ttl=60, max_size=5)
 WORKFLOW_AGENT_MAP: dict[str, list[str]] = {
     "agent-engineer.yml": ["engineer"],
     "agent-reviewer.yml": ["reviewer"],
-    "agent-po.yml": ["po"],
+    "agent-product-owner.yml": ["po"],
     "agent-triage.yml": ["triage"],
     "agent-sre.yml": ["sre"],
     "agent-scans.yml": ["tech-lead", "ux"],

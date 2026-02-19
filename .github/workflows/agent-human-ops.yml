@@ -1,8 +1,8 @@
-name: Agent - Product Analyst
+name: Agent - Human Ops
 
 on:
   schedule:
-    - cron: "0 14 * * *"   # Daily 14:00 UTC (after PM at 06:00)
+    - cron: "0 15 * * 5"   # Weekly on Friday at 15:00 UTC
   workflow_dispatch: {}
 
 permissions:
@@ -13,5 +13,5 @@ jobs:
   run:
     uses: ./.github/workflows/reusable-agent.yml
     with:
-      entry-point: scripts/run-product-analyst.sh
+      role: human-ops
     secrets: inherit

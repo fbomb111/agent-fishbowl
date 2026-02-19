@@ -33,8 +33,8 @@ jobs:
           fi
 
       - name: Run Writer agent
-        uses: YourMoveLabs/agent-harness@v1.1.0
+        uses: YourMoveLabs/agent-harness@v1.2.0
         with:
-          entry-point: agents/writer.sh
+          role: writer
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

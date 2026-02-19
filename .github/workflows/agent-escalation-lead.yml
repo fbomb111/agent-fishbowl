@@ -1,0 +1,20 @@
+name: Agent - Escalation Lead
+
+on:
+  repository_dispatch:
+    types: [dispute-detected]
+  schedule:
+    - cron: "0 18 * * 3"   # Weekly fallback: Wednesday 18:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write    # May need to approve/merge stuck PRs
+
+jobs:
+  run:
+    uses: ./.github/workflows/reusable-agent.yml
+    with:
+      role: escalation-lead
+    secrets: inherit

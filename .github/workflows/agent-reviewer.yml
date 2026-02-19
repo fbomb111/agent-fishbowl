@@ -11,7 +11,7 @@ permissions:
   contents: write        # dispatch-agent.sh (repository_dispatch)
   pull-requests: read
   issues: write           # unassign engineer after approval
-  actions: write          # gh workflow run agent-po.yml
+  actions: write          # gh workflow run agent-product-owner.yml
 
 concurrency:
   group: agent-reviewer
@@ -49,9 +49,9 @@ jobs:
 
       - name: Run Reviewer agent
         if: steps.rounds.outputs.skip != 'true'
-        uses: YourMoveLabs/agent-harness@v1.1.0
+        uses: YourMoveLabs/agent-harness@v1.2.0
         with:
-          entry-point: agents/reviewer.sh
+          role: reviewer
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -91,7 +91,7 @@ jobs:
 
           if [ "$INTAKE" -ge 5 ]; then
             echo "Batch ready: $INTAKE unprocessed intake items — dispatching PO"
-            gh workflow run agent-po.yml
+            gh workflow run agent-product-owner.yml
           else
             echo "Only $INTAKE unprocessed items — accumulating (threshold: 5)"
           fi
@@ -123,19 +123,10 @@ jobs:
           CHANGES_REQUESTED=$(gh pr list --state open --json reviewDecision \
             --jq '[.[] | select(.reviewDecision=="CHANGES_REQUESTED")] | length' 2>/dev/null || echo "0")
           if [ "$CHANGES_REQUESTED" -gt 0 ]; then
-            DEPTH=${{ github.event.client_payload.chain_depth || 0 }}
+            DEPTH="${AGENT_CHAIN_DEPTH:-0}"
             gh api "repos/$GITHUB_REPOSITORY/dispatches" \
               --input - <<< "{\"event_type\":\"agent-reviewer-feedback\",\"client_payload\":{\"chain_depth\":$((DEPTH + 1))}}"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cleanup workspace
-        if: always()
-        run: |
-          git gc --auto --quiet 2>/dev/null || true
-          git worktree prune 2>/dev/null || true
-          NPM_SIZE=$(du -sm ~/.npm 2>/dev/null | cut -f1)
-          if [ "${NPM_SIZE:-0}" -gt 500 ]; then
-            npm cache clean --force 2>/dev/null || true
-          fi
+          AGENT_CHAIN_DEPTH: ${{ github.event.client_payload.chain_depth || 0 }}

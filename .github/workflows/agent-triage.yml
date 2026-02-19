@@ -9,7 +9,7 @@ on:
 
 permissions:
   contents: read
-  actions: write          # gh workflow run agent-po.yml
+  actions: write          # gh workflow run agent-product-owner.yml
 
 concurrency:
   group: agent-triage
@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run triage
-        uses: YourMoveLabs/agent-harness@v1.1.0
+        uses: YourMoveLabs/agent-harness@v1.2.0
         with:
           entry-point: scripts/run-triage.sh
         env:
@@ -46,7 +46,7 @@ jobs:
 
           if [ "$INTAKE" -ge 5 ]; then
             echo "Batch ready: $INTAKE unprocessed intake items — dispatching PO"
-            gh workflow run agent-po.yml
+            gh workflow run agent-product-owner.yml
           else
             echo "Only $INTAKE unprocessed items — accumulating (threshold: 5)"
           fi

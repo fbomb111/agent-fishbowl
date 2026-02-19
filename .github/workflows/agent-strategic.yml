@@ -7,7 +7,7 @@ on:
 
 permissions:
   contents: read
-  actions: write          # gh workflow run agent-po.yml
+  actions: write          # gh workflow run agent-product-owner.yml
 
 concurrency:
   group: agent-strategic
@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run PM agent
-        uses: YourMoveLabs/agent-harness@v1.1.0
+        uses: YourMoveLabs/agent-harness@v1.2.0
         with:
           entry-point: scripts/run-strategic.sh
         env:
@@ -30,6 +30,6 @@ jobs:
 
       - name: Dispatch PO to process roadmap changes
         if: success()
-        run: gh workflow run agent-po.yml
+        run: gh workflow run agent-product-owner.yml
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

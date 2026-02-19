@@ -1,34 +1,29 @@
-name: Agent - Engineer
+name: Agent - Engineer Bravo
 
 on:
   repository_dispatch:
-    types: [agent-po-complete, agent-reviewer-feedback]
+    types: [agent-product-owner-complete, agent-reviewer-feedback]
   pull_request:
     types: [closed]
     branches: [main]
-  check_suite:
-    types: [completed]
   workflow_dispatch: {}
 
 permissions:
   contents: read
-  actions: write          # gh workflow run agent-strategic.yml
+  actions: write
 
 concurrency:
-  group: agent-engineer
+  group: agent-engineer-bravo
   cancel-in-progress: false
 
 jobs:
-  engineer:
-    name: Run Engineer agent
+  engineer-bravo:
+    name: Run Engineer Bravo agent
     runs-on: self-hosted
     timeout-minutes: 30
-    # PR merge: only run on actual merges, not closed-without-merge
-    # Dispatch: chain depth guard in action.yml prevents runaway cascading
     if: >
       (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
       github.event_name == 'repository_dispatch' ||
-      (github.event_name == 'check_suite' && github.event.check_suite.conclusion == 'failure') ||
       github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
@@ -36,23 +31,18 @@ jobs:
       - name: Check for available work
         id: workcheck
         run: |
-          # Actionable issues = open, has priority/*, unassigned
           ACTIONABLE=$(gh issue list --state open --json assignees,labels \
             --jq '[.[] | select(
               (.assignees | length == 0) and
               (.labels | map(.name) | any(test("^priority/")))
             )] | length')
-
-          # PRs needing fixes = ci/failed, changes requested, or conflicts
           PR_FIXES=$(gh pr list --state open --json labels,reviewDecision,mergeable \
             --jq '[.[] | select(
               (.labels | map(.name) | any(. == "ci/failed")) or
               .reviewDecision == "CHANGES_REQUESTED" or
               .mergeable == "CONFLICTING"
             )] | length')
-
           echo "actionable_issues=$ACTIONABLE pr_fixes=$PR_FIXES"
-
           if [ "$ACTIONABLE" -eq 0 ] && [ "${PR_FIXES:-0}" -eq 0 ]; then
             echo "idle=true" >> "$GITHUB_OUTPUT"
           else
@@ -61,31 +51,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run Engineer agent
+      - name: Run Engineer Bravo agent
         if: steps.workcheck.outputs.idle != 'true'
         uses: YourMoveLabs/agent-harness@v1.2.0
         with:
-          role: engineer
+          role: engineer-bravo
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AGENT_CHAIN_DEPTH: ${{ github.event.client_payload.chain_depth || 0 }}
-
-      - name: Signal low backlog — trigger PM
-        if: steps.workcheck.outputs.idle == 'true'
-        run: |
-          # Check if PM ran recently (last 2 hours) — avoid spamming
-          RECENT_PM=$(gh run list --workflow agent-strategic.yml --limit 1 \
-            --json createdAt --jq '.[0].createdAt // "2000-01-01T00:00:00Z"')
-
-          RECENT_TS=$(date -d "$RECENT_PM" +%s 2>/dev/null || echo 0)
-          NOW_TS=$(date +%s)
-          HOURS_AGO=$(( (NOW_TS - RECENT_TS) / 3600 ))
-
-          if [ "$HOURS_AGO" -lt 2 ]; then
-            echo "PM ran ${HOURS_AGO}h ago — skipping to avoid loop"
-          else
-            echo "Backlog empty, PM hasn't run in ${HOURS_AGO}h — dispatching"
-            gh workflow run agent-strategic.yml
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
