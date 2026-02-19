@@ -186,7 +186,32 @@ if (loading) {
 - Place tests in `api/tests/`.
 - Use `pytest` with `pytest-asyncio` for async tests.
 - Use `mocker` (pytest-mock) with `AsyncMock` for patching services and mocking HTTP calls.
-- Reset global state in `conftest.py` fixtures — module-level singletons (caches, clients) need cleanup between tests.
+
+### Singleton Reset in conftest.py
+
+Every module-level singleton (cache, client, mutable state) **must** be reset in `api/tests/conftest.py`'s `_reset_global_state` fixture. This prevents test pollution — one test's cached data leaking into the next.
+
+**When to update conftest.py:** Any time you add, rename, or remove a module-level cache or singleton in a service or router file, update `_reset_global_state` in the same PR.
+
+The pattern for each singleton type:
+
+```python
+# TTLCache — reconstruct with the same ttl/max_size as the source module
+import api.services.some_module as mod
+mod._cache = TTLCache(ttl=300, max_size=10)  # match source values
+
+# Client singleton — set to None (lazy-init pattern)
+mod._client = None
+
+# Dict/set state — clear in place
+mod._rate_limits.clear()
+
+# File-based cache — reset sentinel values
+mod._file_cache = None
+mod._file_mtime = 0.0
+```
+
+If a TTLCache is added with custom `ttl`/`max_size`, import those constants from the source module rather than hardcoding them in conftest. This prevents silent drift.
 
 ### Test File Naming
 
