@@ -51,7 +51,7 @@ jobs:
 
       - name: Run PO agent
         if: github.event_name == 'schedule' || steps.preflight.outputs.skip != 'true'
-        uses: YourMoveLabs/agent-harness@v1.0.0
+        uses: YourMoveLabs/agent-harness@v1.1.0
         with:
           entry-point: agents/po.sh
         env:
