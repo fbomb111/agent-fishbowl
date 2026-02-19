@@ -1,8 +1,10 @@
 name: Agent - Engineer Alpha
 
 on:
+  issues:
+    types: [labeled, unlabeled]
   repository_dispatch:
-    types: [agent-product-owner-complete, agent-reviewer-feedback]
+    types: [agent-reviewer-feedback]
   pull_request:
     types: [closed]
     branches: [main]
@@ -24,6 +26,10 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 30
     if: >
+      (github.event_name == 'issues' && github.event.action == 'labeled' &&
+       startsWith(github.event.label.name, 'priority/')) ||
+      (github.event_name == 'issues' && github.event.action == 'unlabeled' &&
+       github.event.label.name == 'status/blocked') ||
       (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
       github.event_name == 'repository_dispatch' ||
       (github.event_name == 'check_suite' && github.event.check_suite.conclusion == 'failure') ||
@@ -37,7 +43,9 @@ jobs:
           ACTIONABLE=$(gh issue list --state open --json assignees,labels \
             --jq '[.[] | select(
               (.assignees | length == 0) and
-              (.labels | map(.name) | any(test("^priority/")))
+              (.labels | map(.name) | any(test("^priority/"))) and
+              (.labels | map(.name) | any(. == "status/blocked") | not) and
+              (.labels | map(.name) | any(. == "harness/request") | not)
             )] | length')
           PR_FIXES=$(gh pr list --state open --json labels,reviewDecision,mergeable \
             --jq '[.[] | select(

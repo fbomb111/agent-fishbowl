@@ -1,8 +1,10 @@
 name: Agent - Engineer
 
 on:
+  issues:
+    types: [labeled, unlabeled]          # React to ticket state changes (priority added, blocked removed)
   repository_dispatch:
-    types: [agent-product-owner-complete, agent-reviewer-feedback]
+    types: [agent-reviewer-feedback]
   pull_request:
     types: [closed]
     branches: [main]
@@ -23,9 +25,17 @@ jobs:
     name: Run Engineer agent
     runs-on: self-hosted
     timeout-minutes: 30
-    # PR merge: only run on actual merges, not closed-without-merge
-    # Dispatch: chain depth guard in action.yml prevents runaway cascading
+    # Event-driven: wake up on meaningful state changes
+    # - issues/labeled: new priority assigned (ready for work)
+    # - issues/unlabeled: blocker removed (work unblocked)
+    # - pull_request/closed: PR merged (pick up next task)
+    # - repository_dispatch: reviewer feedback (fix requested changes)
+    # - check_suite/failure: CI broke (fix it)
     if: >
+      (github.event_name == 'issues' && github.event.action == 'labeled' &&
+       startsWith(github.event.label.name, 'priority/')) ||
+      (github.event_name == 'issues' && github.event.action == 'unlabeled' &&
+       github.event.label.name == 'status/blocked') ||
       (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
       github.event_name == 'repository_dispatch' ||
       (github.event_name == 'check_suite' && github.event.check_suite.conclusion == 'failure') ||
@@ -36,11 +46,13 @@ jobs:
       - name: Check for available work
         id: workcheck
         run: |
-          # Actionable issues = open, has priority/*, unassigned
+          # Actionable issues = open, has priority/*, unassigned, not blocked or harness-only
           ACTIONABLE=$(gh issue list --state open --json assignees,labels \
             --jq '[.[] | select(
               (.assignees | length == 0) and
-              (.labels | map(.name) | any(test("^priority/")))
+              (.labels | map(.name) | any(test("^priority/"))) and
+              (.labels | map(.name) | any(. == "status/blocked") | not) and
+              (.labels | map(.name) | any(. == "harness/request") | not)
             )] | length')
 
           # PRs needing fixes = ci/failed, changes requested, or conflicts

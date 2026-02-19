@@ -57,13 +57,3 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Dispatch to engineer if work available
-        if: success()
-        run: |
-          UNASSIGNED=$(gh issue list --state open --json assignees --jq '[.[] | select(.assignees | length == 0)] | length' 2>/dev/null || echo "0")
-          if [ "$UNASSIGNED" -gt 0 ]; then
-            gh api "repos/$GITHUB_REPOSITORY/dispatches" \
-              --input - <<< '{"event_type":"agent-product-owner-complete","client_payload":{"chain_depth":1}}'
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
