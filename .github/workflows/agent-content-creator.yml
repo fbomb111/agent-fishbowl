@@ -9,9 +9,21 @@ permissions:
   contents: read
   issues: write
 
+concurrency:
+  group: agent-content-creator
+  cancel-in-progress: false
+
 jobs:
-  run:
-    uses: ./.github/workflows/reusable-agent.yml
-    with:
-      entry-point: scripts/run-content-creator.sh
-    secrets: inherit
+  content-creator:
+    name: Run Content Creator agent
+    runs-on: self-hosted
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Content Creator agent
+        uses: YourMoveLabs/agent-harness@v1.2.0
+        with:
+          role: content-creator
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

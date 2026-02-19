@@ -1,9 +1,9 @@
 # Content Strategy — Agent Fishbowl Blog
 
 > **Maintained by**: PM / PO agents (via PR)
-> **Read by**: Writer agent — uses this to shape topic selection and article generation
+> **Read by**: Content Creator agent — uses this to shape topic selection and article generation
 >
-> Update this file to shift editorial direction. The writer reads it every run.
+> Update this file to shift editorial direction. The Content Creator reads it every run.
 
 ## Audience
 

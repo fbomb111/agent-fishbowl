@@ -1,8 +1,8 @@
-name: Agent - Tech Lead Full Scan
+name: Agent - Tech Lead Security Scan
 
 on:
   schedule:
-    - cron: "0 10 * * 3"   # Weekly Wednesday at 10:00 UTC
+    - cron: "0 10 * * 4"   # Weekly Thursday at 10:00 UTC
   workflow_dispatch: {}
 
 permissions:
@@ -10,22 +10,22 @@ permissions:
   actions: write
 
 concurrency:
-  group: agent-scans
+  group: agent-tech-lead-security
   cancel-in-progress: false
 
 jobs:
-  full-scan:
-    name: Run Tech Lead full scan
+  security-scan:
+    name: Run security scan
     runs-on: self-hosted
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Tech Lead full scan
+      - name: Run Tech Lead security scan
         uses: YourMoveLabs/agent-harness@main
         with:
           role: tech-lead
-          job: full-scan
+          job: security-scan
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
