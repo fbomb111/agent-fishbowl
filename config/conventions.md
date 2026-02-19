@@ -181,6 +181,36 @@ Keep types co-located with the code that uses them. For shared types used across
 - **Client Components**: Add `"use client"` only when the component uses hooks (`useState`, `useEffect`, `useCallback`, `usePathname`, etc.) or browser APIs.
 - Keep components under 200 lines. Split complex state logic into custom hooks if a component grows beyond this.
 
+### Data Fetching
+
+Client components that fetch data should use a shared `useFetch` hook (once it exists in `src/hooks/useFetch.ts`) instead of manually wiring `useState` + `useEffect` + loading/error state. Until the hook is extracted, follow this pattern consistently:
+
+```tsx
+const [data, setData] = useState<T | null>(null);
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState<string | null>(null);
+
+useEffect(() => {
+  fetchFn()
+    .then((d) => { setData(d); setLoading(false); })
+    .catch((err) => {
+      setError(err instanceof Error ? err.message : "Unknown error");
+      setLoading(false);
+    });
+}, []);
+```
+
+**Never silently swallow fetch errors.** If a component fetches data and fails, it must either show an error UI or be a non-critical secondary panel (like a stats sidebar). Don't `catch` and return `null` without logging or showing feedback.
+
+### Shared Constants
+
+Hardcoded values used in 3+ places belong in `src/lib/constants.ts`. Current candidates:
+
+- `GITHUB_REPO_URL` — the repository URL (currently hardcoded in 5 files)
+- Poll intervals (`POLL_INTERVAL`, `STATUS_POLL_INTERVAL`)
+
+Don't create constants for one-off values — three instances is the threshold.
+
 ### Error and Loading States
 
 Use the established patterns for error and loading UI:
