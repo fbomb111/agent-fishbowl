@@ -25,11 +25,12 @@ def _reset_global_state():
 
     http_mod._client = None
 
-    # 4. Goals file cache
+    # 4. Goals file cache (parser state) + shared TTL cache (aggregator)
     import api.services.goals as goals_mod
+    import api.services.goals_parser as goals_parser_mod
 
-    goals_mod._goals_file_cache = None
-    goals_mod._goals_file_mtime = 0.0
+    goals_parser_mod._goals_file_cache = None
+    goals_parser_mod._goals_file_mtime = 0.0
     goals_mod._cache = TTLCache(ttl=300, max_size=10)
 
     # 5. Rate limiter state
