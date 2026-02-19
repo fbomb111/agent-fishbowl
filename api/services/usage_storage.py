@@ -5,10 +5,10 @@ import logging
 from typing import Any
 
 from azure.core.exceptions import AzureError, ResourceNotFoundError
-from azure.identity import ManagedIdentityCredential
 from azure.storage.blob import ContainerClient
 
 from api.config import get_settings
+from api.services.blob_storage import create_container_client
 
 logger = logging.getLogger(__name__)
 
@@ -19,21 +19,8 @@ _usage_client: ContainerClient | None = None
 def _get_usage_client() -> ContainerClient:
     """Return a shared blob container client for agent-usage (lazy singleton)."""
     global _usage_client
-    if _usage_client is not None:
-        return _usage_client
-
-    settings = get_settings()
-    account_url = f"https://{settings.azure_storage_account}.blob.core.windows.net"
-
-    credential = ManagedIdentityCredential(
-        client_id=settings.managed_identity_client_id
-    )
-
-    _usage_client = ContainerClient(
-        account_url=account_url,
-        container_name=settings.azure_usage_container,
-        credential=credential,
-    )
+    if _usage_client is None:
+        _usage_client = create_container_client(get_settings().azure_usage_container)
     return _usage_client
 
 
