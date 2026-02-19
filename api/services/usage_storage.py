@@ -20,9 +20,7 @@ def _get_usage_client() -> ContainerClient:
     """Return a shared blob container client for agent-usage (lazy singleton)."""
     global _usage_client
     if _usage_client is None:
-        _usage_client = create_container_client(
-            get_settings().azure_usage_container
-        )
+        _usage_client = create_container_client(get_settings().azure_usage_container)
     return _usage_client
 
 
