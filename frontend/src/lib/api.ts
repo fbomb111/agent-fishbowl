@@ -140,6 +140,7 @@ export interface AgentStatus {
   last_completed_at?: string;
   last_conclusion?: string;
   usage?: AgentUsage;
+  last_summary?: string;
 }
 
 export async function fetchAgentStatus(): Promise<{
