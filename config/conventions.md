@@ -178,7 +178,7 @@ Don't split preemptively. Split when a file crosses ~300 lines and has clearly s
 
 ### Utility Reuse
 
-Utility functions belong in `src/lib/`. Import them — don't redefine them locally in pages or components.
+Utility functions belong in `src/lib/`. Custom React hooks belong in `src/hooks/`. Import them — don't redefine them locally in pages or components.
 
 Existing utilities:
 - `src/lib/timeUtils.ts` — `timeAgo()`, `isFresh()` for relative timestamps
@@ -187,6 +187,10 @@ Existing utilities:
 - `src/lib/agents.ts` — agent config lookup, avatar/color mapping
 - `src/lib/api.ts` — API fetch functions and shared types
 - `src/lib/navigation.ts` — shared nav items (Header, Footer)
+- `src/lib/constants.ts` — shared constants (`GITHUB_REPO_URL`)
+
+Custom hooks:
+- `src/hooks/useFetch.ts` — generic data fetching with loading/error/retry
 
 ### Type Organization
 
@@ -200,31 +204,28 @@ Keep types co-located with the code that uses them. For shared types used across
 
 ### Data Fetching
 
-Client components that fetch data should use a shared `useFetch` hook (once it exists in `src/hooks/useFetch.ts`) instead of manually wiring `useState` + `useEffect` + loading/error state. Until the hook is extracted, follow this pattern consistently:
+Client components that fetch data on mount should use the `useFetch` hook from `src/hooks/useFetch.ts`. It handles loading, error, and retry state in one call:
 
 ```tsx
-const [data, setData] = useState<T | null>(null);
-const [loading, setLoading] = useState(true);
-const [error, setError] = useState<string | null>(null);
+import { useFetch } from "@/hooks/useFetch";
 
-useEffect(() => {
-  fetchFn()
-    .then((d) => { setData(d); setLoading(false); })
-    .catch((err) => {
-      setError(err instanceof Error ? err.message : "Unknown error");
-      setLoading(false);
-    });
-}, []);
+const { data, loading, error, retry } = useFetch<MyType>(
+  useCallback(() => fetchMyData(), [])
+);
 ```
+
+If the fetch function depends on props or state, wrap it in `useCallback` so the reference is stable.
+
+**When NOT to use `useFetch`**: Components that need continuous polling (e.g., the activity feed) should manage their own `useEffect` + `setInterval` loop. `useFetch` is for one-shot data fetching on mount.
 
 **Never silently swallow fetch errors.** If a component fetches data and fails, it must either show an error UI or be a non-critical secondary panel (like a stats sidebar). Don't `catch` and return `null` without logging or showing feedback.
 
 ### Shared Constants
 
-Hardcoded values used in 3+ places belong in `src/lib/constants.ts`. Current candidates:
+Hardcoded values used in 3+ places belong in `src/lib/constants.ts`.
 
-- `GITHUB_REPO_URL` — the repository URL (currently hardcoded in 5 files)
-- Poll intervals (`POLL_INTERVAL`, `STATUS_POLL_INTERVAL`)
+Already extracted:
+- `GITHUB_REPO_URL` — the repository URL (used in Header, Footer, and page components)
 
 Don't create constants for one-off values — three instances is the threshold.
 
