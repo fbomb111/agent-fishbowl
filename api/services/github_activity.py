@@ -5,12 +5,15 @@ dicts, groups them into threads by issue/PR, and caches the results.
 """
 
 import asyncio
+import logging
 from typing import Any
 
 from api.config import get_settings
 from api.services.cache import TTLCache
 from api.services.github_events import parse_events
 from api.services.http_client import get_shared_client, github_headers
+
+logger = logging.getLogger(__name__)
 
 # TTL cache for activity events (5 min)
 _cache = TTLCache(ttl=300, max_size=20)
@@ -92,10 +95,15 @@ async def _fetch_repo_events(
     url = f"https://api.github.com/repos/{repo}/events"
     params = {"per_page": str(per_page), "page": str(page)}
     client = get_shared_client()
-    resp = await client.get(url, headers=headers, params=params)
-    if resp.status_code == 200:
-        return resp.json()
-    return []
+    try:
+        resp = await client.get(url, headers=headers, params=params)
+        if resp.status_code == 200:
+            return resp.json()
+        logger.warning("Failed to fetch events for %s: %d", repo, resp.status_code)
+        return []
+    except Exception:
+        logger.exception("Error fetching events for %s", repo)
+        return []
 
 
 async def _fetch_all_events(per_page: int = 50) -> list[dict[str, Any]]:

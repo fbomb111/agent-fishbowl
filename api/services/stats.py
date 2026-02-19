@@ -26,11 +26,15 @@ async def _search_issues(query: str) -> list[dict[str, Any]]:
     url = "https://api.github.com/search/issues"
     params = {"q": query, "per_page": "100"}
 
-    resp = await client.get(url, headers=headers, params=params)
-    if resp.status_code != 200:
-        logger.warning("GitHub search failed (%d): %s", resp.status_code, query)
+    try:
+        resp = await client.get(url, headers=headers, params=params)
+        if resp.status_code != 200:
+            logger.warning("GitHub search failed (%d): %s", resp.status_code, query)
+            return []
+        return resp.json().get("items", [])
+    except Exception:
+        logger.exception("Error searching issues: %s", query)
         return []
-    return resp.json().get("items", [])
 
 
 def _agent_role(login: str) -> str | None:
