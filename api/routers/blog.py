@@ -8,12 +8,19 @@ from fastapi.responses import HTMLResponse
 
 from api.config import get_settings
 from api.models.blog import BlogIndex, BlogPost
-from api.services.blob_storage import get_blog_index, write_blog_index
+from api.services.blob_storage import (
+    get_blog_index,
+    read_blog_html,
+    upload_blog_html,
+    write_blog_index,
+)
 from api.services.http_client import get_shared_client
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/blog", tags=["blog"])
+
+FISHBOWL_BLOG_BASE = "https://agentfishbowl.com/blog"
 
 
 @router.get("", response_model=BlogIndex)
@@ -27,7 +34,7 @@ async def list_blog_posts(
 
 @router.post("")
 async def add_blog_post(post: BlogPost, x_ingest_key: str = Header()):
-    """Add a new blog post to the index. Protected by API key."""
+    """Add a new blog post to the index and copy HTML to fishbowl storage."""
     settings = get_settings()
     if not settings.ingest_api_key or x_ingest_key != settings.ingest_api_key:
         raise HTTPException(status_code=403, detail="Invalid ingest key")
@@ -36,9 +43,27 @@ async def add_blog_post(post: BlogPost, x_ingest_key: str = Header()):
     if any(p.id == post.id for p in index.posts):
         return {"status": "exists", "id": post.id}
 
+    # Copy HTML from source preview_url to fishbowl storage
+    copied = False
+    try:
+        client = get_shared_client()
+        resp = await client.get(post.preview_url)
+        resp.raise_for_status()
+        await upload_blog_html(post.slug, resp.text)
+        post.preview_url = f"{FISHBOWL_BLOG_BASE}/{post.slug}/index.html"
+        copied = True
+        logger.info("Copied blog HTML for %s to fishbowl storage", post.slug)
+    except Exception:
+        logger.warning(
+            "Could not copy blog HTML for %s from %s — registering with original URL",
+            post.slug,
+            post.preview_url,
+            exc_info=True,
+        )
+
     index.posts.insert(0, post)
     await write_blog_index(index.posts)
-    return {"status": "created", "id": post.id}
+    return {"status": "created", "id": post.id, "copied": copied}
 
 
 @router.get("/by-slug/{slug}")
@@ -53,7 +78,7 @@ async def get_blog_post_by_slug(slug: str):
 
 @router.get("/{post_id}/content")
 async def get_blog_post_content(post_id: str):
-    """Proxy the blog post HTML content from its preview URL."""
+    """Serve blog post HTML — reads from local blob, falls back to proxy."""
     index = await get_blog_index()
     post = None
     for p in index.posts:
@@ -63,6 +88,12 @@ async def get_blog_post_content(post_id: str):
     if not post:
         raise HTTPException(status_code=404, detail="Blog post not found")
 
+    # Try local blob first
+    html = await read_blog_html(post.slug)
+    if html:
+        return HTMLResponse(content=html)
+
+    # Fallback: proxy from preview_url
     try:
         client = get_shared_client()
         resp = await client.get(post.preview_url)

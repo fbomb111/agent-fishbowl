@@ -230,6 +230,30 @@ async def write_blog_index(posts: list[BlogPost]) -> None:
     )
 
 
+async def upload_blog_html(slug: str, html: str) -> None:
+    """Upload blog post HTML to $web/blog/{slug}/index.html."""
+    client = _get_blog_container_client()
+    blob = client.get_blob_client(f"blog/{slug}/index.html")
+    blob.upload_blob(
+        html,
+        overwrite=True,
+        content_settings=ContentSettings(content_type="text/html"),
+    )
+
+
+async def read_blog_html(slug: str) -> str | None:
+    """Read blog post HTML from $web/blog/{slug}/index.html. Returns None if not found."""
+    client = _get_blog_container_client()
+    try:
+        blob = client.get_blob_client(f"blog/{slug}/index.html")
+        return blob.download_blob().readall().decode("utf-8")
+    except ResourceNotFoundError:
+        return None
+    except Exception as e:
+        logger.warning("Could not read blog HTML for %s: %s", slug, e)
+        return None
+
+
 async def write_article_index(articles: list[ArticleSummary]) -> None:
     """Write the full article index to blob storage.
 
