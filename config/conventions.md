@@ -186,32 +186,31 @@ if (loading) {
 - Place tests in `api/tests/`.
 - Use `pytest` with `pytest-asyncio` for async tests.
 - Use `mocker` (pytest-mock) with `AsyncMock` for patching services and mocking HTTP calls.
+- Reset global state in `conftest.py` fixtures — module-level singletons (caches, clients) need cleanup between tests. See the singleton reset section below.
 
 ### Singleton Reset in conftest.py
 
-Every module-level singleton (cache, client, mutable state) **must** be reset in `api/tests/conftest.py`'s `_reset_global_state` fixture. This prevents test pollution — one test's cached data leaking into the next.
+Every module-level singleton **must** have a corresponding reset in `api/tests/conftest.py`'s `_reset_global_state()` fixture. When you add or change a singleton, update conftest in the **same PR**.
 
-**When to update conftest.py:** Any time you add, rename, or remove a module-level cache or singleton in a service or router file, update `_reset_global_state` in the same PR.
+**Why**: Module-level state persists across tests within a session. Without resets, test A's cached data leaks into test B, causing flaky passes or failures depending on test order.
 
-The pattern for each singleton type:
+**Singleton types and how to reset each:**
 
-```python
-# TTLCache — reconstruct with the same ttl/max_size as the source module
-import api.services.some_module as mod
-mod._cache = TTLCache(ttl=300, max_size=10)  # match source values
+| Type | Pattern | Reset |
+|------|---------|-------|
+| TTLCache | `_cache = TTLCache(ttl=300, max_size=10)` | `mod._cache = TTLCache(ttl=300, max_size=10)` |
+| Lazy client | `_client: Client \| None = None` | `mod._client = None` |
+| File cache + mtime | `_file_cache = None` / `_file_mtime = 0.0` | `mod._file_cache = None` / `mod._file_mtime = 0.0` |
+| Dict state | `_state: dict[str, Any] = {}` | `mod._state.clear()` |
+| Counter | `_counter: int = 0` | `mod._counter = 0` |
+| LRU cache | `@lru_cache` on `get_settings()` | `get_settings.cache_clear()` |
 
-# Client singleton — set to None (lazy-init pattern)
-mod._client = None
+**For TTLCache resets**: Reconstruct with the same `ttl` and `max_size` as the source module. Import `TTLCache` from `api.services.cache` — don't hardcode magic numbers that could drift from the source.
 
-# Dict/set state — clear in place
-mod._rate_limits.clear()
-
-# File-based cache — reset sentinel values
-mod._file_cache = None
-mod._file_mtime = 0.0
-```
-
-If a TTLCache is added with custom `ttl`/`max_size`, import those constants from the source module rather than hardcoding them in conftest. This prevents silent drift.
+**Checklist for any PR that touches singletons:**
+1. New singleton added → add a reset block to conftest
+2. Singleton parameters changed (TTL, max_size) → update the conftest reset to match
+3. Singleton removed → remove the conftest reset block
 
 ### Test File Naming
 
