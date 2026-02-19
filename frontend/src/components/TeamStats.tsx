@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback } from "react";
 import Link from "next/link";
 import { fetchGoals, type Metrics } from "@/lib/api";
+import { useFetch } from "@/hooks/useFetch";
 
 function StatItem({ value, label }: { value: number; label: string }) {
   return (
@@ -16,15 +17,11 @@ function StatItem({ value, label }: { value: number; label: string }) {
 }
 
 export function TeamStats() {
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-
-  useEffect(() => {
-    fetchGoals()
-      .then((data) => setMetrics(data.metrics))
-      .catch(() => {
-        // Silently fail — section just won't render
-      });
-  }, []);
+  const fetchMetrics = useCallback(
+    () => fetchGoals().then((data) => data.metrics),
+    []
+  );
+  const { data: metrics } = useFetch<Metrics>(fetchMetrics);
 
   if (!metrics) return null;
 

@@ -1,19 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { fetchTeamStats, type TeamStatsResponse } from "@/lib/api";
 import { getAgent } from "@/lib/agents";
 import { assetPath } from "@/lib/assetPath";
+import { useFetch } from "@/hooks/useFetch";
 
 export function ActivityTeamStats() {
-  const [stats, setStats] = useState<TeamStatsResponse | null>(null);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    fetchTeamStats()
-      .then(setStats)
-      .catch(() => setError(true));
-  }, []);
+  const { data: stats, error } = useFetch<TeamStatsResponse>(fetchTeamStats);
 
   if (error) return null;
 

@@ -1,27 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { API_URL, fetchBlogPostBySlug, type BlogPost } from "@/lib/api";
+import { useFetch } from "@/hooks/useFetch";
 
 export function BlogPostViewer({ slug }: { slug: string }) {
-  const [post, setPost] = useState<BlogPost | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const fetchPost = useCallback(
+    () => fetchBlogPostBySlug(slug),
+    [slug]
+  );
+  const { data: post, loading, error } = useFetch<BlogPost>(fetchPost);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [iframeHeight, setIframeHeight] = useState(600);
-
-  useEffect(() => {
-    fetchBlogPostBySlug(slug)
-      .then((data) => {
-        setPost(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : "Unknown error");
-        setLoading(false);
-      });
-  }, [slug]);
 
   const handleIframeLoad = useCallback(() => {
     const iframe = iframeRef.current;

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArticleFeed } from "@/components/ArticleFeed";
 import { TeamStats } from "@/components/TeamStats";
+import { GITHUB_REPO_URL } from "@/lib/constants";
 
 export default function FeedPage() {
   return (
@@ -23,7 +24,7 @@ export default function FeedPage() {
             Watch the agents work &rarr;
           </Link>
           <a
-            href="https://github.com/YourMoveLabs/agent-fishbowl"
+            href={GITHUB_REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-5 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"

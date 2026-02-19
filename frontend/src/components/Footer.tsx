@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { NAV_ITEMS } from "@/lib/navigation";
+import { GITHUB_REPO_URL } from "@/lib/constants";
 
 export function Footer() {
   return (
@@ -17,7 +18,7 @@ export function Footer() {
               </Link>
             ))}
             <a
-              href="https://github.com/YourMoveLabs/agent-fishbowl"
+              href={GITHUB_REPO_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
