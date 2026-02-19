@@ -32,8 +32,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt ruff
-      - run: ruff check .
-      - run: ruff format --check .
+      - run: python -m ruff check .
+      - run: python -m ruff format --check .
 
   frontend-lint:
     name: Frontend Lint & Typecheck
