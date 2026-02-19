@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { fetchBlogPostBySlug, type BlogPost } from "@/lib/api";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8500";
+import { API_URL, fetchBlogPostBySlug, type BlogPost } from "@/lib/api";
 
 export function BlogPostViewer({ slug }: { slug: string }) {
   const [post, setPost] = useState<BlogPost | null>(null);

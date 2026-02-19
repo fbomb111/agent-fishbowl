@@ -2,7 +2,7 @@
  * API client for communicating with the FastAPI backend.
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8500";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8500";
 const API_BASE = `${API_URL}/api/fishbowl`;
 
 function apiError(status: number): Error {
