@@ -1,0 +1,47 @@
+name: Agent - Tech Lead Harness Request Review
+
+on:
+  schedule:
+    - cron: "0 14 * * *"   # Daily at 14:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write             # Remove labels from issues
+  actions: write
+
+concurrency:
+  group: agent-tech-lead-harness-review
+  cancel-in-progress: false
+
+jobs:
+  harness-request-review:
+    name: Review harness request issues
+    runs-on: self-hosted
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check if any harness requests exist
+        id: preflight
+        run: |
+          COUNT=$(gh issue list --state open --label "harness/request" --json number --jq length)
+          echo "harness_requests=$COUNT"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "No harness/request issues — skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "$COUNT harness/request issue(s) to review"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Tech Lead harness request review
+        if: steps.preflight.outputs.skip != 'true'
+        uses: YourMoveLabs/agent-harness@main
+        with:
+          role: tech-lead
+          job: harness-request-review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
