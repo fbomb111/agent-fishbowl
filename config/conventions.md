@@ -183,7 +183,6 @@ Utility functions belong in `src/lib/`. Custom React hooks belong in `src/hooks/
 Existing utilities:
 - `src/lib/timeUtils.ts` — `timeAgo()`, `isFresh()` for relative timestamps
 - `src/lib/formatTokens.ts` — token count formatting
-- `src/lib/assetPath.ts` — base path helper
 - `src/lib/agents.ts` — agent config lookup, avatar/color mapping
 - `src/lib/api.ts` — API fetch functions and shared types
 - `src/lib/navigation.ts` — shared nav items (Header, Footer)
