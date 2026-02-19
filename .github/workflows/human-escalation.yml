@@ -1,0 +1,25 @@
+name: Human Escalation
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+
+jobs:
+  notify:
+    name: Notify human operator
+    if: github.event.label.name == 'harness/request'
+    runs-on: self-hosted
+    timeout-minutes: 5
+    steps:
+      - name: Comment on issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "🔔 **Human action needed** — this issue requires a harness or infrastructure change that agents can't make themselves.
+
+          @fbomb111 please review the request above and take action."
