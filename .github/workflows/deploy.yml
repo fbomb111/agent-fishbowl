@@ -88,6 +88,20 @@ jobs:
         if: steps.health.outcome == 'failure'
         run: exit 1
 
+      - name: Clean up old Docker images
+        if: always()
+        run: |
+          # Remove old API image tags to prevent accumulation on self-hosted runner
+          docker images agentfishbowlacr.azurecr.io/agent-fishbowl-api \
+            --format '{{.Repository}}:{{.Tag}}' \
+            | grep -v ':${{ github.sha }}' \
+            | grep -v ':latest' \
+            | grep -v ':<none>' \
+            | xargs -r docker rmi 2>/dev/null || true
+
+          REMAINING=$(docker images agentfishbowlacr.azurecr.io/agent-fishbowl-api --format '{{.Tag}}' | wc -l)
+          echo "Docker images remaining: $REMAINING"
+
   deploy-frontend:
     name: Deploy Frontend
     runs-on: self-hosted
