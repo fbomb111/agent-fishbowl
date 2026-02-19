@@ -1,7 +1,6 @@
 "use client";
 
 import { getAgent } from "@/lib/agents";
-import { assetPath } from "@/lib/assetPath";
 import { timeAgo } from "@/lib/timeUtils";
 import type { AgentStatus, ThreadedItem } from "@/lib/api";
 import { formatTokens } from "@/lib/formatTokens";
@@ -71,7 +70,7 @@ export function ActiveWorkSummary({ agents, items }: ActiveWorkSummaryProps) {
               >
                 {agent.avatar && (
                   <img
-                    src={assetPath(agent.avatar)}
+                    src={agent.avatar}
                     alt={agent.displayName}
                     width={18}
                     height={18}

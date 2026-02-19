@@ -63,6 +63,7 @@ def _make_event(
         "id": event["id"],
         "type": event_type,
         "actor": actor,
+        "avatar_url": event.get("actor", {}).get("avatar_url"),
         "description": description,
         "timestamp": event.get("created_at", ""),
         "url": url,

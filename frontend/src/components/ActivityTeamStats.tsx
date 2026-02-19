@@ -2,7 +2,6 @@
 
 import { fetchTeamStats, type TeamStatsResponse } from "@/lib/api";
 import { getAgent } from "@/lib/agents";
-import { assetPath } from "@/lib/assetPath";
 import { useFetch } from "@/hooks/useFetch";
 import { ErrorFallback } from "./ErrorFallback";
 
@@ -103,7 +102,7 @@ export function ActivityTeamStats() {
                       <div className="flex items-center gap-2">
                         {agent.avatar && (
                           <img
-                            src={assetPath(agent.avatar)}
+                            src={agent.avatar}
                             alt={agent.displayName}
                             width={20}
                             height={20}

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { getAgent } from "@/lib/agents";
-import { assetPath } from "@/lib/assetPath";
 import { timeAgo } from "@/lib/timeUtils";
 import type { ActivityEvent as ActivityEventType } from "@/lib/api";
 
@@ -13,13 +12,14 @@ interface ThreadEventProps {
 
 function ThreadEvent({ event, isLast }: ThreadEventProps) {
   const agent = getAgent(event.actor);
+  const imgSrc = event.avatar_url || agent.avatar;
   const content = (
     <div className="flex gap-3">
       {/* Timeline connector */}
       <div className="flex flex-col items-center">
-        {agent.avatar ? (
+        {imgSrc ? (
           <img
-            src={assetPath(agent.avatar)}
+            src={imgSrc}
             alt={agent.displayName}
             width={24}
             height={24}

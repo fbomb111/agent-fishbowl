@@ -46,6 +46,7 @@ export interface ActivityEvent {
   id: string;
   type: string;
   actor: string;
+  avatar_url?: string;
   description: string;
   timestamp: string;
   url?: string;
