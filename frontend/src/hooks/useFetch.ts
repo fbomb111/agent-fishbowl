@@ -14,7 +14,9 @@ export function useFetch<T>(fetchFn: () => Promise<T>): UseFetchResult<T> {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const fetchFnRef = useRef(fetchFn);
-  fetchFnRef.current = fetchFn;
+  useEffect(() => {
+    fetchFnRef.current = fetchFn;
+  });
 
   useEffect(() => {
     let cancelled = false;
