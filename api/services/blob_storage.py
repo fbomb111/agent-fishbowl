@@ -27,37 +27,34 @@ def _get_credential() -> ManagedIdentityCredential:
     return ManagedIdentityCredential(client_id=settings.managed_identity_client_id)
 
 
+def create_container_client(container_name: str) -> ContainerClient:
+    """Create a ContainerClient for the given container."""
+    settings = get_settings()
+    account_url = f"https://{settings.azure_storage_account}.blob.core.windows.net"
+    return ContainerClient(
+        account_url=account_url,
+        container_name=container_name,
+        credential=_get_credential(),
+    )
+
+
 def _get_container_client() -> ContainerClient:
     """Return a shared blob container client for articles (lazy singleton)."""
     global _container_client
-    if _container_client is not None:
-        return _container_client
-
-    settings = get_settings()
-    account_url = f"https://{settings.azure_storage_account}.blob.core.windows.net"
-
-    _container_client = ContainerClient(
-        account_url=account_url,
-        container_name=settings.azure_storage_container,
-        credential=_get_credential(),
-    )
+    if _container_client is None:
+        _container_client = create_container_client(
+            get_settings().azure_storage_container
+        )
     return _container_client
 
 
 def _get_blog_container_client() -> ContainerClient:
     """Return a shared blob container client for blog content ($web)."""
     global _blog_container_client
-    if _blog_container_client is not None:
-        return _blog_container_client
-
-    settings = get_settings()
-    account_url = f"https://{settings.azure_storage_account}.blob.core.windows.net"
-
-    _blog_container_client = ContainerClient(
-        account_url=account_url,
-        container_name=settings.azure_blog_container,
-        credential=_get_credential(),
-    )
+    if _blog_container_client is None:
+        _blog_container_client = create_container_client(
+            get_settings().azure_blog_container
+        )
     return _blog_container_client
 
 
