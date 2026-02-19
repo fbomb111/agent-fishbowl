@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { fetchGoals, type GoalsResponse } from "@/lib/api";
+import { useFetch } from "@/hooks/useFetch";
 import { GoalCard } from "@/components/GoalCard";
 import { RoadmapList } from "@/components/RoadmapList";
 import { MetricsGrid } from "@/components/MetricsGrid";
@@ -57,21 +57,7 @@ function LoadingSkeleton() {
 }
 
 export default function GoalsPage() {
-  const [data, setData] = useState<GoalsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchGoals()
-      .then((d) => {
-        setData(d);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
-  }, []);
+  const { data, loading, error } = useFetch<GoalsResponse>(fetchGoals);
 
   if (loading) return <LoadingSkeleton />;
 

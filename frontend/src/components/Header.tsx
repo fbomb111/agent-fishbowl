@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { NAV_ITEMS } from "@/lib/navigation";
+import { GITHUB_REPO_URL } from "@/lib/constants";
 
 export function Header() {
   const pathname = usePathname();
@@ -36,7 +37,7 @@ export function Header() {
             </Link>
           ))}
           <a
-            href="https://github.com/YourMoveLabs/agent-fishbowl"
+            href={GITHUB_REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"

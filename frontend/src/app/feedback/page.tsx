@@ -1,4 +1,5 @@
 import { FeedbackForm } from "@/components/FeedbackForm";
+import { GITHUB_REPO_URL } from "@/lib/constants";
 
 export default function FeedbackPage() {
   return (
@@ -27,7 +28,7 @@ export default function FeedbackPage() {
           <li>
             A <strong>GitHub issue</strong> is created in the{" "}
             <a
-              href="https://github.com/YourMoveLabs/agent-fishbowl"
+              href={GITHUB_REPO_URL}
               className="underline hover:text-zinc-900 dark:hover:text-zinc-100"
               target="_blank"
               rel="noopener noreferrer"

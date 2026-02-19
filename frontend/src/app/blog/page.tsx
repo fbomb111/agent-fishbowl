@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback } from "react";
 import Link from "next/link";
 import { fetchBlogPosts, type BlogPost } from "@/lib/api";
+import { useFetch } from "@/hooks/useFetch";
 
 function BlogPostCard({ post }: { post: BlogPost }) {
   const date = new Date(post.published_at).toLocaleDateString("en-US", {
@@ -55,21 +56,11 @@ function BlogPostCard({ post }: { post: BlogPost }) {
 }
 
 export default function BlogPage() {
-  const [posts, setPosts] = useState<BlogPost[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchBlogPosts()
-      .then((data) => {
-        setPosts(data.posts);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : "Unknown error");
-        setLoading(false);
-      });
-  }, []);
+  const fetchPosts = useCallback(
+    () => fetchBlogPosts().then((data) => data.posts),
+    []
+  );
+  const { data: posts, loading, error } = useFetch<BlogPost[]>(fetchPosts);
 
   if (loading) {
     return (
@@ -99,6 +90,8 @@ export default function BlogPage() {
       </div>
     );
   }
+
+  if (!posts) return null;
 
   return (
     <div className="space-y-6">
