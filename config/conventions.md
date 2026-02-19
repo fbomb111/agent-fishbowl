@@ -51,8 +51,6 @@ async def fetch_data(url: str) -> dict:
 
 For GitHub API calls, use `github_headers()` from the same module to get correctly-formed headers including auth.
 
-For retryable requests (external APIs, rate-limited endpoints), use `fetch_with_retry()` which handles 429/5xx with exponential backoff.
-
 ### Async Patterns
 
 Use `asyncio.gather()` when fetching from multiple independent sources. Sequential loops waste time when requests don't depend on each other.
