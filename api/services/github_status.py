@@ -5,15 +5,12 @@ agent roles. Results are cached with a 60-second TTL for live status display.
 """
 
 import asyncio
-import logging
 from typing import Any
 
 from api.config import get_settings
 from api.services.cache import TTLCache
-from api.services.http_client import get_shared_client, github_headers
+from api.services.http_client import github_api_get
 from api.services.usage_storage import get_run_usage
-
-logger = logging.getLogger(__name__)
 
 # TTL cache for agent status (60s — the "live" signal)
 _status_cache = TTLCache(ttl=60, max_size=5)
@@ -42,23 +39,16 @@ async def get_agent_status() -> list[dict[str, Any]]:
         return cached
 
     settings = get_settings()
-    client = get_shared_client()
-    headers = github_headers()
-
     url = f"https://api.github.com/repos/{settings.github_repo}/actions/runs"
     params = {"per_page": "50"}
 
-    try:
-        resp = await client.get(url, headers=headers, params=params)
-        if resp.status_code != 200:
-            logger.warning("Failed to fetch workflow runs: %d", resp.status_code)
-            stale = _status_cache.get(cache_key)
-            return stale if stale is not None else []
-        runs = resp.json().get("workflow_runs", [])
-    except Exception:
-        logger.exception("Error fetching workflow runs")
+    result = await github_api_get(
+        url, params, response_key="workflow_runs", context="workflow runs"
+    )
+    if result is None:
         stale = _status_cache.get(cache_key)
         return stale if stale is not None else []
+    runs = result
 
     # Build a map of agent role -> most recent run
     agent_runs: dict[str, dict[str, Any]] = {}

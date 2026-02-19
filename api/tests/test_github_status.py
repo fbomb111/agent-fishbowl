@@ -84,7 +84,7 @@ class TestGetAgentStatus:
         mock_client.get.return_value = mock_response
 
         monkeypatch.setattr(
-            "api.services.github_status.get_shared_client", lambda: mock_client
+            "api.services.http_client.get_shared_client", lambda: mock_client
         )
         monkeypatch.setattr(
             "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
@@ -115,7 +115,7 @@ class TestGetAgentStatus:
         mock_client.get.return_value = mock_response
 
         monkeypatch.setattr(
-            "api.services.github_status.get_shared_client", lambda: mock_client
+            "api.services.http_client.get_shared_client", lambda: mock_client
         )
         monkeypatch.setattr(
             "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
@@ -144,7 +144,7 @@ class TestGetAgentStatus:
         mock_client.get.return_value = mock_response
 
         monkeypatch.setattr(
-            "api.services.github_status.get_shared_client", lambda: mock_client
+            "api.services.http_client.get_shared_client", lambda: mock_client
         )
         monkeypatch.setattr(
             "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
@@ -166,7 +166,7 @@ class TestGetAgentStatus:
         mock_client.get.return_value = mock_response
 
         monkeypatch.setattr(
-            "api.services.github_status.get_shared_client", lambda: mock_client
+            "api.services.http_client.get_shared_client", lambda: mock_client
         )
 
         result = await get_agent_status()
@@ -184,7 +184,7 @@ class TestGetAgentStatus:
         mock_client.get.return_value = mock_response
 
         monkeypatch.setattr(
-            "api.services.github_status.get_shared_client", lambda: mock_client
+            "api.services.http_client.get_shared_client", lambda: mock_client
         )
 
         result = await get_agent_status()
@@ -211,7 +211,7 @@ class TestGetAgentStatus:
         mock_client.get.return_value = mock_response
 
         monkeypatch.setattr(
-            "api.services.github_status.get_shared_client", lambda: mock_client
+            "api.services.http_client.get_shared_client", lambda: mock_client
         )
 
         result = await get_agent_status()
@@ -224,7 +224,7 @@ class TestGetAgentStatus:
         mock_client.get.side_effect = Exception("Connection refused")
 
         monkeypatch.setattr(
-            "api.services.github_status.get_shared_client", lambda: mock_client
+            "api.services.http_client.get_shared_client", lambda: mock_client
         )
 
         result = await get_agent_status()
@@ -247,7 +247,7 @@ class TestGetAgentStatus:
         mock_client.get.return_value = mock_response
 
         monkeypatch.setattr(
-            "api.services.github_status.get_shared_client", lambda: mock_client
+            "api.services.http_client.get_shared_client", lambda: mock_client
         )
         monkeypatch.setattr(
             "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
@@ -297,7 +297,7 @@ class TestGetAgentStatus:
         }
 
         monkeypatch.setattr(
-            "api.services.github_status.get_shared_client", lambda: mock_client
+            "api.services.http_client.get_shared_client", lambda: mock_client
         )
         monkeypatch.setattr(
             "api.services.github_status.get_run_usage",

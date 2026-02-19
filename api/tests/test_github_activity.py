@@ -274,7 +274,7 @@ class TestGetActivityEventsCaching:
         mock_client.get.return_value = mock_response
 
         monkeypatch.setattr(
-            "api.services.github_activity.get_shared_client", lambda: mock_client
+            "api.services.http_client.get_shared_client", lambda: mock_client
         )
 
         result = await get_activity_events(page=1, per_page=30)
@@ -300,7 +300,7 @@ class TestGetActivityEventsCaching:
         mock_client.get.return_value = mock_response
 
         monkeypatch.setattr(
-            "api.services.github_activity.get_shared_client", lambda: mock_client
+            "api.services.http_client.get_shared_client", lambda: mock_client
         )
 
         result = await get_activity_events(page=1, per_page=30)
