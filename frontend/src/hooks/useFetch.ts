@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 interface UseFetchResult<T> {
   data: T | null;
@@ -13,11 +13,31 @@ export function useFetch<T>(fetchFn: () => Promise<T>): UseFetchResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const fetchFnRef = useRef(fetchFn);
+  fetchFnRef.current = fetchFn;
 
-  const execute = useCallback(() => {
+  useEffect(() => {
+    let cancelled = false;
+    fetchFnRef.current()
+      .then((result) => {
+        if (!cancelled) {
+          setData(result);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Unknown error");
+          setLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const retry = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchFn()
+    fetchFnRef.current()
       .then((result) => {
         setData(result);
         setLoading(false);
@@ -26,11 +46,7 @@ export function useFetch<T>(fetchFn: () => Promise<T>): UseFetchResult<T> {
         setError(err instanceof Error ? err.message : "Unknown error");
         setLoading(false);
       });
-  }, [fetchFn]);
+  }, []);
 
-  useEffect(() => {
-    execute();
-  }, [execute]);
-
-  return { data, loading, error, retry: execute };
+  return { data, loading, error, retry };
 }
