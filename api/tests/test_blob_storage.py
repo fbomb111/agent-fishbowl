@@ -127,9 +127,7 @@ class TestGetArticleIndex:
             _make_article_summary(
                 "a1", title="FastAPI Guide", description="Build APIs"
             ),
-            _make_article_summary(
-                "a2", title="React Tips", description="UI tricks"
-            ),
+            _make_article_summary("a2", title="React Tips", description="UI tricks"),
         ]
         mock_container = MagicMock()
         mock_container.get_blob_client.return_value = _mock_blob_download(articles)

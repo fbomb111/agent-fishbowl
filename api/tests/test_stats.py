@@ -97,9 +97,7 @@ class TestGetTeamStats:
                 return prs_items
             return []
 
-        monkeypatch.setattr(
-            "api.services.stats._search_issues", mock_search_issues
-        )
+        monkeypatch.setattr("api.services.stats._search_issues", mock_search_issues)
 
         result = await get_team_stats()
 
@@ -122,9 +120,7 @@ class TestGetTeamStats:
         async def mock_search_issues(query):
             return []
 
-        monkeypatch.setattr(
-            "api.services.stats._search_issues", mock_search_issues
-        )
+        monkeypatch.setattr("api.services.stats._search_issues", mock_search_issues)
 
         result = await get_team_stats()
 
@@ -148,9 +144,7 @@ class TestGetTeamStats:
                 ]
             return []
 
-        monkeypatch.setattr(
-            "api.services.stats._search_issues", mock_search_issues
-        )
+        monkeypatch.setattr("api.services.stats._search_issues", mock_search_issues)
 
         result = await get_team_stats()
         assert result["prs_merged"] == 1
@@ -172,9 +166,7 @@ class TestGetTeamStats:
                 ]
             return []
 
-        monkeypatch.setattr(
-            "api.services.stats._search_issues", mock_search_issues
-        )
+        monkeypatch.setattr("api.services.stats._search_issues", mock_search_issues)
 
         result = await get_team_stats()
         assert result["issues_closed"] == 1
@@ -188,9 +180,7 @@ class TestGetTeamStats:
         async def mock_search_issues(query):
             return []
 
-        monkeypatch.setattr(
-            "api.services.stats._search_issues", mock_search_issues
-        )
+        monkeypatch.setattr("api.services.stats._search_issues", mock_search_issues)
 
         await get_team_stats()
 
