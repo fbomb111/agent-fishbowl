@@ -1,10 +1,10 @@
 import { getAgent } from "@/lib/agents";
-import { assetPath } from "@/lib/assetPath";
 import { timeAgo } from "@/lib/timeUtils";
 
 interface ActivityEventProps {
   type: string;
   actor: string;
+  avatarUrl?: string;
   description: string;
   timestamp: string;
   url?: string;
@@ -14,6 +14,7 @@ interface ActivityEventProps {
 
 export function ActivityEvent({
   actor,
+  avatarUrl,
   description,
   timestamp,
   url,
@@ -21,13 +22,14 @@ export function ActivityEvent({
   commentUrl,
 }: ActivityEventProps) {
   const agent = getAgent(actor);
+  const imgSrc = avatarUrl || agent.avatar;
   const time = timeAgo(timestamp);
 
   const content = (
     <div className="flex items-start gap-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-      {agent.avatar ? (
+      {imgSrc ? (
         <img
-          src={assetPath(agent.avatar)}
+          src={imgSrc}
           alt={agent.displayName}
           width={28}
           height={28}

@@ -180,6 +180,7 @@ export function ActivityFeed({
               key={evt.id}
               type={evt.type}
               actor={evt.actor}
+              avatarUrl={evt.avatar_url}
               description={evt.description}
               timestamp={evt.timestamp}
               url={evt.url}

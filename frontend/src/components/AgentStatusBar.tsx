@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { getAgent, AGENTS } from "@/lib/agents";
-import { assetPath } from "@/lib/assetPath";
 import { timeAgo } from "@/lib/timeUtils";
 import type { AgentStatus } from "@/lib/api";
 import { formatTokens } from "@/lib/formatTokens";
@@ -75,7 +74,7 @@ export function AgentStatusBar({
               <div className="relative">
                 {agent.avatar ? (
                   <img
-                    src={assetPath(agent.avatar)}
+                    src={agent.avatar}
                     alt={agent.displayName}
                     width={32}
                     height={32}
