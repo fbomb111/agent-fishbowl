@@ -63,6 +63,9 @@ def _group_events_into_threads(
                 seen_labels.add(evt["description"])
             deduped.append(evt)
         thread["events"] = deduped
+        # Update latest_timestamp to actual latest event after sort/dedup
+        if thread["events"]:
+            thread["latest_timestamp"] = thread["events"][-1]["timestamp"]
 
     # Merge threads and standalone events, sorted by most recent activity
     result: list[dict[str, Any]] = []

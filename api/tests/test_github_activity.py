@@ -62,6 +62,8 @@ class TestGroupEventsIntoThreads:
         # Events sorted oldest first within thread
         assert thread["events"][0]["timestamp"] == "2026-01-15T10:00:00Z"
         assert thread["events"][1]["timestamp"] == "2026-01-15T11:00:00Z"
+        # latest_timestamp reflects most recent event
+        assert thread["latest_timestamp"] == "2026-01-15T11:00:00Z"
 
     def test_multiple_threads_sorted_by_recency(self):
         events = [
@@ -125,7 +127,7 @@ class TestGroupEventsIntoThreads:
         result = _group_events_into_threads(events)
 
         assert len(result) == 2
-        # Standalone push (12:00) is more recent than thread (latest_timestamp=10:00)
+        # Standalone push (12:00) is more recent than thread (latest event=10:00)
         assert result[0]["type"] == "standalone"
         assert result[1]["type"] == "thread"
         assert result[1]["subject_number"] == 42
@@ -167,6 +169,40 @@ class TestGroupEventsIntoThreads:
         descriptions = [e["description"] for e in thread["events"]]
         assert "priority/high" in descriptions
         assert "type/bug" in descriptions
+
+    def test_latest_timestamp_reflects_most_recent_event(self):
+        events = [
+            _make_activity_event(
+                "issue_created",
+                timestamp="2026-01-15T08:00:00Z",
+                subject_type="issue",
+                subject_number=1,
+                subject_title="Old issue",
+            ),
+            _make_activity_event(
+                "issue_comment",
+                timestamp="2026-01-15T14:00:00Z",
+                subject_type="issue",
+                subject_number=1,
+                subject_title="Old issue",
+            ),
+            _make_activity_event(
+                "pr_opened",
+                timestamp="2026-01-15T12:00:00Z",
+                subject_type="pr",
+                subject_number=5,
+                subject_title="Newer PR",
+            ),
+        ]
+        result = _group_events_into_threads(events)
+
+        assert len(result) == 2
+        # Issue thread has latest event at 14:00, PR at 12:00
+        # So issue thread should sort first (most recent)
+        assert result[0]["subject_number"] == 1
+        assert result[0]["latest_timestamp"] == "2026-01-15T14:00:00Z"
+        assert result[1]["subject_number"] == 5
+        assert result[1]["latest_timestamp"] == "2026-01-15T12:00:00Z"
 
     def test_subject_title_from_earliest_event(self):
         events = [
