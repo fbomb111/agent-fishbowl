@@ -597,6 +597,9 @@ async def get_agent_status() -> list[dict[str, Any]]:
                             "cache_read_input_tokens"
                         ),
                     }
+                    summary = role_usage.get("result_summary")
+                    if summary:
+                        entry["last_summary"] = summary
 
         result.append(entry)
 
