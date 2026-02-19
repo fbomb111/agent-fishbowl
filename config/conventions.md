@@ -96,6 +96,20 @@ async def get_items() -> list[Item]:
 
 Routers should raise `HTTPException` only for client-facing error conditions (404 for missing resources, 429 for rate limits). Don't raise 500 — let FastAPI's default handler deal with unhandled exceptions.
 
+### Naming: Public vs Private
+
+Functions imported by other modules are **public API** — name them without a leading underscore. Reserve `_underscore` prefixes for functions that are truly internal to a single module.
+
+```python
+# Public — imported by other modules or tests
+def parse_events(raw_events: list[dict]) -> list[dict]: ...
+
+# Private — only called within this file
+def _build_thread_key(event: dict) -> str: ...
+```
+
+If a function starts as private but later gains external callers, rename it to drop the underscore.
+
 ### Imports and Module Structure
 
 - Use `from __future__ import annotations` only if needed for forward references
