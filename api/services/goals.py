@@ -8,6 +8,7 @@ Data sources:
 
 import asyncio
 import json
+import logging
 import os
 import re
 import time
@@ -20,6 +21,8 @@ from api.config import get_settings
 from api.services.cache import TTLCache
 from api.services.github_events import ACTOR_MAP
 from api.services.http_client import get_shared_client, github_headers
+
+logger = logging.getLogger(__name__)
 
 # Shared TTL cache for all goals-related data
 _cache = TTLCache(ttl=300, max_size=10)
@@ -81,6 +84,7 @@ def parse_goals_file() -> GoalsFileData:
     try:
         current_mtime = os.path.getmtime(path)
     except OSError:
+        logger.warning("goals.md not found at %s", path)
         return {"mission": "", "goals": [], "constraints": []}
 
     if _goals_file_cache is not None and current_mtime == _goals_file_mtime:
@@ -90,6 +94,7 @@ def parse_goals_file() -> GoalsFileData:
         with open(path) as f:
             content = f.read()
     except FileNotFoundError:
+        logger.warning("goals.md not readable at %s", path)
         return {"mission": "", "goals": [], "constraints": []}
 
     # Extract mission (text between ## Mission and next ##)
@@ -205,6 +210,11 @@ async def get_roadmap_snapshot() -> dict[str, Any]:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
 
         if proc.returncode != 0:
+            logger.error(
+                "gh project item-list failed (rc=%d): %s",
+                proc.returncode,
+                stderr.decode().strip(),
+            )
             stale = _cache.get("roadmap")
             return stale if stale is not None else empty
 
@@ -235,6 +245,7 @@ async def get_roadmap_snapshot() -> dict[str, Any]:
         return result
 
     except (asyncio.TimeoutError, FileNotFoundError, json.JSONDecodeError):
+        logger.exception("roadmap fetch failed")
         stale = _cache.get("roadmap")
         return stale if stale is not None else empty
 
@@ -297,6 +308,14 @@ async def _fetch_github_data(
     issues = issues_resp.json() if issues_resp.status_code == 200 else []
     prs = prs_resp.json() if prs_resp.status_code == 200 else []
     events = events_resp.json() if events_resp.status_code == 200 else []
+
+    for name, resp in [
+        ("issues", issues_resp),
+        ("pulls", prs_resp),
+        ("events", events_resp),
+    ]:
+        if resp.status_code != 200:
+            logger.warning("GitHub %s API returned %d", name, resp.status_code)
 
     return issues, prs, events
 
@@ -402,6 +421,7 @@ async def get_metrics() -> dict[str, Any]:
             metrics["by_agent"] = agent_stats
 
     except (httpx.HTTPError, httpx.TimeoutException):
+        logger.exception("metrics fetch failed")
         stale = _cache.get("metrics")
         if stale is not None:
             return stale
