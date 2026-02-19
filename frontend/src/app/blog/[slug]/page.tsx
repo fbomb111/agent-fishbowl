@@ -1,7 +1,7 @@
 import { BlogPostViewer } from "@/components/BlogPostViewer";
 
 export function generateStaticParams() {
-  return [];
+  return [{ slug: "_" }];
 }
 
 export default async function BlogPostPage({

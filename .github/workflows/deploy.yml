@@ -153,6 +153,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Deduplicate: if an open deploy-failure issue exists, comment instead of creating
+          EXISTING=$(gh issue list --label "deploy-failure" --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            echo "Deploy failure issue #$EXISTING already open — adding comment"
+            gh issue comment "$EXISTING" --body "Another deploy failed for commit \`${GITHUB_SHA::8}\`. [View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            exit 0
+          fi
+
           gh issue create \
             --title "Deploy failure: ${GITHUB_SHA::8}" \
             --label "priority/high,type/bug,deploy-failure" \
