@@ -98,15 +98,20 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Dispatch Tech Lead if escalations exist
+      - name: Dispatch Tech Lead if new escalations exist
         if: steps.rounds.outputs.skip != 'true' && success()
         run: |
-          # Check if any open source/tech-lead issues need attention
-          INTAKE=$(gh issue list --state open --label "source/tech-lead" \
-            --json number --jq 'length' 2>/dev/null || echo "0")
-          if [ "$INTAKE" -gt 0 ]; then
-            echo "Found $INTAKE tech-lead escalation(s) — dispatching Tech Lead"
+          # Only dispatch for UNTRIAGED tech-lead issues (no priority/* yet)
+          # Once PO triages them (adds priority/*), they're no longer "new"
+          UNTRIAGED=$(gh issue list --state open --label "source/tech-lead" \
+            --json labels \
+            --jq '[.[] | select(.labels | map(.name) | any(test("^priority/")) | not)] | length' \
+            2>/dev/null || echo "0")
+          if [ "$UNTRIAGED" -gt 0 ]; then
+            echo "Found $UNTRIAGED untriaged tech-lead escalation(s) — dispatching Tech Lead"
             gh workflow run agent-scans.yml
+          else
+            echo "All tech-lead issues already triaged — skipping scan"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
