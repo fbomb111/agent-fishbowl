@@ -45,6 +45,10 @@ quality and purposeful. The PM and PO own all of it.
   serve a clear purpose?
 - Cross-section coherence: Does the site feel like a unified product, not
   a collection of disconnected pages?
+- Work type diversity: Is the team shipping features and product improvements
+  alongside maintenance? A team that only refactors isn't building product.
+  A team that only ships features without maintaining quality will eventually
+  break. Both extremes are worth investigating.
 
 **Anti-signals** (warns PM something is wrong):
 - No new articles in 24+ hours (stale feed)
@@ -53,6 +57,8 @@ quality and purposeful. The PM and PO own all of it.
 - Broken layout, unreadable content, or missing images
 - Pages with placeholder content, broken navigation, or no clear purpose
 - Sections that feel disconnected from the rest of the site
+- Extended periods with no feature work shipping (product delivery stalled)
+- Extended periods with no maintenance work (quality debt accumulating)
 
 ---
 
