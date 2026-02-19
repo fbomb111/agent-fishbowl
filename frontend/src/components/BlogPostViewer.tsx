@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { API_URL, fetchBlogPostBySlug, type BlogPost } from "@/lib/api";
+import { ErrorFallback } from "./ErrorFallback";
 import { useFetch } from "@/hooks/useFetch";
 
 export function BlogPostViewer({ slug }: { slug: string }) {
@@ -45,11 +46,7 @@ export function BlogPostViewer({ slug }: { slug: string }) {
         >
           &larr; Back to Blog
         </Link>
-        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-900 dark:bg-red-950">
-          <p className="text-sm text-red-600 dark:text-red-400">
-            {error || "Blog post not found"}
-          </p>
-        </div>
+        <ErrorFallback message={error || "Blog post not found"} />
       </div>
     );
   }
