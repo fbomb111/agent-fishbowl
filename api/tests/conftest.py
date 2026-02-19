@@ -43,6 +43,11 @@ def _reset_global_state():
 
     gh_activity_mod._cache = TTLCache(ttl=300, max_size=20)
 
+    # 7. GitHub status cache
+    import api.services.github_status as gh_status_mod
+
+    gh_status_mod._status_cache = TTLCache(ttl=60, max_size=5)
+
 
 @pytest.fixture
 def mock_settings(monkeypatch):
