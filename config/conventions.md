@@ -121,7 +121,27 @@ Don't log success paths at INFO level in hot paths — it creates noise. Use DEB
 
 Remove unused functions, imports, and variables. Don't keep code "for later" — version control is the backup. If a utility function exists but no caller imports it, delete it.
 
+### Module Splitting
 
+When a backend service file approaches 300 lines, split it into focused submodules. Use a thin aggregator module at the original path to maintain the public API surface — callers shouldn't need to change their imports.
+
+Pattern (based on the `goals.py` refactoring):
+
+```
+services/
+  goals.py              ← thin aggregator: re-exports types, owns shared cache, delegates to submodules
+  goals_parser.py       ← file I/O + markdown parsing
+  goals_roadmap.py      ← gh CLI interaction
+  goals_metrics.py      ← GitHub API metrics
+```
+
+**Rules:**
+- Each submodule should be under 200 lines and own a single concern
+- The aggregator re-exports types via `__all__` so router imports don't change
+- Shared state (caches, clients) stays in the aggregator and is passed to submodules via parameters — no cross-submodule imports for state
+- Update `conftest.py` singleton resets to reference the correct module globals after splitting
+
+Don't split preemptively. Split when a file crosses ~300 lines and has clearly separable concerns.
 
 ## Frontend (TypeScript/React)
 
