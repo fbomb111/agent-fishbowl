@@ -9,7 +9,7 @@ from typing import Any
 
 from api.config import get_settings
 from api.services.cache import TTLCache
-from api.services.github_events import _parse_events
+from api.services.github_events import parse_events
 from api.services.http_client import get_shared_client, github_headers
 
 # TTL cache for activity events (5 min)
@@ -127,7 +127,7 @@ async def get_activity_events(
         return cached
 
     all_raw = await _fetch_all_events(per_page)
-    events = _parse_events(all_raw)
+    events = parse_events(all_raw)
 
     if events:
         _cache.set(cache_key, events)
@@ -153,7 +153,7 @@ async def get_threaded_activity(
         return cached
 
     all_raw = await _fetch_all_events(per_page)
-    events = _parse_events(all_raw)
+    events = parse_events(all_raw)
     threads = _group_events_into_threads(events)
 
     if threads:

@@ -96,7 +96,7 @@ def _is_interesting_label(label_name: str) -> bool:
     return any(label_name.startswith(p) for p in _INTERESTING_LABEL_PREFIXES)
 
 
-def _parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Convert GitHub API events into ActivityEvent dicts."""
     parsed: list[dict[str, Any]] = []
 

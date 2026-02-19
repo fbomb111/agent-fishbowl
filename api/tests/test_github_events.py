@@ -1,6 +1,6 @@
 """Tests for GitHub event parsing — verifies activity feed correctness."""
 
-from api.services.github_events import _parse_events
+from api.services.github_events import parse_events
 
 
 def _make_event(event_type, actor_login, payload, event_id="1"):
@@ -27,7 +27,7 @@ def test_parse_issues_event_opened():
             },
         )
     ]
-    parsed = _parse_events(events)
+    parsed = parse_events(events)
     assert len(parsed) == 1
     assert parsed[0]["type"] == "issue_created"
     assert parsed[0]["actor"] == "engineer"  # mapped via ACTOR_MAP
@@ -59,12 +59,12 @@ def test_parse_pr_merged_vs_closed():
     )
 
     # Merged PR should be included
-    parsed_merged = _parse_events([merged_event])
+    parsed_merged = parse_events([merged_event])
     assert len(parsed_merged) == 1
     assert parsed_merged[0]["type"] == "pr_merged"
 
     # Closed-but-not-merged PR should NOT be included
-    parsed_closed = _parse_events([closed_event])
+    parsed_closed = parse_events([closed_event])
     assert len(parsed_closed) == 0
 
 
@@ -82,7 +82,7 @@ def test_parse_push_event_multiple_commits():
             },
         )
     ]
-    parsed = _parse_events(events)
+    parsed = parse_events(events)
     assert len(parsed) == 1
     assert parsed[0]["actor"] == "human"  # fbomb111 -> human via ACTOR_MAP
     # Should show last commit's first line + count
