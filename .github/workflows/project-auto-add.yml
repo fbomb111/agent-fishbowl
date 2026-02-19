@@ -35,9 +35,9 @@ jobs:
           # Generate PM App token (PM has project management permissions)
           source .harness/scripts/github-app-token.sh
           GH_TOKEN=$(get_github_app_token \
-            "$GITHUB_APP_PM_ID" \
-            "$GITHUB_APP_PM_INSTALLATION_ID" \
-            "$GITHUB_APP_PM_KEY_PATH")
+            "$GITHUB_APP_PRODUCT_MANAGER_ID" \
+            "$GITHUB_APP_PRODUCT_MANAGER_INSTALLATION_ID" \
+            "$GITHUB_APP_PRODUCT_MANAGER_KEY_PATH")
           export GH_TOKEN
 
           # Add issue to project board
