@@ -49,6 +49,20 @@ def _reset_global_state():
 
     gh_status_mod._status_cache = TTLCache(ttl=60, max_size=5)
 
+    # 8. Stats cache
+    import api.services.stats as stats_mod
+
+    stats_mod._cache = TTLCache(ttl=300, max_size=5)
+
+    # 9. Blog container client singleton
+    blob_mod._blog_container_client = None
+
+    # 10. Usage storage singletons
+    import api.services.usage_storage as usage_mod
+
+    usage_mod._usage_client = None
+    usage_mod._usage_cache.clear()
+
 
 @pytest.fixture
 def mock_settings(monkeypatch):
