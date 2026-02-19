@@ -3,6 +3,8 @@ name: Agent - Issue Triage
 on:
   issues:
     types: [opened]
+  schedule:
+    - cron: "0 12 * * *"   # Daily at noon UTC — curate KB submissions
   workflow_dispatch: {}
 
 permissions:
