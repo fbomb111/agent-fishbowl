@@ -56,10 +56,25 @@ jobs:
       - run: npx eslint .
       - run: npx tsc --noEmit
 
+  flow-validation:
+    name: Validate Agent Flow Graph
+    runs-on: self-hosted
+    timeout-minutes: 5
+    if: >
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
+      - run: python scripts/validate-flow.py --validate
+
   notify-ci-failure:
     name: Notify CI failure
     runs-on: self-hosted
-    needs: [api-lint, frontend-lint]
+    needs: [api-lint, frontend-lint, flow-validation]
     if: failure() && github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4

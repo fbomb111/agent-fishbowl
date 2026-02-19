@@ -2,7 +2,7 @@ name: Agent - Engineer
 
 on:
   repository_dispatch:
-    types: [agent-po-complete, agent-reviewer-feedback]
+    types: [agent-product-owner-complete, agent-reviewer-feedback]
   pull_request:
     types: [closed]
     branches: [main]

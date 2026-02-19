@@ -1,0 +1,297 @@
+# Agent Flow Graph — Machine-Readable Interaction Topology
+#
+# This file is the SINGLE SOURCE OF TRUTH for how agents interact.
+# It drives:
+#   1. Mermaid diagram generation (docs/agent-flow.md)
+#   2. CI validation (scripts/validate-flow.py --validate)
+#
+# When adding or modifying agents, update this file FIRST.
+# Run: python scripts/validate-flow.py --validate
+# Run: python scripts/validate-flow.py --mermaid -o docs/agent-flow.md
+
+version: "1"
+
+# ─── Event Registry ───────────────────────────────────────────────
+# Every repository_dispatch event_type MUST be declared here.
+# This prevents event name drift across workflows.
+
+events:
+  agent-product-owner-complete:
+    description: "PO finished triaging, unassigned work exists"
+    payload: [chain_depth]
+  agent-reviewer-feedback:
+    description: "Reviewer requested changes on a PR"
+    payload: [chain_depth]
+  agent-product-manager-feedback:
+    description: "PM flagged misalignment, PO should re-scope"
+    status: stub  # planned: PM will dispatch to PO directly
+  azure-alert:
+    description: "Azure Monitor alert fired via alert bridge function"
+    status: external  # sent by func-fishbowl-alert-bridge, not a workflow
+  deploy-complete:
+    description: "Deployment finished, QA should verify"
+    status: stub  # receiver wired, no sender yet
+  dispute-detected:
+    description: "Agent disagreement loop detected"
+    status: stub  # receiver wired, no sender yet
+
+# ─── Agent Nodes ──────────────────────────────────────────────────
+# Each agent maps to exactly one workflow file.
+# Multi-instance agents (engineer-alpha, etc.) get separate nodes.
+
+agents:
+
+  # ── Core Dev Loop ──
+
+  triage:
+    workflow: agent-triage.yml
+    triggers:
+      - type: issues.opened
+        filter: "not agent-created"
+      - type: schedule
+        cron: "0 12 * * *"
+    dispatches:
+      - target: product-owner
+        method: workflow_run
+        condition:
+          type: intake_batch
+          threshold: 5
+
+  product-owner:
+    workflow: agent-product-owner.yml
+    triggers:
+      - type: repository_dispatch
+        event: agent-product-manager-feedback
+      - type: schedule
+        cron: "0 6,18 * * *"
+    dispatches:
+      - target: [engineer-alpha, engineer-bravo, engineer-charlie]
+        method: repository_dispatch
+        event: agent-product-owner-complete
+        condition:
+          type: unassigned_issues
+          min: 1
+        chain_depth: 1
+      - target: user-experience
+        method: workflow_run
+        condition:
+          type: agent_driven
+        note: "PO prompt Step 8: >=3 merged frontend PRs or >2w since last UX review"
+
+  engineer:
+    workflow: agent-engineer.yml
+    triggers:
+      - type: repository_dispatch
+        event: agent-product-owner-complete
+      - type: repository_dispatch
+        event: agent-reviewer-feedback
+      - type: pull_request.closed
+        filter: "merged=true"
+      - type: check_suite.completed
+        filter: "conclusion=failure"
+    dispatches:
+      - target: strategic
+        method: workflow_run
+        condition:
+          type: idle_backlog
+          pm_cooldown_hours: 2
+
+  engineer-alpha:
+    workflow: agent-engineer-alpha.yml
+    triggers:
+      - type: repository_dispatch
+        event: agent-product-owner-complete
+      - type: repository_dispatch
+        event: agent-reviewer-feedback
+      - type: pull_request.closed
+        filter: "merged=true"
+      - type: check_suite.completed
+        filter: "conclusion=failure"
+    dispatches:
+      - target: strategic
+        method: workflow_run
+        condition:
+          type: idle_backlog
+          pm_cooldown_hours: 2
+
+  engineer-bravo:
+    workflow: agent-engineer-bravo.yml
+    triggers:
+      - type: repository_dispatch
+        event: agent-product-owner-complete
+      - type: repository_dispatch
+        event: agent-reviewer-feedback
+      - type: pull_request.closed
+        filter: "merged=true"
+    dispatches: []
+
+  engineer-charlie:
+    workflow: agent-engineer-charlie.yml
+    triggers:
+      - type: repository_dispatch
+        event: agent-product-owner-complete
+      - type: repository_dispatch
+        event: agent-reviewer-feedback
+      - type: pull_request.closed
+        filter: "merged=true"
+    dispatches: []
+
+  reviewer:
+    workflow: agent-reviewer.yml
+    triggers:
+      - type: pull_request
+        actions: [opened, synchronize]
+      - type: schedule
+        cron: "0 */12 * * *"
+    dispatches:
+      - target: [engineer, engineer-alpha, engineer-bravo, engineer-charlie]
+        method: repository_dispatch
+        event: agent-reviewer-feedback
+        condition:
+          type: changes_requested
+          min: 1
+        chain_depth: increment
+      - target: product-owner
+        method: workflow_run
+        condition:
+          type: intake_batch
+          threshold: 5
+      - target: scans
+        method: workflow_run
+        condition:
+          type: untriaged_label
+          label: "source/tech-lead"
+          min: 1
+
+  reviewer-alpha:
+    workflow: agent-reviewer-alpha.yml
+    triggers:
+      - type: pull_request
+        actions: [opened, synchronize]
+      - type: schedule
+        cron: "0 */12 * * *"
+    dispatches: []
+
+  reviewer-bravo:
+    workflow: agent-reviewer-bravo.yml
+    triggers:
+      - type: pull_request
+        actions: [opened, synchronize]
+      - type: schedule
+        cron: "0 6,18 * * *"
+    dispatches: []
+
+  # ── Strategic / Intelligence ──
+
+  strategic:
+    workflow: agent-strategic.yml
+    triggers:
+      - type: schedule
+        cron: "0 6 * * *"
+    dispatches:
+      - target: product-owner
+        method: workflow_run
+        condition:
+          type: unconditional
+
+  scans:
+    workflow: agent-scans.yml
+    triggers:
+      - type: schedule
+        cron: "0 10 * * *"
+    dispatches:
+      - target: product-owner
+        method: workflow_run
+        condition:
+          type: unconditional
+
+  product-analyst:
+    workflow: agent-product-analyst.yml
+    triggers:
+      - type: schedule
+        cron: "0 14 * * *"
+    dispatches: []
+
+  financial-analyst:
+    workflow: agent-financial-analyst.yml
+    triggers:
+      - type: schedule
+        cron: "0 12 * * *"
+    dispatches: []
+
+  marketing-strategist:
+    workflow: agent-marketing-strategist.yml
+    triggers:
+      - type: schedule
+        cron: "0 8 * * 1"
+    dispatches: []
+
+  # ── Operations ──
+
+  site-reliability:
+    workflow: agent-site-reliability.yml
+    triggers:
+      - type: repository_dispatch
+        event: azure-alert
+      - type: schedule
+        cron: "30 */4 * * *"
+    dispatches:
+      - target: ingest
+        method: workflow_run
+        condition:
+          type: agent_driven
+        note: "SRE prompt Step 2: retrigger ingest if articles stale"
+
+  qa-analyst:
+    workflow: agent-qa-analyst.yml
+    triggers:
+      - type: repository_dispatch
+        event: deploy-complete
+      - type: schedule
+        cron: "0 16 */2 * *"
+    dispatches: []
+
+  customer-ops:
+    workflow: agent-customer-ops.yml
+    triggers:
+      - type: schedule
+        cron: "0 */4 * * *"
+    dispatches: []
+
+  human-ops:
+    workflow: agent-human-ops.yml
+    triggers:
+      - type: schedule
+        cron: "0 15 * * 5"
+    dispatches: []
+
+  escalation-lead:
+    workflow: agent-escalation-lead.yml
+    triggers:
+      - type: repository_dispatch
+        event: dispute-detected
+      - type: schedule
+        cron: "0 18 * * 3"
+    dispatches: []
+
+  # ── Content / Scanning ──
+
+  content-creator:
+    workflow: agent-content-creator.yml
+    triggers:
+      - type: schedule
+        cron: "0 10 * * *"
+    dispatches: []
+
+  user-experience:
+    workflow: agent-user-experience.yml
+    triggers:
+      - type: workflow_dispatch
+    dispatches: []
+
+# ─── Safety Constraints ──────────────────────────────────────────
+# Validated by scripts/validate-flow.py
+
+safety:
+  chain_depth_max: 5
+  review_rounds_max: 3
