@@ -189,6 +189,9 @@ Existing utilities:
 - `src/lib/navigation.ts` — shared nav items (Header, Footer)
 - `src/lib/constants.ts` — shared constants (`GITHUB_REPO_URL`)
 
+Shared components:
+- `src/components/ErrorFallback.tsx` — standard error UI (red border, message, optional retry button)
+
 Custom hooks:
 - `src/hooks/useFetch.ts` — generic data fetching with loading/error/retry
 
@@ -231,17 +234,14 @@ Don't create constants for one-off values — three instances is the threshold.
 
 ### Error and Loading States
 
-Use the established patterns for error and loading UI:
+Use the `ErrorFallback` component from `src/components/ErrorFallback.tsx` for all error UIs. Don't write inline error markup — use the shared component so styling stays consistent.
 
 ```tsx
-// Error fallback — red border, user-friendly message, retry button
+import { ErrorFallback } from "@/components/ErrorFallback";
+
+// Error state — pass message and optional retry handler
 if (error) {
-  return (
-    <div className="rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-900 dark:bg-red-950">
-      <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-      <button onClick={retry}>Retry</button>
-    </div>
-  );
+  return <ErrorFallback message={error} onRetry={retry} />;
 }
 
 // Loading skeleton — animate-pulse with zinc background
@@ -252,6 +252,8 @@ if (loading) {
   );
 }
 ```
+
+The `ErrorFallback` component renders the standard red-bordered error card. Pass `onRetry` when the user can retry the failed operation. Omit it for non-retryable errors.
 
 ### Constants and Magic Numbers
 
