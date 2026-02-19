@@ -24,7 +24,7 @@ jobs:
 
       - name: Pre-flight — check if PO has work
         id: preflight
-        if: github.event_name != 'schedule'
+        if: github.event_name == 'repository_dispatch'
         run: |
           # Count unprocessed intake (source/* without priority/*)
           INTAKE=$(gh issue list --state open --json labels \

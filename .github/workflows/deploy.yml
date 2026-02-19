@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write         # repository_dispatch for deploy-complete
   issues: write
 
 concurrency:
@@ -140,6 +140,19 @@ jobs:
           echo "### Frontend Deploy" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Target**: Azure Static Web Apps" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Status**: Deployed" >> "$GITHUB_STEP_SUMMARY"
+
+  signal-deploy-complete:
+    name: Signal deploy complete
+    runs-on: self-hosted
+    needs: [deploy-api, deploy-frontend]
+    if: success()
+    steps:
+      - name: Dispatch deploy-complete
+        run: |
+          gh api repos/${{ github.repository }}/dispatches \
+            -f event_type=deploy-complete
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   notify-failure:
     name: Create issue on deploy failure
