@@ -124,6 +124,7 @@ Don't log success paths at INFO level in hot paths — it creates noise. Use DEB
 Remove unused functions, imports, and variables. Don't keep code "for later" — version control is the backup. If a utility function exists but no caller imports it, delete it.
 
 
+
 ## Frontend (TypeScript/React)
 
 ### Utility Reuse
