@@ -3,15 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-
-const NAV_ITEMS = [
-  { href: "/", label: "Feed" },
-  { href: "/blog", label: "Blog" },
-  { href: "/activity", label: "Fishbowl" },
-  { href: "/team", label: "Team" },
-  { href: "/goals", label: "Goals" },
-  { href: "/feedback", label: "Feedback" },
-];
+import { NAV_ITEMS } from "@/lib/navigation";
 
 export function Header() {
   const pathname = usePathname();
