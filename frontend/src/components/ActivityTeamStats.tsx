@@ -4,11 +4,18 @@ import { fetchTeamStats, type TeamStatsResponse } from "@/lib/api";
 import { getAgent } from "@/lib/agents";
 import { assetPath } from "@/lib/assetPath";
 import { useFetch } from "@/hooks/useFetch";
+import { ErrorFallback } from "./ErrorFallback";
 
 export function ActivityTeamStats() {
-  const { data: stats, error } = useFetch<TeamStatsResponse>(fetchTeamStats);
+  const { data: stats, error, retry } = useFetch<TeamStatsResponse>(fetchTeamStats);
 
-  if (error) return null;
+  if (error) {
+    return (
+      <div className="mb-6">
+        <ErrorFallback message="Unable to load team stats" onRetry={retry} />
+      </div>
+    );
+  }
 
   if (!stats) {
     return (

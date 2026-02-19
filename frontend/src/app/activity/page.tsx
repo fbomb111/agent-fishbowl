@@ -12,6 +12,7 @@ const STATUS_POLL_INTERVAL = 30_000;
 
 export default function ActivityPage() {
   const [agents, setAgents] = useState<AgentStatus[]>([]);
+  const [statusError, setStatusError] = useState(false);
   const [filterAgent, setFilterAgent] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<TypeFilter>("all");
   const [activityItems, setActivityItems] = useState<ThreadedItem[]>([]);
@@ -22,9 +23,12 @@ export default function ActivityPage() {
     async function loadAgentStatus() {
       try {
         const data = await fetchAgentStatus();
-        if (!cancelled) setAgents(data.agents);
+        if (!cancelled) {
+          setAgents(data.agents);
+          setStatusError(false);
+        }
       } catch {
-        // Silently fail — status bar shows last known state
+        if (!cancelled) setStatusError(true);
       }
     }
 
@@ -73,6 +77,11 @@ export default function ActivityPage() {
 
       {/* Agent status bar */}
       <div className="mb-6">
+        {statusError && agents.length === 0 && (
+          <p className="mb-2 text-xs text-red-500 dark:text-red-400">
+            Unable to load agent status
+          </p>
+        )}
         <AgentStatusBar
           agents={agents}
           activeFilter={filterAgent}
