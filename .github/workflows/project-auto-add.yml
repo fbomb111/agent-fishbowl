@@ -40,9 +40,9 @@ jobs:
             "$GITHUB_APP_PRODUCT_MANAGER_KEY_PATH")
           export GH_TOKEN
 
-          # Add issue to project board
-          gh project item-add 1 \
-            --owner YourMoveLabs \
-            --url "${{ github.event.issue.html_url }}"
+          # Add issue to project board and set Status = "Todo"
+          .harness/scripts/update-board-item.sh \
+            --issue "${{ github.event.issue.number }}" \
+            --status "Todo"
 
-          echo "Added #${{ github.event.issue.number }} to project board"
+          echo "Added #${{ github.event.issue.number }} to project board with Status=Todo"
