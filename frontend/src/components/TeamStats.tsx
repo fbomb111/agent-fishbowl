@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import Link from "next/link";
 import { fetchGoals, type Metrics } from "@/lib/api";
 import { useFetch } from "@/hooks/useFetch";
+import { ErrorFallback } from "./ErrorFallback";
 
 function StatItem({ value, label }: { value: number; label: string }) {
   return (
@@ -21,7 +22,15 @@ export function TeamStats() {
     () => fetchGoals().then((data) => data.metrics),
     []
   );
-  const { data: metrics } = useFetch<Metrics>(fetchMetrics);
+  const { data: metrics, error, retry } = useFetch<Metrics>(fetchMetrics);
+
+  if (error) {
+    return (
+      <div className="mb-10">
+        <ErrorFallback message="Unable to load team stats" onRetry={retry} />
+      </div>
+    );
+  }
 
   if (!metrics) return null;
 
