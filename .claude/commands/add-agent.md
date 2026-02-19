@@ -24,7 +24,6 @@ The user provides agent details — either inline, as a structured spec, or conv
 | `blob_container` | No | If it uploads to blob storage, container name |
 | `steps_summary` | Yes | Brief list of the main workflow steps (will be expanded into full prompt) |
 | `rules_summary` | No | Any role-specific rules beyond the standard set |
-| `multi_instance` | No | If this role has multiple instances: `{ instances: ["engineer-alpha", "engineer-bravo"] }` |
 | `jobs` | No | List of focused job names if the agent has multiple concerns (e.g., `["architecture-review", "security-scan"]`). Creates identity + job files instead of monolithic prompt. |
 | `credentials` | No | GitHub App ID, Installation ID, User ID, Bot Name, PEM path (if pre-generated) |
 
@@ -209,7 +208,6 @@ This is the **single source of truth** for tool allowlists and prompt partials. 
 |-------|----------|-------------|
 | `tools` | Yes | `--allowedTools` string. Use `${COMMON}` or `${API}` presets, or specify explicitly. |
 | `partials` | Yes | Array: `["reflection", "knowledge-base"]`, `["knowledge-base"]`, or `[]`. |
-| `instances` | No | Array of instance slugs (e.g., `["engineer-alpha", "engineer-bravo"]`). Instances share parent tools, partials, and prompt. |
 | `prompt_role` | No | Override prompt file lookup (e.g., `"po"` → uses `prompts/po.md`). |
 | `deprecated` | No | Name of the replacement role. Prints warning at runtime. |
 
@@ -366,8 +364,6 @@ Each job gets its own workflow file (`agent-{role}-{job}.yml`), its own cron sch
 
 Adjust triggers for event-driven agents (add `repository_dispatch`, `pull_request`, etc.).
 Add `actions: write` permission if the agent dispatches other workflows.
-
-For multi-instance agents, create ONE workflow per instance (each uses its own role slug like `engineer-alpha`).
 
 **5b. Update flow graph: `config/agent-flow.yaml`**
 
@@ -621,7 +617,6 @@ When processing multiple agents from a single document:
 - The reusable workflow (`reusable-agent.yml`) pins the harness version — update it there when bumping
 - Agents with `tool_category: code-writer` don't need the sandbox compatibility section in their prompt
 - Hyphens in role slugs become underscores in env var names: `product-analyst` → `PRODUCT_ANALYST`
-- Multi-instance agents use `instances` array in config — no separate wrapper scripts needed
 - Robohash URL format: `https://robohash.org/fishbowl-{role}?set=set1&size=256x256`
 - **No wrapper scripts** — the old `agents/{role}.sh` pattern has been replaced by `config/roles.json` + `role` input on the action
 - **Jobs model**: Agents with multiple concerns can use `--job` to focus each invocation. Identity files live in `agents/prompts/identities/`, job files in `agents/prompts/jobs/{role}/`. The harness assembles identity + job + partials at runtime. Most agents don't need jobs — only split when an agent has distinct responsibilities that benefit from separate schedules or focused context.

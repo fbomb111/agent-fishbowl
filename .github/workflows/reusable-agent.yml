@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       role:
-        description: 'Agent role from config/roles.json (e.g., engineer-alpha, reviewer, product-owner)'
+        description: 'Agent role from config/roles.json (e.g., engineer, reviewer, product-owner)'
         type: string
         required: false
       entry-point:

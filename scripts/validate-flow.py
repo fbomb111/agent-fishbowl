@@ -161,12 +161,8 @@ def generate_mermaid(flow: dict) -> str:
         "triage",
         "product-owner",
         "engineer",
-        "engineer-alpha",
-        "engineer-bravo",
-        "engineer-charlie",
+        "infra-engineer",
         "reviewer",
-        "reviewer-alpha",
-        "reviewer-bravo",
     }
     strategic = {
         "strategic",

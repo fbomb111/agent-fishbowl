@@ -38,14 +38,10 @@ Agents are deployed as GitHub Actions workflows running on the self-hosted runne
 |----------|--------|----------|------------|
 | `agent-triage.yml` | Triage | `issues.opened` + manual | agent-created filter |
 | `agent-product-owner.yml` | PO | Triage/reviewer/PM dispatch + daily 06:00 | Concurrency group |
-| `agent-engineer.yml` | Engineer (generic) | PO/reviewer dispatch + PR merged + CI failure | chain_depth ≤ 3, concurrency |
-| `agent-engineer-alpha.yml` | Engineer Alpha | PO/reviewer dispatch + PR merged + CI failure | chain_depth, concurrency |
-| `agent-engineer-bravo.yml` | Engineer Bravo | PO/reviewer dispatch + PR merged + manual | workcheck gate, concurrency |
-| `agent-engineer-charlie.yml` | Engineer Charlie | PO/reviewer dispatch + PR merged | concurrency |
-| `agent-reviewer.yml` | Reviewer (generic) | `pull_request` (opened/sync) + 12h fallback | Max 3 rounds/PR, fork guard |
-| `agent-reviewer-alpha.yml` | Reviewer Alpha | `pull_request` (opened/sync) + 12h fallback | concurrency |
-| `agent-reviewer-bravo.yml` | Reviewer Bravo | `pull_request` (opened/sync) + 12h fallback | concurrency |
-| `agent-sre.yml` | SRE | `repository_dispatch` (azure-alert) + 4h schedule | Concurrency group |
+| `agent-engineer.yml` | Engineer | PO/reviewer dispatch + PR merged + CI failure | chain_depth ≤ 3, concurrency |
+| `agent-infra-engineer.yml` | Infra Engineer | PO/reviewer dispatch + PR merged | concurrency |
+| `agent-reviewer.yml` | Reviewer | `pull_request` (opened/sync) + 12h fallback | Max 3 rounds/PR, fork guard |
+| `agent-site-reliability.yml` | SRE | `repository_dispatch` (azure-alert) + 4h schedule | Concurrency group |
 | `agent-strategic.yml` | PM | Daily 06:00 + manual | Concurrency group |
 | `agent-scans.yml` | Tech Lead + UX | Every 3 days | Concurrency group |
 | `agent-content-creator.yml` | Content Creator | Daily 10am UTC + `workflow_dispatch` | Concurrency group |
@@ -151,17 +147,13 @@ scripts/                Project-specific scripts
   open-pr.md            Create draft PR with proper format
 .github/workflows/      CI + agent deployment (thin stubs → harness)
   agent-product-owner.yml PO (event-driven: dispatch + daily)
-  agent-engineer.yml    Engineer generic (event-driven: dispatch + PR merged)
-  agent-engineer-alpha.yml  Engineer Alpha (event-driven: dispatch + PR merged)
-  agent-engineer-bravo.yml  Engineer Bravo (event-driven: dispatch + PR merged)
-  agent-engineer-charlie.yml Engineer Charlie (event-driven: dispatch + PR merged)
-  agent-reviewer.yml    Reviewer generic (event-driven: PR opened/sync + 12h)
-  agent-reviewer-alpha.yml  Reviewer Alpha (event-driven: PR opened/sync + 12h)
-  agent-reviewer-bravo.yml  Reviewer Bravo (event-driven: PR opened/sync + 12h)
+  agent-engineer.yml    Engineer (event-driven: dispatch + PR merged)
+  agent-infra-engineer.yml  Infra Engineer (event-driven: dispatch + PR merged)
+  agent-reviewer.yml    Reviewer (event-driven: PR opened/sync + 12h)
   agent-triage.yml      Triage (event-driven: issues.opened)
   agent-strategic.yml   PM review (daily schedule)
   agent-scans.yml       Tech Lead + UX (every 3 days schedule)
-  agent-sre.yml         SRE health monitoring (every 4 hours + alerts)
+  agent-site-reliability.yml  SRE health monitoring (every 4 hours + alerts)
 ```
 
 ### Harness Repo (YourMoveLabs/agent-harness)
@@ -253,11 +245,9 @@ Scopes: `api`, `frontend`, `ci`, `config`
 | Role | Identity | Cadence | One-liner |
 |------|----------|---------|-----------|
 | **PO** | `fishbowl-po[bot]` | Event-driven + daily | Central intake funnel — triages all inputs into a prioritized backlog |
-| **Engineer Alpha** | `fishbowl-engineer-alpha[bot]` | Event-driven (dispatch + PR merge) | Picks issues, implements code, opens PRs |
-| **Engineer Bravo** | `fishbowl-engineer-bravo[bot]` | Event-driven (dispatch + PR merge) | Picks issues, implements code, opens PRs |
-| **Engineer Charlie** | `fishbowl-engineer-charlie[bot]` | Event-driven (dispatch + PR merge) | Picks issues, implements code, opens PRs |
-| **Reviewer Alpha** | `fishbowl-reviewer-alpha[bot]` | Event-driven + 12h | Reviews PRs, approves+merges or requests changes |
-| **Reviewer Bravo** | `fishbowl-reviewer-bravo[bot]` | Event-driven + 12h | Reviews PRs, approves+merges or requests changes |
+| **Engineer** | `fishbowl-engineer[bot]` | Event-driven (dispatch + PR merge) | Picks issues, implements application code, opens PRs |
+| **Infra Engineer** | `fishbowl-infra-engineer[bot]` | Event-driven (dispatch + PR merge) | Cloud infrastructure, CI/CD, IaC, deployment automation |
+| **Reviewer** | `fishbowl-reviewer[bot]` | Event-driven + 12h | Reviews PRs, approves+merges or requests changes |
 | **Tech Lead** | `fishbowl-techlead[bot]` | Every 3 days | Sets technical standards, identifies architecture needs |
 | **PM** | `fishbowl-pm[bot]` | Daily | Strategic goals and GitHub Project roadmap management |
 | **Triage** | `fishbowl-triage[bot]` | Event-driven (issues.opened) | Validates human-created issues |

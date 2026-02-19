@@ -1,5 +1,5 @@
 <!-- AUTO-GENERATED — Do not edit. Edit config/agent-flow.yaml instead. -->
-<!-- Last generated: 2026-02-19 19:39 UTC -->
+<!-- Last generated: 2026-02-19 22:09 UTC -->
 <!-- Regenerate: python scripts/validate-flow.py --mermaid -o docs/agent-flow.md -->
 
 # Agent Flow Graph
@@ -20,12 +20,8 @@ flowchart TD
     TRIAGE[Triage]
     PRODUCT_OWNER[Product Owner]
     ENGINEER[Engineer]
-    ENGINEER_ALPHA[Engineer Alpha]
-    ENGINEER_BRAVO[Engineer Bravo]
-    ENGINEER_CHARLIE[Engineer Charlie]
+    INFRA_ENGINEER[Infra Engineer]
     REVIEWER[Reviewer]
-    REVIEWER_ALPHA[Reviewer Alpha]
-    REVIEWER_BRAVO[Reviewer Bravo]
     STRATEGIC[Strategic]
     SCANS[Scans]
     PRODUCT_ANALYST[Product Analyst]
@@ -46,16 +42,11 @@ flowchart TD
     CI_FAILURE{{CI Failure}}:::external
 
     TRIAGE -.->|"batch≥5"| PRODUCT_OWNER
-    PRODUCT_OWNER -->|"unassigned>0"| ENGINEER_ALPHA
-    PRODUCT_OWNER -->|"unassigned>0"| ENGINEER_BRAVO
-    PRODUCT_OWNER -->|"unassigned>0"| ENGINEER_CHARLIE
+    PRODUCT_OWNER -->|"unassigned>0"| ENGINEER
     PRODUCT_OWNER -.->|"agent decision"| USER_EXPERIENCE
     ENGINEER -.->|"idle, PM>2h"| STRATEGIC
-    ENGINEER_ALPHA -.->|"idle, PM>2h"| STRATEGIC
     REVIEWER -->|"changes requested"| ENGINEER
-    REVIEWER -->|"changes requested"| ENGINEER_ALPHA
-    REVIEWER -->|"changes requested"| ENGINEER_BRAVO
-    REVIEWER -->|"changes requested"| ENGINEER_CHARLIE
+    REVIEWER -->|"changes requested"| INFRA_ENGINEER
     REVIEWER -.->|"batch≥5"| PRODUCT_OWNER
     REVIEWER -.->|"untriaged source/tech-lead"| SCANS
     STRATEGIC -.->|"always"| PRODUCT_OWNER
@@ -65,13 +56,8 @@ flowchart TD
     ISSUE_OPENED -.-> TRIAGE
     PR_MERGED -.-> ENGINEER
     CI_FAILURE -.-> ENGINEER
-    PR_MERGED -.-> ENGINEER_ALPHA
-    CI_FAILURE -.-> ENGINEER_ALPHA
-    PR_MERGED -.-> ENGINEER_BRAVO
-    PR_MERGED -.-> ENGINEER_CHARLIE
+    PR_MERGED -.-> INFRA_ENGINEER
     PR_EVENT -.-> REVIEWER
-    PR_EVENT -.-> REVIEWER_ALPHA
-    PR_EVENT -.-> REVIEWER_BRAVO
     AZURE_ALERT -.-> SITE_RELIABILITY
 
     classDef external fill:#f9f,stroke:#333,stroke-width:1px
@@ -82,12 +68,8 @@ flowchart TD
     class TRIAGE core
     class PRODUCT_OWNER core
     class ENGINEER core
-    class ENGINEER_ALPHA core
-    class ENGINEER_BRAVO core
-    class ENGINEER_CHARLIE core
+    class INFRA_ENGINEER core
     class REVIEWER core
-    class REVIEWER_ALPHA core
-    class REVIEWER_BRAVO core
     class STRATEGIC strat
     class SCANS strat
     class PRODUCT_ANALYST strat
@@ -120,19 +102,15 @@ flowchart TD
 | content-creator | `0 10 * * *` | — |
 | customer-ops | `0 */4 * * *` | — |
 | engineer | — | `agent-product-owner-complete`, `agent-reviewer-feedback`, PR event, CI failure |
-| engineer-alpha | — | `agent-product-owner-complete`, `agent-reviewer-feedback`, PR event, CI failure |
-| engineer-bravo | — | `agent-product-owner-complete`, `agent-reviewer-feedback`, PR event |
-| engineer-charlie | — | `agent-product-owner-complete`, `agent-reviewer-feedback`, PR event |
 | escalation-lead | `0 18 * * 3` | `dispute-detected` |
 | financial-analyst | `0 12 * * *` | — |
 | human-ops | `0 15 * * 5` | — |
+| infra-engineer | — | `agent-product-owner-complete`, `agent-reviewer-feedback`, PR event |
 | marketing-strategist | `0 8 * * 1` | — |
 | product-analyst | `0 14 * * *` | — |
 | product-owner | `0 6,18 * * *` | `agent-product-manager-feedback` |
 | qa-analyst | `0 16 */2 * *` | `deploy-complete` |
 | reviewer | `0 */12 * * *` | PR event |
-| reviewer-alpha | `0 */12 * * *` | PR event |
-| reviewer-bravo | `0 6,18 * * *` | PR event |
 | scans | `0 10 * * *` | — |
 | site-reliability | `30 */4 * * *` | `azure-alert` |
 | strategic | `0 6 * * *` | — |

@@ -1,0 +1,25 @@
+name: Agent - Infrastructure Engineer
+
+on:
+  issues:
+    types: [labeled, unlabeled]
+  repository_dispatch:
+    types: [agent-product-owner-complete, agent-reviewer-feedback]
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-infra-engineer
+  cancel-in-progress: false
+
+jobs:
+  run:
+    uses: ./.github/workflows/reusable-agent.yml
+    with:
+      role: infra-engineer
+    secrets: inherit

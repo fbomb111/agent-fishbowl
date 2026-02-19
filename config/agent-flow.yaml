@@ -37,7 +37,6 @@ events:
 
 # ─── Agent Nodes ──────────────────────────────────────────────────
 # Each agent maps to exactly one workflow file.
-# Multi-instance agents (engineer-alpha, etc.) get separate nodes.
 
 agents:
 
@@ -65,7 +64,7 @@ agents:
       - type: schedule
         cron: "0 6,18 * * *"
     dispatches:
-      - target: [engineer-alpha, engineer-bravo, engineer-charlie]
+      - target: engineer
         method: repository_dispatch
         event: agent-product-owner-complete
         condition:
@@ -96,37 +95,8 @@ agents:
           type: idle_backlog
           pm_cooldown_hours: 2
 
-  engineer-alpha:
-    workflow: agent-engineer-alpha.yml
-    triggers:
-      - type: repository_dispatch
-        event: agent-product-owner-complete
-      - type: repository_dispatch
-        event: agent-reviewer-feedback
-      - type: pull_request.closed
-        filter: "merged=true"
-      - type: check_suite.completed
-        filter: "conclusion=failure"
-    dispatches:
-      - target: strategic
-        method: workflow_run
-        condition:
-          type: idle_backlog
-          pm_cooldown_hours: 2
-
-  engineer-bravo:
-    workflow: agent-engineer-bravo.yml
-    triggers:
-      - type: repository_dispatch
-        event: agent-product-owner-complete
-      - type: repository_dispatch
-        event: agent-reviewer-feedback
-      - type: pull_request.closed
-        filter: "merged=true"
-    dispatches: []
-
-  engineer-charlie:
-    workflow: agent-engineer-charlie.yml
+  infra-engineer:
+    workflow: agent-infra-engineer.yml
     triggers:
       - type: repository_dispatch
         event: agent-product-owner-complete
@@ -144,7 +114,7 @@ agents:
       - type: schedule
         cron: "0 */12 * * *"
     dispatches:
-      - target: [engineer, engineer-alpha, engineer-bravo, engineer-charlie]
+      - target: [engineer, infra-engineer]
         method: repository_dispatch
         event: agent-reviewer-feedback
         condition:
@@ -162,24 +132,6 @@ agents:
           type: untriaged_label
           label: "source/tech-lead"
           min: 1
-
-  reviewer-alpha:
-    workflow: agent-reviewer-alpha.yml
-    triggers:
-      - type: pull_request
-        actions: [opened, synchronize]
-      - type: schedule
-        cron: "0 */12 * * *"
-    dispatches: []
-
-  reviewer-bravo:
-    workflow: agent-reviewer-bravo.yml
-    triggers:
-      - type: pull_request
-        actions: [opened, synchronize]
-      - type: schedule
-        cron: "0 6,18 * * *"
-    dispatches: []
 
   # ── Strategic / Intelligence ──
 
