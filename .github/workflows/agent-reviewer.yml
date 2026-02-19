@@ -119,7 +119,8 @@ jobs:
             --jq '[.[] | select(.reviewDecision=="CHANGES_REQUESTED")] | length' 2>/dev/null || echo "0")
           if [ "$CHANGES_REQUESTED" -gt 0 ]; then
             DEPTH=${{ github.event.client_payload.chain_depth || 0 }}
-            .harness/scripts/dispatch-agent.sh "agent-reviewer-feedback" "{\"chain_depth\": $((DEPTH + 1))}"
+            gh api "repos/$GITHUB_REPOSITORY/dispatches" \
+              --input - <<< "{\"event_type\":\"agent-reviewer-feedback\",\"client_payload\":{\"chain_depth\":$((DEPTH + 1))}}"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
