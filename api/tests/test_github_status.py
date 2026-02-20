@@ -13,12 +13,14 @@ class TestWorkflowAgentMap:
     def test_all_agent_workflows_mapped(self):
         expected_workflows = {
             "agent-engineer.yml",
+            "agent-ops-engineer.yml",
             "agent-reviewer.yml",
             "agent-product-owner.yml",
             "agent-triage.yml",
-            "agent-sre.yml",
+            "agent-site-reliability.yml",
             "agent-scans.yml",
             "agent-strategic.yml",
+            "agent-content-creator.yml",
         }
         assert set(WORKFLOW_AGENT_MAP.keys()) == expected_workflows
 
@@ -175,7 +177,7 @@ class TestGetAgentStatus:
 
     @pytest.mark.asyncio
     async def test_all_roles_present_in_output(self, mock_settings, monkeypatch):
-        """Output always includes all 8 agent roles."""
+        """Output always includes all 10 agent roles."""
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"workflow_runs": []}
@@ -192,12 +194,14 @@ class TestGetAgentStatus:
         expected_roles = {
             "po",
             "engineer",
+            "ops-engineer",
             "reviewer",
             "triage",
             "sre",
             "pm",
             "tech-lead",
             "ux",
+            "content-creator",
         }
         assert roles == expected_roles
 
