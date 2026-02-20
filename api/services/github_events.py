@@ -11,6 +11,7 @@ from api.config import get_settings
 # Map GitHub login to agent role for display
 ACTOR_MAP: dict[str, str] = {
     "fishbowl-engineer[bot]": "engineer",
+    "fishbowl-infra-engineer[bot]": "infra-engineer",
     "fishbowl-reviewer[bot]": "reviewer",
     "fishbowl-product-owner[bot]": "po",
     "fishbowl-product-manager[bot]": "pm",
