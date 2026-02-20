@@ -379,8 +379,10 @@ class TestGetActivityEventsCaching:
         assert cached is not None
 
     @pytest.mark.asyncio
-    async def test_empty_response_not_cached(self, mock_settings, monkeypatch):
-        """Empty API response is not stored in cache."""
+    async def test_empty_events_and_fallback_both_empty(
+        self, mock_settings, monkeypatch
+    ):
+        """When both Events API and fallback return empty, result is not cached."""
         from unittest.mock import AsyncMock, MagicMock
 
         from api.services.github_activity import _cache, get_activity_events
@@ -402,6 +404,253 @@ class TestGetActivityEventsCaching:
         # Empty result should not be cached
         cached = _cache.get("flat:1:30")
         assert cached is None
+
+
+class TestFallbackEvents:
+    """Tests for _fetch_fallback_events() — Issues/PRs API fallback."""
+
+    @pytest.mark.asyncio
+    async def test_fallback_returns_issue_events(self, mock_settings, monkeypatch):
+        """Fallback creates events from the Issues REST API."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from api.services.github_activity import _fetch_fallback_events
+
+        issues_response = [
+            {
+                "number": 42,
+                "title": "Fix the bug",
+                "state": "closed",
+                "closed_at": "2026-02-20T10:00:00Z",
+                "created_at": "2026-02-20T08:00:00Z",
+                "updated_at": "2026-02-20T10:00:00Z",
+                "html_url": "https://github.com/testowner/testrepo/issues/42",
+                "user": {
+                    "login": "fishbowl-engineer[bot]",
+                    "avatar_url": "https://example.com/avatar.png",
+                },
+            },
+            {
+                "number": 43,
+                "title": "Add feature",
+                "state": "open",
+                "created_at": "2026-02-20T12:00:00Z",
+                "updated_at": "2026-02-20T12:00:00Z",
+                "html_url": "https://github.com/testowner/testrepo/issues/43",
+                "user": {
+                    "login": "fishbowl-product-owner[bot]",
+                    "avatar_url": "https://example.com/po.png",
+                },
+            },
+        ]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = issues_response
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+
+        monkeypatch.setattr(
+            "api.services.http_client.get_shared_client", lambda: mock_client
+        )
+
+        result = await _fetch_fallback_events(limit=30)
+
+        assert len(result) == 2
+        # Most recent first
+        assert result[0]["type"] == "issue_created"
+        assert result[0]["subject_number"] == 43
+        assert result[0]["actor"] == "po"
+        assert result[1]["type"] == "issue_closed"
+        assert result[1]["subject_number"] == 42
+        assert result[1]["actor"] == "engineer"
+
+    @pytest.mark.asyncio
+    async def test_fallback_returns_pr_events(self, mock_settings, monkeypatch):
+        """Fallback creates PR events from the Issues REST API."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from api.services.github_activity import _fetch_fallback_events
+
+        issues_response = [
+            {
+                "number": 100,
+                "title": "Add new endpoint",
+                "state": "closed",
+                "created_at": "2026-02-20T08:00:00Z",
+                "updated_at": "2026-02-20T10:00:00Z",
+                "html_url": "https://github.com/testowner/testrepo/pull/100",
+                "user": {
+                    "login": "fishbowl-engineer[bot]",
+                    "avatar_url": "https://example.com/avatar.png",
+                },
+                "pull_request": {
+                    "merged_at": "2026-02-20T10:00:00Z",
+                },
+            },
+        ]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = issues_response
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+
+        monkeypatch.setattr(
+            "api.services.http_client.get_shared_client", lambda: mock_client
+        )
+
+        result = await _fetch_fallback_events(limit=30)
+
+        assert len(result) == 1
+        assert result[0]["type"] == "pr_merged"
+        assert result[0]["subject_number"] == 100
+        assert result[0]["subject_title"] == "Add new endpoint"
+
+    @pytest.mark.asyncio
+    async def test_fallback_skips_closed_unmerged_prs(self, mock_settings, monkeypatch):
+        """Closed but not merged PRs are skipped in fallback."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from api.services.github_activity import _fetch_fallback_events
+
+        issues_response = [
+            {
+                "number": 101,
+                "title": "Abandoned PR",
+                "state": "closed",
+                "created_at": "2026-02-20T08:00:00Z",
+                "updated_at": "2026-02-20T10:00:00Z",
+                "html_url": "https://github.com/testowner/testrepo/pull/101",
+                "user": {"login": "fishbowl-engineer[bot]", "avatar_url": ""},
+                "pull_request": {"merged_at": None},
+            },
+        ]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = issues_response
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+
+        monkeypatch.setattr(
+            "api.services.http_client.get_shared_client", lambda: mock_client
+        )
+
+        result = await _fetch_fallback_events(limit=30)
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_fallback_empty_when_no_repo(self, mock_settings, monkeypatch):
+        """Fallback returns empty when github_repo is not configured."""
+        from api.services.github_activity import _fetch_fallback_events
+
+        mock_settings.github_repo = ""
+
+        result = await _fetch_fallback_events(limit=30)
+        assert result == []
+
+
+class TestEventsWithFallback:
+    """Tests for _get_events_with_fallback() — primary + fallback path."""
+
+    @pytest.mark.asyncio
+    async def test_uses_events_api_when_available(self, mock_settings, monkeypatch):
+        """When Events API returns data, fallback is not called."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from api.services.github_activity import _get_events_with_fallback
+
+        mock_settings.harness_repo = ""
+
+        raw_events = [
+            {
+                "id": "1",
+                "type": "IssuesEvent",
+                "actor": {"login": "fishbowl-engineer[bot]"},
+                "payload": {
+                    "action": "opened",
+                    "issue": {
+                        "number": 10,
+                        "title": "Test",
+                        "html_url": "https://github.com/test/repo/issues/10",
+                    },
+                },
+                "created_at": "2026-01-15T10:00:00Z",
+            }
+        ]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = raw_events
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+
+        monkeypatch.setattr(
+            "api.services.http_client.get_shared_client", lambda: mock_client
+        )
+
+        result = await _get_events_with_fallback(per_page=30)
+
+        assert len(result) == 1
+        assert result[0]["type"] == "issue_created"
+        # Only one API call (events), no fallback
+        assert mock_client.get.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_falls_back_when_events_api_empty(self, mock_settings, monkeypatch):
+        """When Events API returns empty, falls back to Issues API."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from api.services.github_activity import _get_events_with_fallback
+
+        mock_settings.harness_repo = ""
+
+        call_count = 0
+
+        async def mock_get(url, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            resp = MagicMock()
+            resp.status_code = 200
+
+            if "/events" in url:
+                resp.json.return_value = []
+            elif "/issues" in url:
+                resp.json.return_value = [
+                    {
+                        "number": 50,
+                        "title": "Fallback issue",
+                        "state": "open",
+                        "created_at": "2026-02-20T12:00:00Z",
+                        "updated_at": "2026-02-20T12:00:00Z",
+                        "html_url": "https://github.com/test/issues/50",
+                        "user": {
+                            "login": "fishbowl-engineer[bot]",
+                            "avatar_url": "",
+                        },
+                    }
+                ]
+            return resp
+
+        mock_client = AsyncMock()
+        mock_client.get = mock_get
+
+        monkeypatch.setattr(
+            "api.services.http_client.get_shared_client", lambda: mock_client
+        )
+
+        result = await _get_events_with_fallback(per_page=30)
+
+        assert len(result) == 1
+        assert result[0]["type"] == "issue_created"
+        assert result[0]["description"] == "Opened issue #50: Fallback issue"
+        # Two API calls: events (empty) + issues (fallback)
+        assert call_count == 2
 
 
 class TestGetThreadedActivityCaching:
