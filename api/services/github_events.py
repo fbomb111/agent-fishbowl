@@ -186,6 +186,8 @@ def parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
             title = pr.get("title") or ""
             number = pr.get("number")
             url = pr.get("html_url")
+            if not url and number is not None:
+                url = f"https://github.com/{get_settings().github_repo}/pull/{number}"
             subject = dict(
                 subject_type="pr",
                 subject_number=number,
@@ -248,7 +250,10 @@ def parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
             # Include review body text (up to 500 chars)
             review_body_raw = review.get("body") or ""
             review_body = review_body_raw[:500]
-            review_url = review.get("html_url") or pr.get("html_url")
+            pr_url = pr.get("html_url")
+            if not pr_url and number is not None:
+                pr_url = f"https://github.com/{get_settings().github_repo}/pull/{number}"
+            review_url = review.get("html_url") or pr_url
 
             parsed.append(
                 _make_event(
