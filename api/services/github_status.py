@@ -26,6 +26,9 @@ WORKFLOW_AGENT_MAP: dict[str, list[str]] = {
     "agent-scans.yml": ["tech-lead", "ux"],
     "agent-strategic.yml": ["pm"],
     "agent-content-creator.yml": ["content-creator"],
+    "agent-qa-analyst.yml": ["qa-analyst"],
+    "agent-customer-ops.yml": ["customer-ops"],
+    "agent-human-ops.yml": ["human-ops"],
 }
 
 
@@ -93,6 +96,9 @@ async def get_agent_status() -> list[dict[str, Any]]:
         "tech-lead",
         "ux",
         "content-creator",
+        "qa-analyst",
+        "customer-ops",
+        "human-ops",
     ]
 
     for role in all_roles:
