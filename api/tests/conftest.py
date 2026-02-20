@@ -85,4 +85,24 @@ def mock_settings(monkeypatch):
     get_settings.cache_clear()
     monkeypatch.setattr("api.config.get_settings", lambda: test_settings)
 
+    # Patch get_settings in all service modules that import it directly
+    # (from api.config import get_settings creates a local binding that
+    # the api.config monkeypatch above does not affect)
+    for mod_path in [
+        "api.services.github_activity",
+        "api.services.github_events",
+        "api.services.github_status",
+        "api.services.http_client",
+        "api.services.goals_metrics",
+        "api.services.goals_roadmap",
+        "api.services.blob_storage",
+        "api.services.stats",
+        "api.services.feedback",
+        "api.services.usage_storage",
+        "api.services.llm",
+        "api.routers.articles",
+        "api.routers.blog",
+    ]:
+        monkeypatch.setattr(f"{mod_path}.get_settings", lambda: test_settings)
+
     return test_settings
