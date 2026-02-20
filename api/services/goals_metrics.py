@@ -233,19 +233,79 @@ async def _fetch_review_counts(repo: str, since_str: str) -> dict[str, int]:
     return counts
 
 
+async def _fetch_commits_by_agent(repo: str, since_str: str) -> dict[str, int]:
+    """Count commits per agent role within the time window.
+
+    Uses the Commits API with per-author filtering. Only queries known
+    agent logins from ACTOR_MAP (plus the human login).
+    """
+    if "T" not in since_str:
+        since_iso = since_str + "T00:00:00Z"
+    else:
+        since_iso = since_str
+
+    # Build login→role mapping for all known agents
+    logins: dict[str, str] = {}
+    for login, role in ACTOR_MAP.items():
+        logins[login] = role
+    logins["fbomb111"] = "human"
+
+    async def _count_for_author(login: str) -> tuple[str, int]:
+        url = f"https://api.github.com/repos/{repo}/commits"
+        params = {"since": since_iso, "author": login, "per_page": "1"}
+        client = get_shared_client()
+        headers = github_headers()
+        try:
+            resp = await client.get(url, headers=headers, params=params)
+            if resp.status_code != 200:
+                return login, 0
+            link = resp.headers.get("Link", "")
+            if 'rel="last"' in link:
+                for part in link.split(","):
+                    if 'rel="last"' in part:
+                        url_part = part.split(";")[0].strip().strip("<>")
+                        for param in url_part.split("?")[1].split("&"):
+                            if param.startswith("page="):
+                                return login, int(param.split("=")[1])
+            return login, len(resp.json())
+        except Exception:
+            logger.exception("Commits count error for %s", login)
+            return login, 0
+
+    results = await asyncio.gather(*[_count_for_author(login) for login in logins])
+    counts: dict[str, int] = {}
+    for login, count in results:
+        if count > 0:
+            role = logins[login]
+            counts[role] = counts.get(role, 0) + count
+    return counts
+
+
 async def _fetch_agent_stats(repo: str, since_str: str) -> dict[str, dict[str, int]]:
     """Fetch per-agent activity stats for the last 7 days."""
-    issues_query = f"repo:{repo} is:issue is:closed closed:>={since_str}"
+    issues_closed_query = f"repo:{repo} is:issue is:closed closed:>={since_str}"
+    issues_opened_query = f"repo:{repo} is:issue created:>={since_str}"
+    prs_opened_query = f"repo:{repo} is:pr created:>={since_str}"
 
-    issues_items, prs_items, review_counts = await asyncio.gather(
-        _search_items(issues_query),
+    (
+        issues_closed_items,
+        issues_opened_items,
+        prs_opened_items,
+        prs_merged_items,
+        review_counts,
+        commit_counts,
+    ) = await asyncio.gather(
+        _search_items(issues_closed_query),
+        _search_items(issues_opened_query),
+        _search_items(prs_opened_query),
         fetch_merged_prs(repo, since_str),
         _fetch_review_counts(repo, since_str),
+        _fetch_commits_by_agent(repo, since_str),
     )
 
     agent_stats: dict[str, dict[str, int]] = {}
 
-    for item in issues_items:
+    for item in issues_closed_items:
         # Use assignee as closer (more accurate for agent work)
         assignees = item.get("assignees", [])
         login = assignees[0].get("login", "") if assignees else ""
@@ -258,7 +318,25 @@ async def _fetch_agent_stats(repo: str, since_str: str) -> dict[str, dict[str, i
             agent_stats[role] = _empty_agent_stats()
         agent_stats[role]["issues_closed"] += 1
 
-    for item in prs_items:
+    for item in issues_opened_items:
+        login = item.get("user", {}).get("login", "")
+        role = _agent_role(login)
+        if not role:
+            continue
+        if role not in agent_stats:
+            agent_stats[role] = _empty_agent_stats()
+        agent_stats[role]["issues_opened"] += 1
+
+    for item in prs_opened_items:
+        login = item.get("user", {}).get("login", "")
+        role = _agent_role(login)
+        if not role:
+            continue
+        if role not in agent_stats:
+            agent_stats[role] = _empty_agent_stats()
+        agent_stats[role]["prs_opened"] += 1
+
+    for item in prs_merged_items:
         login = item.get("user", {}).get("login", "")
         role = _agent_role(login)
         if not role:
@@ -272,6 +350,12 @@ async def _fetch_agent_stats(repo: str, since_str: str) -> dict[str, dict[str, i
         if role not in agent_stats:
             agent_stats[role] = _empty_agent_stats()
         agent_stats[role]["reviews"] = count
+
+    # Merge commit counts into agent stats
+    for role, count in commit_counts.items():
+        if role not in agent_stats:
+            agent_stats[role] = _empty_agent_stats()
+        agent_stats[role]["commits"] = count
 
     return agent_stats
 
