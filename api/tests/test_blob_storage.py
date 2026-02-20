@@ -11,6 +11,7 @@ from api.services.blob_storage import (
     get_article,
     get_article_index,
     get_blog_index,
+    validate_blob_path_segment,
     write_article,
     write_article_only,
 )
@@ -263,6 +264,12 @@ class TestGetArticle:
         result = await get_article("art-1")
         assert result is None
 
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_article_id(self):
+        """Rejects article IDs with path traversal characters."""
+        with pytest.raises(ValueError):
+            await get_article("../secret")
+
 
 class TestWriteArticle:
     """Tests for write_article()."""
@@ -471,3 +478,77 @@ class TestBlogPostDateValidation:
         post = BlogPost(**_make_blog_post())
         assert post.published_at.year == 2026
         assert post.published_at.month == 2
+
+
+class TestValidateBlobPathSegment:
+    """Tests for validate_blob_path_segment()."""
+
+    def test_valid_segments(self):
+        """Accepts alphanumeric segments with dots, hyphens, underscores."""
+        assert validate_blob_path_segment("art-1") == "art-1"
+        assert validate_blob_path_segment("abc123") == "abc123"
+        assert validate_blob_path_segment("my_article.v2") == "my_article.v2"
+        assert validate_blob_path_segment("a1b2c3d4e5f6g7h8") == "a1b2c3d4e5f6g7h8"
+
+    def test_rejects_path_traversal(self):
+        """Rejects inputs containing '..' path traversal."""
+        with pytest.raises(ValueError):
+            validate_blob_path_segment("../etc/passwd")
+
+    def test_rejects_slashes(self):
+        """Rejects inputs containing slashes."""
+        with pytest.raises(ValueError):
+            validate_blob_path_segment("path/to/file")
+
+    def test_rejects_backslashes(self):
+        """Rejects inputs containing backslashes."""
+        with pytest.raises(ValueError):
+            validate_blob_path_segment("path\\file")
+
+    def test_rejects_empty(self):
+        """Rejects empty input."""
+        with pytest.raises(ValueError):
+            validate_blob_path_segment("")
+
+    def test_rejects_special_characters(self):
+        """Rejects inputs with special characters."""
+        with pytest.raises(ValueError):
+            validate_blob_path_segment("file<script>")
+
+
+class TestBlogPostSlugValidation:
+    """Tests for BlogPost slug field validation."""
+
+    def test_valid_slug(self):
+        """Accepts valid slugs."""
+        from api.models.blog import BlogPost
+
+        post = BlogPost(**_make_blog_post(slug="my-test-post"))
+        assert post.slug == "my-test-post"
+
+    def test_rejects_slug_with_special_chars(self):
+        """Rejects slugs with path traversal or special characters."""
+        from pydantic import ValidationError
+
+        from api.models.blog import BlogPost
+
+        with pytest.raises(ValidationError):
+            BlogPost(**_make_blog_post(slug="../etc/passwd"))
+
+    def test_rejects_slug_with_spaces(self):
+        """Rejects slugs containing spaces."""
+        from pydantic import ValidationError
+
+        from api.models.blog import BlogPost
+
+        with pytest.raises(ValidationError):
+            BlogPost(**_make_blog_post(slug="my post"))
+
+    def test_rejects_uppercase_slug(self):
+        """Rejects slugs with uppercase letters."""
+        from pydantic import ValidationError
+
+        from api.models.blog import BlogPost
+
+        with pytest.raises(ValidationError):
+            BlogPost(**_make_blog_post(slug="My-Post"))
