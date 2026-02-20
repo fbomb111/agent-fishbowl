@@ -75,6 +75,7 @@ def mock_settings(monkeypatch):
         managed_identity_client_id="test-client-id",
         github_repo="testowner/testrepo",
         github_token="test-token",
+        harness_repo="",
         foundry_openai_endpoint="https://test.openai.azure.com/openai/v1/",
         foundry_api_key="test-key",
         foundry_deployment="gpt-4.1",
