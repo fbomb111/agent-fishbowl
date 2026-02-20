@@ -35,6 +35,14 @@ async def agent_status():
     return {"agents": agents}
 
 
+_ROLE_ALIASES: dict[str, str] = {
+    "product-owner": "po",
+    "product-manager": "pm",
+    "site-reliability": "sre",
+    "user-experience": "ux",
+}
+
+
 @router.get("/usage")
 async def usage_summary(
     limit: int = Query(50, ge=1, le=200),
@@ -44,11 +52,14 @@ async def usage_summary(
 
     by_role: dict[str, dict] = {}
     total_cost = 0.0
+    total_runs = 0
     for run_data in recent:
         for agent in run_data.get("agents", []):
             role = agent.get("role", "unknown")
+            role = _ROLE_ALIASES.get(role, role)
             cost = agent.get("total_cost_usd") or 0
             total_cost += cost
+            total_runs += 1
             if role not in by_role:
                 by_role[role] = {"role": role, "total_cost": 0.0, "run_count": 0}
             by_role[role]["total_cost"] = round(by_role[role]["total_cost"] + cost, 4)
@@ -56,7 +67,7 @@ async def usage_summary(
 
     return {
         "total_cost": round(total_cost, 2),
-        "total_runs": len(recent),
+        "total_runs": total_runs,
         "by_role": sorted(
             by_role.values(), key=lambda x: x["total_cost"], reverse=True
         ),
