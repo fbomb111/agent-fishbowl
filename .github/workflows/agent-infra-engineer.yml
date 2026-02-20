@@ -13,10 +13,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: agent-infra-engineer
-  cancel-in-progress: false
-
 jobs:
   run:
     # Same event filtering as main engineer — only wake on meaningful state changes
