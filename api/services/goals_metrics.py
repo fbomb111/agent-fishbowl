@@ -37,9 +37,7 @@ async def _search_count(query: str) -> int:
         resp = await client.get(url, headers=headers, params=params)
         if resp.status_code == 200:
             return resp.json().get("total_count", 0)
-        logger.warning(
-            "GitHub search API returned %d for: %s", resp.status_code, query
-        )
+        logger.warning("GitHub search API returned %d for: %s", resp.status_code, query)
     except Exception:
         logger.exception("GitHub search error for: %s", query)
     return 0
@@ -84,9 +82,7 @@ async def _count_commits(repo: str, since: str) -> int:
         return 0
 
 
-async def _fetch_windowed_counts(
-    repo: str, now: datetime
-) -> dict[str, dict[str, int]]:
+async def _fetch_windowed_counts(repo: str, now: datetime) -> dict[str, dict[str, int]]:
     """Fetch cumulative issue/PR/commit counts for 24h, 7d, and 30d windows."""
     cutoffs = {
         "24h": (now - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -210,12 +206,8 @@ async def get_metrics(cache: TTLCache) -> dict[str, Any]:
         since_7d = (now - timedelta(days=7)).strftime("%Y-%m-%d")
 
         # Fetch open issues/PRs counts, windowed metrics, and agent stats in parallel
-        open_issues_task = _search_count(
-            f"repo:{repo} is:issue is:open"
-        )
-        open_prs_task = _search_count(
-            f"repo:{repo} is:pr is:open"
-        )
+        open_issues_task = _search_count(f"repo:{repo} is:issue is:open")
+        open_prs_task = _search_count(f"repo:{repo} is:pr is:open")
         windowed_task = _fetch_windowed_counts(repo, now)
         agent_stats_task = _fetch_agent_stats(repo, since_7d)
 

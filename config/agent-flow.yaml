@@ -212,7 +212,7 @@ agents:
         condition:
           type: intake_batch
           threshold: 5
-      - target: full-scan
+      - target: tech-lead
         method: workflow_run
         location: post_step
         condition:
@@ -257,6 +257,7 @@ agents:
 
   tech-lead:
     description: "Tech Lead runs as multiple scheduled jobs, each a separate workflow"
+    workflow: agent-scans.yml
     role: tech-lead
     harness_ref: "@main"
     jobs:
