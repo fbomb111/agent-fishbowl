@@ -40,6 +40,7 @@ _ROLE_ALIASES: dict[str, str] = {
     "product-manager": "pm",
     "site-reliability": "sre",
     "user-experience": "ux",
+    "infra-engineer": "ops-engineer",
 }
 
 

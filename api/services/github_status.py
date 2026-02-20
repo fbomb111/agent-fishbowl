@@ -147,6 +147,7 @@ async def get_agent_status() -> list[dict[str, Any]]:
                     "product-manager": "pm",
                     "site-reliability": "sre",
                     "user-experience": "ux",
+                    "infra-engineer": "ops-engineer",
                 }
                 role_usage = next(
                     (
