@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import ManagedIdentityCredential
@@ -12,6 +13,20 @@ from api.models.article import Article, ArticleIndex, ArticleSummary
 from api.models.blog import BlogIndex, BlogPost
 
 logger = logging.getLogger(__name__)
+
+_SAFE_PATH_SEGMENT_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
+
+
+def validate_blob_path_segment(segment: str) -> str:
+    """Validate a user-supplied blob path segment.
+
+    Rejects inputs containing path traversal sequences (..), slashes,
+    backslashes, or other unsafe characters. Returns the segment unchanged
+    if valid; raises ValueError otherwise.
+    """
+    if not segment or not _SAFE_PATH_SEGMENT_RE.match(segment):
+        raise ValueError(f"Invalid blob path segment: {segment!r}")
+    return segment
 
 INDEX_BLOB = "index.json"
 BLOG_INDEX_BLOB = "blog-index.json"
@@ -133,6 +148,7 @@ async def get_article_index(
 
 async def get_article(article_id: str) -> Article | None:
     """Read a single article by ID from blob storage."""
+    validate_blob_path_segment(article_id)
     client = _get_container_client()
     try:
         # Articles stored under their ID
@@ -245,6 +261,7 @@ async def write_blog_index(posts: list[BlogPost]) -> None:
 
 async def upload_blog_html(slug: str, html: str) -> None:
     """Upload blog post HTML to $web/blog/{slug}/index.html."""
+    validate_blob_path_segment(slug)
     client = _get_blog_container_client()
     blob = client.get_blob_client(f"blog/{slug}/index.html")
     blob.upload_blob(
@@ -256,6 +273,7 @@ async def upload_blog_html(slug: str, html: str) -> None:
 
 async def read_blog_html(slug: str) -> str | None:
     """Read blog post HTML from $web/blog/{slug}/index.html. Returns None if not found."""
+    validate_blob_path_segment(slug)
     client = _get_blog_container_client()
     try:
         blob = client.get_blob_client(f"blog/{slug}/index.html")

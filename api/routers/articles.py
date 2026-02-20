@@ -1,6 +1,6 @@
 """Article feed endpoints."""
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Path, Query
 
 from api.config import get_settings
 from api.models.article import Article, ArticleIndex
@@ -39,7 +39,9 @@ async def list_articles(
 
 
 @router.get("/{article_id}", response_model=Article)
-async def get_article_by_id(article_id: str):
+async def get_article_by_id(
+    article_id: str = Path(..., pattern=r"^[a-zA-Z0-9_-]+$", max_length=200),
+):
     """Get a single article by ID."""
     article = await get_article(article_id)
     if not article:

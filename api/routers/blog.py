@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 
 import httpx
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Path, Query
 from fastapi.responses import HTMLResponse
 
 from api.config import get_settings
@@ -154,7 +154,9 @@ async def add_blog_post(post: BlogPost, x_ingest_key: str = Header()):
 
 
 @router.get("/by-slug/{slug}")
-async def get_blog_post_by_slug(slug: str):
+async def get_blog_post_by_slug(
+    slug: str = Path(..., pattern=r"^[a-z0-9][a-z0-9-]*[a-z0-9]$", max_length=200),
+):
     """Get a single blog post by its slug."""
     index = await get_blog_index()
     for post in index.posts:
@@ -164,7 +166,9 @@ async def get_blog_post_by_slug(slug: str):
 
 
 @router.get("/{post_id}/content")
-async def get_blog_post_content(post_id: str):
+async def get_blog_post_content(
+    post_id: str = Path(..., pattern=r"^[a-zA-Z0-9_-]+$", max_length=200),
+):
     """Serve blog post HTML — reads from local blob, falls back to proxy."""
     index = await get_blog_index()
     post = None
@@ -199,7 +203,9 @@ async def get_blog_post_content(post_id: str):
 
 
 @router.get("/{post_id}")
-async def get_blog_post(post_id: str):
+async def get_blog_post(
+    post_id: str = Path(..., pattern=r"^[a-zA-Z0-9_-]+$", max_length=200),
+):
     """Get a single blog post by ID.
 
     Returns the post metadata (not HTML content — frontend links to preview_url).

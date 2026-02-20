@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 # The Agent Fishbowl repository was created on 2026-02-14T16:35:05Z.
 # No content could have been published before this date.
@@ -14,7 +14,7 @@ class BlogPost(BaseModel):
 
     id: str
     title: str
-    slug: str
+    slug: str = Field(..., pattern=r"^[a-z0-9][a-z0-9-]*[a-z0-9]$", max_length=200)
     description: str
     published_at: datetime
     focus_keyphrase: str = ""
