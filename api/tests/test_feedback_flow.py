@@ -1,4 +1,7 @@
-"""Tests for the feedback endpoint: rate limiting, honeypot, spam triage, issue creation."""
+"""Tests for the feedback endpoint.
+
+Covers rate limiting, honeypot, spam triage, and issue creation.
+"""
 
 import time
 from unittest.mock import AsyncMock
@@ -48,7 +51,9 @@ async def test_honeypot_returns_fake_response(mock_settings, mocker):
             "/api/fishbowl/feedback",
             json={
                 "title": "Bot feedback title here",
-                "description": "This is a bot submitting feedback with honeypot field filled",
+                "description": (
+                    "This is a bot submitting feedback with honeypot field filled"
+                ),
                 "website": "https://spam.example.com",
             },
         )
@@ -85,7 +90,9 @@ async def test_spam_triage_returns_fake_response(mock_settings, mocker):
             "/api/fishbowl/feedback",
             json={
                 "title": "Buy cheap products now",
-                "description": "Amazing deals available at our website check it out now",
+                "description": (
+                    "Amazing deals available at our website check it out now"
+                ),
             },
         )
 
@@ -124,7 +131,9 @@ async def test_successful_submission_creates_issue(mock_settings, mocker):
             "/api/fishbowl/feedback",
             json={
                 "title": "Add dark mode support",
-                "description": "It would be great to have a dark mode toggle in the settings page",
+                "description": (
+                    "It would be great to have a dark mode toggle in the settings page"
+                ),
             },
         )
 

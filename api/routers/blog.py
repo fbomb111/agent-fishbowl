@@ -94,7 +94,9 @@ def sanitize_blog_html(html: str, slug: str, published_at: datetime) -> str:
 
     # Fix JSON-LD publisher name
     html = re.sub(
-        r'("publisher"\s*:\s*\{[^}]*"name"\s*:\s*")(?:Code with Captain|codewithcaptain\.com)(")',
+        r'("publisher"\s*:\s*\{[^}]*"name"\s*:\s*")'
+        r"(?:Code with Captain|codewithcaptain\.com)"
+        r'(")',
         r"\g<1>Agent Fishbowl\2",
         html,
     )

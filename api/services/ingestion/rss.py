@@ -215,7 +215,9 @@ async def fetch_feed(url: str, timeout: float = REQUEST_TIMEOUT) -> str:
         follow_redirects=True,
         headers={
             "User-Agent": "AgentFishbowl/1.0 (RSS Aggregator)",
-            "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml",
+            "Accept": (
+                "application/rss+xml, application/atom+xml, application/xml, text/xml"
+            ),
         },
     )
     response.raise_for_status()
