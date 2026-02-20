@@ -160,24 +160,19 @@ agents:
     post_steps:
       - name: "Signal low backlog — trigger PM"
 
-  infra-engineer:
-    workflow: agent-infra-engineer.yml
+  ops-engineer:
+    workflow: agent-ops-engineer.yml
     type: reusable
 
     timeout: 30
     permissions:
       contents: read
-    # concurrency: inherited from reusable-agent.yml → agent-infra-engineer
+    # concurrency: inherited from reusable-agent.yml → agent-ops-engineer
     triggers:
       - type: issues
         actions: [labeled, unlabeled]
       - type: repository_dispatch
         event: agent-product-owner-complete
-      - type: repository_dispatch
-        event: agent-reviewer-feedback
-      - type: pull_request
-        actions: [closed]
-        branches: [main]
       - type: workflow_dispatch
     dispatches: []
 
@@ -201,7 +196,7 @@ agents:
         cron: "0 */12 * * *"
       - type: workflow_dispatch
     dispatches:
-      - target: [engineer, infra-engineer]
+      - target: [engineer, ops-engineer]
         method: repository_dispatch
         event: agent-reviewer-feedback
         location: post_step

@@ -10,7 +10,7 @@ API_PREFIX="${API_BASE}/api/fishbowl"
 
 # Known agent roles (union of all endpoints)
 KNOWN_ROLES=(
-    content-creator customer-ops engineer human-ops infra-engineer
+    content-creator customer-ops engineer human-ops ops-engineer
     pm po qa-analyst reviewer sre tech-lead triage ux
 )
 # Service accounts that appear in by_agent but aren't agent roles

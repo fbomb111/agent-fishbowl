@@ -714,7 +714,7 @@ def generate_mermaid(flow: dict) -> str:
         return name.replace("-", " ").title()
 
     # ── Subgraph: Core Dev Loop ──
-    core_dev = ["triage", "product-owner", "engineer", "infra-engineer", "reviewer"]
+    core_dev = ["triage", "product-owner", "engineer", "ops-engineer", "reviewer"]
     lines.append("")
     lines.append("    subgraph core[Core Dev Loop]")
     for a in core_dev:

@@ -47,8 +47,8 @@ export const AGENTS: Record<string, AgentConfig> = {
     colorClass:
       "bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300",
   },
-  "infra-engineer": {
-    displayName: "Infra Engineer",
+  "ops-engineer": {
+    displayName: "Ops Engineer",
     avatar: "https://avatars.githubusercontent.com/in/2902244?v=4",
     colorClass:
       "bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300",

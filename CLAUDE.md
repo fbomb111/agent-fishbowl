@@ -39,7 +39,7 @@ Agents are deployed as GitHub Actions workflows running on the self-hosted runne
 | `agent-triage.yml` | Triage | `issues.opened` + manual | agent-created filter |
 | `agent-product-owner.yml` | PO | Triage/reviewer/PM dispatch + daily 06:00 | Concurrency group |
 | `agent-engineer.yml` | Engineer | PO/reviewer dispatch + PR merged + CI failure | chain_depth ≤ 3, concurrency |
-| `agent-infra-engineer.yml` | Infra Engineer | PO/reviewer dispatch + PR merged | concurrency |
+| `agent-ops-engineer.yml` | Ops Engineer | PO dispatch + issue labeled | concurrency (reusable) |
 | `agent-reviewer.yml` | Reviewer | `pull_request` (opened/sync) + 12h fallback | Max 3 rounds/PR, fork guard |
 | `agent-site-reliability.yml` | SRE | `repository_dispatch` (azure-alert) + 4h schedule | Concurrency group |
 | `agent-strategic.yml` | PM | Daily 06:00 + manual | Concurrency group |
@@ -154,7 +154,7 @@ scripts/                Project-specific scripts
   reusable-agent.yml    Shared agent runner (role or entry-point)
   agent-product-owner.yml PO (event-driven: dispatch + 2x daily)
   agent-engineer.yml    Engineer (event-driven: dispatch + PR merge + CI)
-  agent-infra-engineer.yml  Infra Engineer (event-driven: dispatch + PR merge)
+  agent-ops-engineer.yml    Ops Engineer (event-driven: dispatch + unblock)
   agent-reviewer.yml    Reviewer (event-driven: PR opened/sync + 12h)
   agent-triage.yml      Triage (event-driven: issues.opened + daily)
   agent-strategic.yml   PM review (daily schedule)
@@ -255,7 +255,7 @@ Scopes: `api`, `frontend`, `ci`, `config`
 |------|----------|---------|-----------|
 | **PO** | `fishbowl-po[bot]` | Event-driven + daily | Central intake funnel — triages all inputs into a prioritized backlog |
 | **Engineer** | `fishbowl-engineer[bot]` | Event-driven (dispatch + PR merge) | Picks issues, implements application code, opens PRs |
-| **Infra Engineer** | `fishbowl-infra-engineer[bot]` | Event-driven (dispatch + PR merge) | Cloud infrastructure, CI/CD, IaC, deployment automation |
+| **Ops Engineer** | `fishbowl-ops-engineer[bot]` | Event-driven (dispatch + unblock) | Azure resource management via `az` CLI — scaling, env vars, ACR, health checks |
 | **Reviewer** | `fishbowl-reviewer[bot]` | Event-driven + 12h | Reviews PRs, approves+merges or requests changes |
 | **Tech Lead** | `fishbowl-techlead[bot]` | Every 3 days | Sets technical standards, identifies architecture needs |
 | **PM** | `fishbowl-pm[bot]` | Daily | Strategic goals and GitHub Project roadmap management |
@@ -493,6 +493,45 @@ HARNESS_ROOT=../agent-harness PROJECT_ROOT=$(pwd) ../agent-harness/scripts/run-s
 ```
 
 In production, agents run via GitHub Actions workflows which use the composite action to check out the harness automatically.
+
+### Worktree Isolation (Concurrent Claude Code Sessions)
+
+When running multiple Claude Code sessions on the dev server, each session MUST use a separate worktree to avoid file conflicts. The main checkout stays on `main` and is never worked in directly.
+
+**Directory layout:**
+```
+/home/fcleary/projects/
+  agent-fishbowl/           ← main checkout (stays on main, shared .git database)
+  agent-fishbowl-trees/     ← worktree container
+    agent-1/                ← worktree 1 (own branch, own files, .env symlinked)
+    agent-2/                ← worktree 2
+    ...
+```
+
+**Managing worktrees:**
+```bash
+# Create 5 agent worktrees (one-time setup)
+scripts/worktree-manager.sh setup 5
+
+# Create a named worktree
+scripts/worktree-manager.sh create my-feature feat/issue-42
+
+# List all worktrees
+scripts/worktree-manager.sh list
+
+# Remove one worktree
+scripts/worktree-manager.sh remove agent-3
+
+# Remove all worktrees
+scripts/worktree-manager.sh clean
+```
+
+**Key rules:**
+- Open each Claude Code window in a different `agent-fishbowl-trees/agent-N/` directory
+- Git operations (branch, commit, push) are fully isolated per worktree
+- `.env` is symlinked from the main checkout — one file, always in sync
+- The same branch cannot be checked out in two worktrees simultaneously (git enforces this)
+- To reset a worktree to latest main: `git fetch origin && git checkout --detach origin/main`
 
 ## Infrastructure Reference
 

@@ -1,13 +1,10 @@
-name: Agent - Infrastructure Engineer
+name: Agent - Operations Engineer
 
 on:
   issues:
     types: [labeled, unlabeled]
   repository_dispatch:
-    types: [agent-product-owner-complete, agent-reviewer-feedback]
-  pull_request:
-    types: [closed]
-    branches: [main]
+    types: [agent-product-owner-complete]
   workflow_dispatch: {}
 
 permissions:
@@ -15,16 +12,14 @@ permissions:
 
 jobs:
   run:
-    # Same event filtering as main engineer — only wake on meaningful state changes
     if: >
       (github.event_name == 'issues' && github.event.action == 'labeled' &&
        startsWith(github.event.label.name, 'priority/')) ||
       (github.event_name == 'issues' && github.event.action == 'unlabeled' &&
-       (github.event.label.name == 'status/blocked' || github.event.label.name == 'harness/request')) ||
-      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+       github.event.label.name == 'status/blocked') ||
       github.event_name == 'repository_dispatch' ||
       github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/reusable-agent.yml
     with:
-      role: infra-engineer
+      role: ops-engineer
     secrets: inherit

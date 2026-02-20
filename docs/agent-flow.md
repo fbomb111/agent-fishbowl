@@ -1,5 +1,5 @@
 <!-- AUTO-GENERATED — Do not edit. Edit config/agent-flow.yaml instead. -->
-<!-- Last generated: 2026-02-20 17:26 UTC -->
+<!-- Last generated: 2026-02-20 17:44 UTC -->
 <!-- Regenerate: python scripts/validate-flow.py --mermaid -o docs/agent-flow.md -->
 
 # Agent Flow Graph
@@ -27,7 +27,7 @@ flowchart TD
         TRIAGE[Triage]
         PRODUCT_OWNER[Product Owner]
         ENGINEER[Engineer]
-        INFRA_ENGINEER[Infra Engineer]
+        OPS_ENGINEER[Ops Engineer]
         REVIEWER[Reviewer]
     end
 
@@ -84,7 +84,7 @@ flowchart TD
     PRODUCT_OWNER -.->|"agent decision *"| USER_EXPERIENCE
     ENGINEER -.->|"idle, PM>2h"| STRATEGIC
     REVIEWER -->|"changes requested"| ENGINEER
-    REVIEWER -->|"changes requested"| INFRA_ENGINEER
+    REVIEWER -->|"changes requested"| OPS_ENGINEER
     REVIEWER -.->|"batch≥5"| PRODUCT_OWNER
     REVIEWER -.->|"untriaged source/tech-lead"| TECH_LEAD
     STRATEGIC -.->|"always"| PRODUCT_OWNER
@@ -104,8 +104,7 @@ flowchart TD
     ISSUE_LABELED -.-> ENGINEER
     PR_MERGED -.-> ENGINEER
     CHECK_SUITE -.-> ENGINEER
-    ISSUE_LABELED -.-> INFRA_ENGINEER
-    PR_MERGED -.-> INFRA_ENGINEER
+    ISSUE_LABELED -.-> OPS_ENGINEER
     PR_OPENED -.-> REVIEWER
     AZURE_ALERT -.-> SITE_RELIABILITY
 
@@ -119,7 +118,7 @@ flowchart TD
     class TRIAGE core
     class PRODUCT_OWNER core
     class ENGINEER core
-    class INFRA_ENGINEER core
+    class OPS_ENGINEER core
     class REVIEWER core
     class STRATEGIC strat
     class PRODUCT_ANALYST strat
@@ -166,8 +165,8 @@ flowchart TD
 | escalation-lead | `0 18 * * 3` | Wed | `dispute-detected`, Manual |
 | financial-analyst | `0 12 * * *` | daily | Manual |
 | human-ops | `0 15 * * 5` | Fri | Manual |
-| infra-engineer | --- |  | Issues labeled/unlabeled, `agent-product-owner-complete`, `agent-reviewer-feedback`, PR closed, Manual |
 | marketing-strategist | `0 8 * * 1` | Mon | Manual |
+| ops-engineer | --- |  | Issues labeled/unlabeled, `agent-product-owner-complete`, Manual |
 | product-analyst | `0 14 * * *` | daily | Manual |
 | product-owner | `0 6,18 * * *` | daily | `agent-product-manager-feedback`, Manual |
 | qa-analyst | `0 16 * * *` | daily | Manual |
