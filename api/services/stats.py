@@ -17,7 +17,9 @@ _cache = TTLCache(ttl=300, max_size=5)
 
 
 def _agent_role(login: str) -> str | None:
-    """Map a GitHub login to an agent role, or None if not an agent."""
+    """Map a GitHub login to an agent role, or None if not a known actor."""
+    if login == "fbomb111":
+        return "human"
     return ACTOR_MAP.get(login)
 
 
