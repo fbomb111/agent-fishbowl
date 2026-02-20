@@ -33,7 +33,8 @@ WORKFLOW_AGENT_MAP: dict[str, list[str]] = {
 
 
 async def _fetch_workflow_runs(
-    repo: str, workflow_file: str
+    repo: str,
+    workflow_file: str,
 ) -> tuple[str, list[dict[str, Any]]]:
     """Fetch the most recent run for a single workflow file.
 
