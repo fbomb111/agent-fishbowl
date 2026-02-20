@@ -78,7 +78,7 @@ def sample_atom_feed() -> str:
     <link href="https://example.com/atom-2"/>
     <id>urn:uuid:atom-article-2</id>
     <updated>2026-02-15T08:00:00Z</updated>
-    <content type="html">&lt;p&gt;Content of the second Atom article.&lt;/p&gt;</content>
+    <content type="html">&lt;p&gt;second Atom article.&lt;/p&gt;</content>
   </entry>
 </feed>"""
 

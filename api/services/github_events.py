@@ -275,7 +275,10 @@ def parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         event_type="commit",
                         actor=actor,
                         description=f"{msg}{suffix}",
-                        url=f"https://github.com/{get_settings().github_repo}/commit/{commits[-1].get('sha', '')}",
+                        url=(
+                            f"https://github.com/{get_settings().github_repo}"
+                            f"/commit/{commits[-1].get('sha', '')}"
+                        ),
                     )
                 )
 

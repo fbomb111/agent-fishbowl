@@ -273,7 +273,10 @@ async def upload_blog_html(slug: str, html: str) -> None:
 
 
 async def read_blog_html(slug: str) -> str | None:
-    """Read blog post HTML from $web/blog/{slug}/index.html. Returns None if not found."""
+    """Read blog post HTML from $web/blog/{slug}/index.html.
+
+    Returns None if not found.
+    """
     validate_blob_path_segment(slug)
     client = _get_blog_container_client()
     try:

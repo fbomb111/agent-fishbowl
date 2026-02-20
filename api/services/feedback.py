@@ -11,7 +11,8 @@ from api.services.llm import chat_completion
 
 logger = logging.getLogger(__name__)
 
-TRIAGE_PROMPT = """Analyze this user feedback submission for an AI-curated news feed project (Agent Fishbowl). Determine:
+TRIAGE_PROMPT = """Analyze this user feedback submission for an AI-curated \
+news feed project (Agent Fishbowl). Determine:
 
 1. Is this spam, low-quality, or abusive?
 2. What type of feedback is it?

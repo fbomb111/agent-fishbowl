@@ -1,4 +1,7 @@
-"""Tests for goals_roadmap service — roadmap snapshot fetching, subprocess handling, caching."""
+"""Tests for goals_roadmap service.
+
+Covers roadmap snapshot fetching, subprocess handling, and caching.
+"""
 
 import asyncio
 import json

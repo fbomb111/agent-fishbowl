@@ -13,7 +13,9 @@ def test_parse_response_valid_json():
             {"text": "Use structured logging", "category": "technique"},
             {"text": "Try LangGraph for agents", "category": "tool"},
         ],
-        "ai_summary": "This article covers modern observability patterns and agent frameworks.",
+        "ai_summary": (
+            "This article covers modern observability patterns and agent frameworks."
+        ),
         "relevance_score": 8,
     }
     result = _parse_response(json.dumps(data))

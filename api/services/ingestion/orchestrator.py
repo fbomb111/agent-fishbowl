@@ -1,4 +1,7 @@
-"""Article ingestion orchestrator — ties fetch, dedup, scrape, analyze, and write together."""
+"""Article ingestion orchestrator.
+
+Ties fetch, dedup, scrape, analyze, and write together.
+"""
 
 import asyncio
 import logging
@@ -25,7 +28,8 @@ MAX_NEW_ARTICLES_PER_RUN = 20
 # Delay between articles to respect rate limits
 INTER_ARTICLE_DELAY = 1.5
 
-# Minimum relevance score to include an article (configurable via RELEVANCE_THRESHOLD env var)
+# Minimum relevance score to include an article
+# (configurable via RELEVANCE_THRESHOLD env var)
 RELEVANCE_THRESHOLD = int(os.environ.get("RELEVANCE_THRESHOLD", "5"))
 
 
@@ -204,7 +208,8 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
     )
 
     logger.info(
-        "Ingestion complete: %d new, %d scraped, %d skipped, %d dupes, %d filtered, %d failed",
+        "Ingestion complete: %d new, %d scraped, %d skipped, "
+        "%d dupes, %d filtered, %d failed",
         new_count,
         scraped_count,
         skipped,

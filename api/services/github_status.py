@@ -59,7 +59,8 @@ async def get_agent_status() -> list[dict[str, Any]]:
     agent_runs: dict[str, dict[str, Any]] = {}
 
     for run in runs:
-        # Extract workflow filename from path (e.g. ".github/workflows/agent-engineer.yml")
+        # Extract workflow filename from path
+        # e.g. ".github/workflows/agent-engineer.yml"
         workflow_path = run.get("path", "")
         workflow_file = (
             workflow_path.split("/")[-1] if "/" in workflow_path else workflow_path
