@@ -11,7 +11,7 @@ from typing import Any
 from api.config import get_settings
 from api.services.cache import TTLCache
 from api.services.github_events import ACTOR_MAP
-from api.services.http_client import github_api_get
+from api.services.http_client import fetch_merged_prs, github_api_get
 
 _cache = TTLCache(ttl=300, max_size=5)
 
@@ -32,13 +32,13 @@ def _agent_role(login: str) -> str | None:
 def _compute_pr_cycle_hours(pr: dict[str, Any]) -> float | None:
     """Compute hours between PR creation and merge."""
     created = pr.get("created_at")
-    closed = pr.get("closed_at")
-    if not created or not closed:
+    merged = pr.get("merged_at") or pr.get("closed_at")
+    if not created or not merged:
         return None
     try:
         t_created = datetime.fromisoformat(created.replace("Z", "+00:00"))
-        t_closed = datetime.fromisoformat(closed.replace("Z", "+00:00"))
-        return (t_closed - t_created).total_seconds() / 3600
+        t_merged = datetime.fromisoformat(merged.replace("Z", "+00:00"))
+        return (t_merged - t_created).total_seconds() / 3600
     except (ValueError, TypeError):
         return None
 
@@ -67,12 +67,13 @@ async def get_team_stats() -> dict[str, Any]:
     since_str = since.strftime("%Y-%m-%d")
 
     # Search for closed issues and merged PRs in the last 7 days
+    # Use Search API for issues (is:closed works reliably) but Pulls REST API
+    # for merged PRs (is:merged qualifier has GitHub indexing issues — #187)
     issues_query = f"repo:{repo} is:issue is:closed closed:>={since_str}"
-    prs_query = f"repo:{repo} is:pr is:merged merged:>={since_str}"
 
     issues_items, prs_items = await asyncio.gather(
         _search_issues(issues_query),
-        _search_issues(prs_query),
+        fetch_merged_prs(repo, since_str),
     )
 
     # Per-agent activity counts
