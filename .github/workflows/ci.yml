@@ -34,6 +34,9 @@ jobs:
       - run: pip install -r requirements.txt ruff
       - run: python -m ruff check .
       - run: python -m ruff format --check .
+      - name: Run pytest
+        working-directory: .
+        run: python -m pytest api/tests/ -v --tb=short
 
   frontend-lint:
     name: Frontend Lint & Typecheck
