@@ -53,18 +53,44 @@ async def _search_count(query: str) -> int | None:
 
 
 async def _search_items(query: str) -> list[dict[str, Any]] | None:
-    """Run a GitHub search and return all items (up to 100).
+    """Run a GitHub search and return all items, paginating if needed.
+
+    The GitHub Search API returns at most 100 items per page (max 1000 total).
+    This function fetches successive pages until all results are collected.
 
     Returns None on API errors so callers can distinguish "no results"
     from "request failed".
     """
-    result = await github_api_get(
-        "https://api.github.com/search/issues",
-        {"q": query, "per_page": "100"},
-        response_key="items",
-        context=query,
-    )
-    return result
+    client = get_shared_client()
+    headers = github_headers()
+    url = "https://api.github.com/search/issues"
+    all_items: list[dict[str, Any]] = []
+    page = 1
+
+    while True:
+        params = {"q": query, "per_page": "100", "page": str(page)}
+        try:
+            resp = await client.get(url, headers=headers, params=params)
+            if resp.status_code != 200:
+                logger.warning(
+                    "GitHub search API returned %d for: %s (page %d)",
+                    resp.status_code,
+                    query,
+                    page,
+                )
+                return None if not all_items else all_items
+            data = resp.json()
+            items = data.get("items", [])
+            all_items.extend(items)
+            total_count = data.get("total_count", 0)
+            if len(all_items) >= total_count or len(items) < 100:
+                break
+            page += 1
+        except Exception:
+            logger.exception("GitHub search error for: %s (page %d)", query, page)
+            return None if not all_items else all_items
+
+    return all_items
 
 
 async def _count_commits(repo: str, since: str) -> int | None:
