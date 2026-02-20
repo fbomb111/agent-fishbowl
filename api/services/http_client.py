@@ -70,9 +70,7 @@ async def github_api_get(
         return None
 
 
-async def fetch_closed_issues(
-    repo: str, since: str
-) -> list[dict[str, Any]] | None:
+async def fetch_closed_issues(repo: str, since: str) -> list[dict[str, Any]] | None:
     """Fetch issues closed since a date using the Issues REST API.
 
     Uses /repos/{owner}/{repo}/issues?state=closed instead of the Search API,
