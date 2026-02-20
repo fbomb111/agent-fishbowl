@@ -86,18 +86,18 @@ class TestGetTeamStats:
             },
         ]
 
-        call_count = 0
+        async def mock_fetch_closed_issues(repo, since):
+            return issues_items
 
-        async def mock_search_issues(query):
-            nonlocal call_count
-            call_count += 1
-            if "is:issue" in query:
-                return issues_items
-            if "is:pr" in query:
-                return prs_items
-            return []
+        async def mock_fetch_merged_prs(repo, since):
+            return prs_items
 
-        monkeypatch.setattr("api.services.stats._search_issues", mock_search_issues)
+        monkeypatch.setattr(
+            "api.services.stats.fetch_closed_issues", mock_fetch_closed_issues
+        )
+        monkeypatch.setattr(
+            "api.services.stats.fetch_merged_prs", mock_fetch_merged_prs
+        )
 
         result = await get_team_stats()
 
@@ -117,10 +117,18 @@ class TestGetTeamStats:
     async def test_empty_data(self, mock_settings, monkeypatch):
         """Empty API responses produce zero counts and no agents."""
 
-        async def mock_search_issues(query):
+        async def mock_fetch_closed_issues(repo, since):
             return []
 
-        monkeypatch.setattr("api.services.stats._search_issues", mock_search_issues)
+        async def mock_fetch_merged_prs(repo, since):
+            return []
+
+        monkeypatch.setattr(
+            "api.services.stats.fetch_closed_issues", mock_fetch_closed_issues
+        )
+        monkeypatch.setattr(
+            "api.services.stats.fetch_merged_prs", mock_fetch_merged_prs
+        )
 
         result = await get_team_stats()
 
@@ -133,18 +141,24 @@ class TestGetTeamStats:
     async def test_pr_without_cycle_time(self, mock_settings, monkeypatch):
         """PRs with missing dates don't break average calculation."""
 
-        async def mock_search_issues(query):
-            if "is:pr" in query:
-                return [
-                    {
-                        "user": {"login": "fishbowl-engineer[bot]"},
-                        "created_at": "2026-01-15T10:00:00Z",
-                        # No closed_at
-                    },
-                ]
+        async def mock_fetch_closed_issues(repo, since):
             return []
 
-        monkeypatch.setattr("api.services.stats._search_issues", mock_search_issues)
+        async def mock_fetch_merged_prs(repo, since):
+            return [
+                {
+                    "user": {"login": "fishbowl-engineer[bot]"},
+                    "created_at": "2026-01-15T10:00:00Z",
+                    # No closed_at
+                },
+            ]
+
+        monkeypatch.setattr(
+            "api.services.stats.fetch_closed_issues", mock_fetch_closed_issues
+        )
+        monkeypatch.setattr(
+            "api.services.stats.fetch_merged_prs", mock_fetch_merged_prs
+        )
 
         result = await get_team_stats()
         assert result["prs_merged"] == 1
@@ -156,17 +170,23 @@ class TestGetTeamStats:
     ):
         """Activity from non-agent users doesn't appear in agents list."""
 
-        async def mock_search_issues(query):
-            if "is:issue" in query:
-                return [
-                    {
-                        "user": {"login": "random-human"},
-                        "assignees": [{"login": "random-human"}],
-                    },
-                ]
+        async def mock_fetch_closed_issues(repo, since):
+            return [
+                {
+                    "user": {"login": "random-human"},
+                    "assignees": [{"login": "random-human"}],
+                },
+            ]
+
+        async def mock_fetch_merged_prs(repo, since):
             return []
 
-        monkeypatch.setattr("api.services.stats._search_issues", mock_search_issues)
+        monkeypatch.setattr(
+            "api.services.stats.fetch_closed_issues", mock_fetch_closed_issues
+        )
+        monkeypatch.setattr(
+            "api.services.stats.fetch_merged_prs", mock_fetch_merged_prs
+        )
 
         result = await get_team_stats()
         assert result["issues_closed"] == 1
@@ -177,10 +197,18 @@ class TestGetTeamStats:
         """Computed result is stored in cache."""
         from api.services.stats import _cache
 
-        async def mock_search_issues(query):
+        async def mock_fetch_closed_issues(repo, since):
             return []
 
-        monkeypatch.setattr("api.services.stats._search_issues", mock_search_issues)
+        async def mock_fetch_merged_prs(repo, since):
+            return []
+
+        monkeypatch.setattr(
+            "api.services.stats.fetch_closed_issues", mock_fetch_closed_issues
+        )
+        monkeypatch.setattr(
+            "api.services.stats.fetch_merged_prs", mock_fetch_merged_prs
+        )
 
         await get_team_stats()
 
