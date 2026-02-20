@@ -61,12 +61,17 @@ async def get_recent_usage(limit: int = 50) -> list[dict[str, Any]]:
     """
     client = _get_usage_client()
     try:
-        blob_names: list[str] = []
+        numeric_blobs: list[tuple[int, str]] = []
         for blob_props in client.list_blobs():
-            blob_names.append(blob_props.name)
-        # Sort by run_id (numeric) descending, take most recent
-        blob_names.sort(key=lambda n: int(n.replace(".json", "")), reverse=True)
-        blob_names = blob_names[:limit]
+            name = blob_props.name
+            try:
+                run_id = int(name.replace(".json", ""))
+                numeric_blobs.append((run_id, name))
+            except ValueError:
+                logger.warning("Skipping non-numeric blob: %s", name)
+        # Sort by run_id descending, take most recent
+        numeric_blobs.sort(reverse=True)
+        blob_names = [name for _, name in numeric_blobs[:limit]]
     except AzureError as e:
         logger.warning("Failed to list usage blobs: %s", e)
         return []
