@@ -312,7 +312,7 @@ jobs:
 
       # Harness ref must match harness_ref in config/agent-flow.yaml
       - name: Run {Display Name} agent
-        uses: YourMoveLabs/agent-harness@v1.2.0
+        uses: YourMoveLabs/agent-harness@v1.3.0
         with:
           role: {role}
         env:
@@ -363,7 +363,7 @@ jobs:
 
       # Harness ref must match harness_ref in config/agent-flow.yaml
       - name: Run {Display Name} — {Job Name}
-        uses: YourMoveLabs/agent-harness@v1.2.0
+        uses: YourMoveLabs/agent-harness@v1.3.0
         with:
           role: {role}
           job: {job}
