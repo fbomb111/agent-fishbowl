@@ -58,6 +58,7 @@ jobs:
       - run: npm ci
       - run: npx eslint .
       - run: npx tsc --noEmit
+      - run: npx vitest run --reporter=verbose
 
   flow-validation:
     name: Validate Agent Flow Graph
