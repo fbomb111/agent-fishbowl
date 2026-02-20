@@ -1,0 +1,36 @@
+name: Agent - Tech Lead QA Tooling Review
+
+on:
+  schedule:
+    - cron: "0 14 * * 4"   # Weekly Thursday at 14:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: agent-tech-lead-qa-tooling
+  cancel-in-progress: false
+
+jobs:
+  qa-tooling-review:
+    name: Run QA tooling review
+    runs-on: self-hosted
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Tech Lead QA tooling review
+        uses: YourMoveLabs/agent-harness@main
+        with:
+          role: tech-lead
+          job: qa-tooling-review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dispatch PO to process new issues
+        if: success()
+        run: gh workflow run agent-product-owner.yml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

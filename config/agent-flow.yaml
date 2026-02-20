@@ -4,12 +4,13 @@
 # It drives:
 #   1. Mermaid diagram generation (docs/agent-flow.md)
 #   2. CI validation (scripts/validate-flow.py --validate)
+#   3. CI freshness check (docs/agent-flow.md must match)
 #
 # When adding or modifying agents, update this file FIRST.
 # Run: python scripts/validate-flow.py --validate
 # Run: python scripts/validate-flow.py --mermaid -o docs/agent-flow.md
 
-version: "1"
+version: "2"
 
 # ─── Event Registry ───────────────────────────────────────────────
 # Every repository_dispatch event_type MUST be declared here.
@@ -36,7 +37,19 @@ events:
     status: stub  # receiver wired, no sender yet
 
 # ─── Agent Nodes ──────────────────────────────────────────────────
-# Each agent maps to exactly one workflow file.
+#
+# Schema (v2):
+#   workflow:       GitHub Actions workflow filename
+#   type:           custom | reusable (reusable = calls reusable-agent.yml)
+#   harness_ref:    Harness version pin (@v1.2.0 or @main)
+#   timeout:        Job timeout in minutes
+#   permissions:    Required GitHub token permissions
+#   concurrency:    Concurrency group config (omit for reusable — inherits)
+#   triggers:       List of event triggers matching the workflow's `on:` block
+#   dispatches:     Outbound edges to other agents
+#     location:     post_step (workflow step, validatable) | in_agent (Claude session, not validatable)
+#   pre_steps:      Custom steps before the agent run (guard: true = can skip agent)
+#   post_steps:     Custom steps after the agent run
 
 agents:
 
@@ -44,202 +57,547 @@ agents:
 
   triage:
     workflow: agent-triage.yml
+    type: custom
+    harness_ref: "@v1.2.0"
+    timeout: 20
+    permissions:
+      contents: read
+      actions: write
+    concurrency:
+      group: agent-triage
+      cancel_in_progress: false
     triggers:
-      - type: issues.opened
-        filter: "not agent-created"
+      - type: issues
+        actions: [opened]
       - type: schedule
         cron: "0 12 * * *"
+      - type: workflow_dispatch
     dispatches:
       - target: product-owner
         method: workflow_run
+        location: post_step
         condition:
           type: intake_batch
           threshold: 5
+    pre_steps: []
+    post_steps:
+      - name: "Dispatch PO if intake batch ready"
 
   product-owner:
     workflow: agent-product-owner.yml
+    type: custom
+    harness_ref: "@v1.2.0"
+    timeout: 30
+    permissions:
+      contents: write
+    concurrency:
+      group: agent-product-owner
+      cancel_in_progress: false
     triggers:
       - type: repository_dispatch
         event: agent-product-manager-feedback
       - type: schedule
         cron: "0 6,18 * * *"
+      - type: workflow_dispatch
     dispatches:
       - target: engineer
         method: repository_dispatch
         event: agent-product-owner-complete
+        location: in_agent
+        note: "PO prompt dispatches via scripts/dispatch-agent.sh inside Claude session"
         condition:
           type: unassigned_issues
           min: 1
         chain_depth: 1
       - target: user-experience
         method: workflow_run
+        location: in_agent
+        note: "PO prompt Step 8: >=3 merged frontend PRs or >2w since last UX review"
         condition:
           type: agent_driven
-        note: "PO prompt Step 8: >=3 merged frontend PRs or >2w since last UX review"
+    pre_steps:
+      - name: "Pre-flight — check if PO has work"
+        guard: true
+    post_steps: []
 
   engineer:
     workflow: agent-engineer.yml
+    type: custom
+    harness_ref: "@v1.2.0"
+    timeout: 30
+    permissions:
+      contents: read
+      actions: write
+    concurrency:
+      group: agent-engineer
+      cancel_in_progress: false
     triggers:
+      - type: issues
+        actions: [labeled, unlabeled]
       - type: repository_dispatch
         event: agent-product-owner-complete
       - type: repository_dispatch
         event: agent-reviewer-feedback
-      - type: pull_request.closed
-        filter: "merged=true"
-      - type: check_suite.completed
-        filter: "conclusion=failure"
+      - type: pull_request
+        actions: [closed]
+        branches: [main]
+      - type: check_suite
+        actions: [completed]
+      - type: workflow_dispatch
     dispatches:
       - target: strategic
         method: workflow_run
+        location: post_step
         condition:
           type: idle_backlog
           pm_cooldown_hours: 2
+    pre_steps:
+      - name: "Check for available work"
+        guard: true
+    post_steps:
+      - name: "Signal low backlog — trigger PM"
 
   infra-engineer:
     workflow: agent-infra-engineer.yml
+    type: reusable
+    harness_ref: "@v1.2.0"
+    timeout: 30
+    permissions:
+      contents: read
+    # concurrency: inherited from reusable-agent.yml → agent-infra-engineer
     triggers:
+      - type: issues
+        actions: [labeled, unlabeled]
       - type: repository_dispatch
         event: agent-product-owner-complete
       - type: repository_dispatch
         event: agent-reviewer-feedback
-      - type: pull_request.closed
-        filter: "merged=true"
+      - type: pull_request
+        actions: [closed]
+        branches: [main]
+      - type: workflow_dispatch
     dispatches: []
 
   reviewer:
     workflow: agent-reviewer.yml
+    type: custom
+    harness_ref: "@v1.2.0"
+    timeout: 30
+    permissions:
+      contents: write
+      pull-requests: read
+      issues: write
+      actions: write
+    concurrency:
+      group: agent-reviewer
+      cancel_in_progress: false
     triggers:
       - type: pull_request
         actions: [opened, synchronize]
       - type: schedule
         cron: "0 */12 * * *"
+      - type: workflow_dispatch
     dispatches:
       - target: [engineer, infra-engineer]
         method: repository_dispatch
         event: agent-reviewer-feedback
+        location: post_step
         condition:
           type: changes_requested
           min: 1
         chain_depth: increment
       - target: product-owner
         method: workflow_run
+        location: post_step
         condition:
           type: intake_batch
           threshold: 5
-      - target: scans
+      - target: full-scan
         method: workflow_run
+        location: post_step
         condition:
           type: untriaged_label
           label: "source/tech-lead"
           min: 1
+    pre_steps:
+      - name: "Check review round limit"
+        guard: true
+    post_steps:
+      - name: "Free engineer from approved PRs"
+      - name: "Dispatch PO if intake batch ready"
+      - name: "Dispatch Tech Lead if new escalations exist"
+      - name: "Dispatch feedback if changes requested"
 
   # ── Strategic / Intelligence ──
 
   strategic:
     workflow: agent-strategic.yml
+    type: custom
+    harness_ref: "@v1.2.0"
+    timeout: 30
+    permissions:
+      contents: read
+      actions: write
+    concurrency:
+      group: agent-strategic
+      cancel_in_progress: false
     triggers:
       - type: schedule
         cron: "0 6 * * *"
+      - type: workflow_dispatch
     dispatches:
       - target: product-owner
         method: workflow_run
+        location: post_step
         condition:
           type: unconditional
+    pre_steps: []
+    post_steps:
+      - name: "Dispatch PO to process roadmap changes"
 
-  scans:
-    workflow: agent-scans.yml
-    triggers:
-      - type: schedule
-        cron: "0 10 * * *"
-    dispatches:
-      - target: product-owner
-        method: workflow_run
-        condition:
-          type: unconditional
+  tech-lead:
+    description: "Tech Lead runs as multiple scheduled jobs, each a separate workflow"
+    role: tech-lead
+    harness_ref: "@main"
+    jobs:
+      full-scan:
+        workflow: agent-scans.yml
+        timeout: 45
+        permissions:
+          contents: read
+          actions: write
+        concurrency:
+          group: agent-scans
+          cancel_in_progress: false
+        triggers:
+          - type: schedule
+            cron: "0 10 * * 3"
+          - type: workflow_dispatch
+        dispatches:
+          - target: product-owner
+            method: workflow_run
+            location: post_step
+            condition:
+              type: unconditional
+        pre_steps: []
+        post_steps:
+          - name: "Dispatch PO to process new issues"
+      architecture-review:
+        workflow: agent-tech-lead-architecture.yml
+        timeout: 45
+        permissions:
+          contents: read
+          actions: write
+        concurrency:
+          group: agent-tech-lead-architecture
+          cancel_in_progress: false
+        triggers:
+          - type: schedule
+            cron: "0 10 * * 1"
+          - type: workflow_dispatch
+        dispatches:
+          - target: product-owner
+            method: workflow_run
+            location: post_step
+            condition:
+              type: unconditional
+        pre_steps: []
+        post_steps:
+          - name: "Dispatch PO to process new issues"
+      tech-debt-scan:
+        workflow: agent-tech-lead-debt.yml
+        timeout: 45
+        permissions:
+          contents: read
+          actions: write
+        concurrency:
+          group: agent-tech-lead-debt
+          cancel_in_progress: false
+        triggers:
+          - type: schedule
+            cron: "0 10 * * 2"
+          - type: workflow_dispatch
+        dispatches:
+          - target: product-owner
+            method: workflow_run
+            location: post_step
+            condition:
+              type: unconditional
+        pre_steps: []
+        post_steps:
+          - name: "Dispatch PO to process new issues"
+      harness-request-review:
+        workflow: agent-tech-lead-harness-review.yml
+        timeout: 20
+        permissions:
+          contents: read
+          issues: write
+          actions: write
+        concurrency:
+          group: agent-tech-lead-harness-review
+          cancel_in_progress: false
+        triggers:
+          - type: schedule
+            cron: "0 14 * * *"
+          - type: workflow_dispatch
+        dispatches: []
+        pre_steps:
+          - name: "Check if any harness requests exist"
+            guard: true
+        post_steps: []
+      security-scan:
+        workflow: agent-tech-lead-security.yml
+        timeout: 45
+        permissions:
+          contents: read
+          actions: write
+        concurrency:
+          group: agent-tech-lead-security
+          cancel_in_progress: false
+        triggers:
+          - type: schedule
+            cron: "0 10 * * 4"
+          - type: workflow_dispatch
+        dispatches:
+          - target: product-owner
+            method: workflow_run
+            location: post_step
+            condition:
+              type: unconditional
+        pre_steps: []
+        post_steps:
+          - name: "Dispatch PO to process new issues"
+      qa-tooling-review:
+        workflow: agent-tech-lead-qa-tooling.yml
+        timeout: 45
+        permissions:
+          contents: read
+          actions: write
+        concurrency:
+          group: agent-tech-lead-qa-tooling
+          cancel_in_progress: false
+        triggers:
+          - type: schedule
+            cron: "0 14 * * 4"
+          - type: workflow_dispatch
+        dispatches:
+          - target: product-owner
+            method: workflow_run
+            location: post_step
+            condition:
+              type: unconditional
+        pre_steps: []
+        post_steps:
+          - name: "Dispatch PO to process new issues"
+      infrastructure-review:
+        workflow: agent-tech-lead-infrastructure.yml
+        timeout: 45
+        permissions:
+          contents: read
+          actions: write
+        concurrency:
+          group: agent-tech-lead-infrastructure
+          cancel_in_progress: false
+        triggers:
+          - type: schedule
+            cron: "0 10 * * 5"
+          - type: workflow_dispatch
+        dispatches:
+          - target: product-owner
+            method: workflow_run
+            location: post_step
+            condition:
+              type: unconditional
+        pre_steps: []
+        post_steps:
+          - name: "Dispatch PO to process new issues"
 
   product-analyst:
     workflow: agent-product-analyst.yml
+    type: reusable
+    harness_ref: "@v1.2.0"
+    timeout: 30
+    permissions:
+      contents: read
+      issues: write
+    # concurrency: inherited from reusable-agent.yml → agent-script (uses entry-point, not role)
     triggers:
       - type: schedule
         cron: "0 14 * * *"
+      - type: workflow_dispatch
     dispatches: []
 
   financial-analyst:
     workflow: agent-financial-analyst.yml
+    type: reusable
+    harness_ref: "@v1.2.0"
+    timeout: 30
+    permissions:
+      contents: read
+      issues: write
+    # concurrency: inherited from reusable-agent.yml → agent-script (uses entry-point, not role)
     triggers:
       - type: schedule
         cron: "0 12 * * *"
+      - type: workflow_dispatch
     dispatches: []
 
   marketing-strategist:
     workflow: agent-marketing-strategist.yml
+    type: reusable
+    harness_ref: "@v1.2.0"
+    timeout: 30
+    permissions:
+      contents: read
+      issues: write
+    # concurrency: inherited from reusable-agent.yml → agent-script (uses entry-point, not role)
     triggers:
       - type: schedule
         cron: "0 8 * * 1"
+      - type: workflow_dispatch
     dispatches: []
 
   # ── Operations ──
 
   site-reliability:
     workflow: agent-site-reliability.yml
+    type: custom
+    harness_ref: "@v1.2.0"
+    timeout: 30
+    permissions:
+      contents: read
+    concurrency:
+      group: agent-sre
+      cancel_in_progress: false
     triggers:
       - type: repository_dispatch
         event: azure-alert
       - type: schedule
         cron: "30 */4 * * *"
+      - type: workflow_dispatch
     dispatches:
       - target: ingest
         method: workflow_run
+        location: in_agent
+        note: "SRE prompt Step 2: retrigger ingest if articles stale"
         condition:
           type: agent_driven
-        note: "SRE prompt Step 2: retrigger ingest if articles stale"
+    pre_steps:
+      - name: "Determine run mode"
+    post_steps: []
 
   qa-analyst:
     workflow: agent-qa-analyst.yml
+    type: reusable
+    harness_ref: "@v1.2.0"
+    timeout: 30
+    permissions:
+      contents: read
+      issues: write
+    # concurrency: inherited from reusable-agent.yml → agent-qa-analyst
     triggers:
       - type: repository_dispatch
         event: deploy-complete
       - type: schedule
         cron: "0 16 */2 * *"
+      - type: workflow_dispatch
     dispatches: []
 
   customer-ops:
     workflow: agent-customer-ops.yml
+    type: reusable
+    harness_ref: "@v1.2.0"
+    timeout: 30
+    permissions:
+      contents: read
+      issues: write
+    # concurrency: inherited from reusable-agent.yml → agent-customer-ops
     triggers:
       - type: schedule
         cron: "0 */4 * * *"
+      - type: workflow_dispatch
     dispatches: []
 
   human-ops:
     workflow: agent-human-ops.yml
+    type: reusable
+    harness_ref: "@v1.2.0"
+    timeout: 30
+    permissions:
+      contents: read
+      issues: write
+    # concurrency: inherited from reusable-agent.yml → agent-human-ops
     triggers:
       - type: schedule
         cron: "0 15 * * 5"
+      - type: workflow_dispatch
     dispatches: []
 
   escalation-lead:
     workflow: agent-escalation-lead.yml
+    type: reusable
+    harness_ref: "@v1.2.0"
+    timeout: 30
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    # concurrency: inherited from reusable-agent.yml → agent-escalation-lead
     triggers:
       - type: repository_dispatch
         event: dispute-detected
       - type: schedule
         cron: "0 18 * * 3"
+      - type: workflow_dispatch
     dispatches: []
 
-  # ── Content / Scanning ──
+  # ── Content ──
 
   content-creator:
     workflow: agent-content-creator.yml
+    type: custom
+    harness_ref: "@v1.2.0"
+    timeout: 30
+    permissions:
+      contents: read
+      issues: write
+    concurrency:
+      group: agent-content-creator
+      cancel_in_progress: false
     triggers:
       - type: schedule
         cron: "0 10 * * *"
+      - type: workflow_dispatch
     dispatches: []
+    pre_steps: []
+    post_steps: []
 
   user-experience:
     workflow: agent-user-experience.yml
+    type: reusable
+    harness_ref: "@v1.2.0"
+    timeout: 30
+    permissions:
+      contents: read
+    # concurrency: inherited from reusable-agent.yml → agent-user-experience
     triggers:
       - type: workflow_dispatch
     dispatches: []
+
+# ─── Infrastructure Workflows ─────────────────────────────────────
+# Non-agent workflows that participate in the event graph.
+# These are not agents but produce or consume events that agents react to.
+
+infrastructure:
+  deploy:
+    workflow: deploy.yml
+    note: "Will dispatch deploy-complete when wired (currently stub)"
+  ingest:
+    workflow: ingest.yml
+    note: "SRE dispatch target — retriggered when articles are stale"
+  ci:
+    workflow: ci.yml
+    note: "Produces check_suite events that engineer reacts to"
 
 # ─── Safety Constraints ──────────────────────────────────────────
 # Validated by scripts/validate-flow.py
