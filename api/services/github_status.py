@@ -83,8 +83,16 @@ async def get_agent_status() -> list[dict[str, Any]]:
     # Convert to response format
     result: list[dict[str, Any]] = []
     all_roles = [
-        "po", "engineer", "infra-engineer", "reviewer", "triage",
-        "sre", "pm", "tech-lead", "ux", "content-creator",
+        "po",
+        "engineer",
+        "infra-engineer",
+        "reviewer",
+        "triage",
+        "sre",
+        "pm",
+        "tech-lead",
+        "ux",
+        "content-creator",
     ]
 
     for role in all_roles:
