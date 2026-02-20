@@ -84,7 +84,7 @@ def test_parse_push_event_multiple_commits():
     ]
     parsed = parse_events(events)
     assert len(parsed) == 1
-    assert parsed[0]["actor"] == "human"  # fbomb111 -> human via ACTOR_MAP
+    assert parsed[0]["actor"] == "org"  # fbomb111 PushEvent -> org (process action)
     # Should show last commit's first line + count
     assert "Fix the thing" in parsed[0]["description"]
     assert "+2 more" in parsed[0]["description"]

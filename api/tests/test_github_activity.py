@@ -340,6 +340,9 @@ class TestGetActivityEventsCaching:
 
         from api.services.github_activity import _cache, get_activity_events
 
+        # Disable harness repo so only one repo is fetched (avoids duplicate events)
+        mock_settings.harness_repo = ""
+
         raw_events = [
             {
                 "id": "1",

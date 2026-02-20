@@ -217,16 +217,7 @@ def parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     )
                 )
             elif action == "closed" and not pr.get("merged"):
-                parsed.append(
-                    _make_event(
-                        event,
-                        event_type="pr_closed",
-                        actor=actor,
-                        description=f"Closed PR #{number}: {title}",
-                        url=url,
-                        **subject,
-                    )
-                )
+                pass  # Skip closed-but-not-merged PRs (noise in the feed)
 
         elif event_type == "PullRequestReviewEvent":
             pr = payload.get("pull_request", {})
