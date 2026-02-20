@@ -48,7 +48,7 @@ async def get_agent_status() -> list[dict[str, Any]]:
         url, params, response_key="workflow_runs", context="workflow runs"
     )
     if result is None:
-        stale = _status_cache.get(cache_key)
+        stale = _status_cache.get_stale(cache_key)
         return stale if stale is not None else []
     runs = result
 

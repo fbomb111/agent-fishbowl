@@ -22,16 +22,32 @@ class TTLCache:
         self._store: OrderedDict[str, tuple[Any, float]] = OrderedDict()
 
     def get(self, key: str) -> Any | None:
-        """Return the cached value if present and not expired, else None."""
+        """Return the cached value if present and not expired, else None.
+
+        Expired entries are kept in the store so that ``get_stale`` can
+        return them as a fallback when a fresh fetch fails.
+        """
         entry = self._store.get(key)
         if entry is None:
             return None
         value, ts = entry
         if time.time() - ts > self._ttl:
-            del self._store[key]
             return None
         # Move to end (most recently used)
         self._store.move_to_end(key)
+        return value
+
+    def get_stale(self, key: str) -> Any | None:
+        """Return the cached value even if expired, or None if missing.
+
+        Used as a fallback when a fresh fetch fails — serve stale data rather
+        than returning zeros/empty results.  Does NOT delete the entry so
+        subsequent stale reads still work within a burst of failures.
+        """
+        entry = self._store.get(key)
+        if entry is None:
+            return None
+        value, _ts = entry
         return value
 
     def set(self, key: str, value: Any) -> None:

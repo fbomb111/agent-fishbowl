@@ -164,7 +164,7 @@ async def _fetch_windowed_counts(repo: str, now: datetime) -> dict[str, dict[str
 
     # Count merged PRs per window from the single fetch
     pr_counts: dict[str, int] = {"24h": 0, "7d": 0, "30d": 0}
-    for pr in all_merged_prs:
+    for pr in all_merged_prs or []:
         merged_at = pr.get("merged_at", "")
         if not merged_at:
             continue
@@ -380,7 +380,7 @@ async def _fetch_agent_stats(repo: str, since_str: str) -> dict[str, dict[str, i
                 agent_stats[role] = _empty_agent_stats()
             agent_stats[role]["prs_opened"] += 1
 
-    for item in prs_merged_items:
+    for item in prs_merged_items or []:
         login = item.get("user", {}).get("login", "")
         role = _agent_role(login)
         if not role:
