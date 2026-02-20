@@ -340,9 +340,6 @@ class TestGetActivityEventsCaching:
 
         from api.services.github_activity import _cache, get_activity_events
 
-        # Disable harness repo so only one repo is fetched (avoids duplicate events)
-        mock_settings.harness_repo = ""
-
         raw_events = [
             {
                 "id": "1",
@@ -564,8 +561,6 @@ class TestEventsWithFallback:
 
         from api.services.github_activity import _get_events_with_fallback
 
-        mock_settings.harness_repo = ""
-
         raw_events = [
             {
                 "id": "1",
@@ -607,8 +602,6 @@ class TestEventsWithFallback:
         from unittest.mock import AsyncMock, MagicMock
 
         from api.services.github_activity import _get_events_with_fallback
-
-        mock_settings.harness_repo = ""
 
         call_count = 0
 
