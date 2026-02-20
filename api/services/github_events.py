@@ -104,10 +104,11 @@ def _deduplicate_label_events(
     """Remove duplicate label events that GitHub fires for a single action.
 
     GitHub often creates multiple IssuesEvent/labeled entries with consecutive
-    IDs for one label action. We keep only the first per unique combination
-    of (actor, description, subject_number, timestamp).
+    IDs for one label action — sometimes with timestamps 1-2 seconds apart.
+    We keep only the first per unique (actor, description, subject_number),
+    ignoring timestamp so near-simultaneous duplicates are caught.
     """
-    seen_labels: set[tuple[str, str, int | None, str]] = set()
+    seen_labels: set[tuple[str, str, int | None]] = set()
     result: list[dict[str, Any]] = []
     for evt in events:
         if evt["type"] == "issue_labeled":
@@ -115,7 +116,6 @@ def _deduplicate_label_events(
                 evt.get("actor", ""),
                 evt.get("description", ""),
                 evt.get("subject_number"),
-                evt.get("timestamp", ""),
             )
             if key in seen_labels:
                 continue
