@@ -69,7 +69,21 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pyyaml
-      - run: python scripts/validate-flow.py --validate
+
+      - name: Validate flow graph
+        run: python scripts/validate-flow.py --validate
+
+      - name: Check diagram freshness
+        run: |
+          set -e
+          python scripts/validate-flow.py --mermaid -o /tmp/agent-flow.md
+          # Strip timestamp lines before comparing (they change every run)
+          grep -v '<!-- Last generated:' /tmp/agent-flow.md > /tmp/flow-new.md
+          grep -v '<!-- Last generated:' docs/agent-flow.md > /tmp/flow-old.md
+          diff -q /tmp/flow-new.md /tmp/flow-old.md || {
+            echo "::error::Flow diagram is stale. Run: python scripts/validate-flow.py --mermaid -o docs/agent-flow.md"
+            exit 1
+          }
 
   notify-ci-failure:
     name: Notify CI failure

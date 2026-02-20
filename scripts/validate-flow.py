@@ -1,25 +1,54 @@
 #!/usr/bin/env python3
-"""Validate agent flow graph against actual workflow files and generate diagrams.
+"""Validate agent flow graph (v2) against actual workflow files and generate diagrams.
 
 Usage:
-    python scripts/validate-flow.py --validate          # CI mode: exit 0/1
-    python scripts/validate-flow.py --mermaid           # Print Mermaid to stdout
-    python scripts/validate-flow.py --mermaid -o FILE   # Write Mermaid to file
+    python scripts/validate-flow.py --validate              # CI mode: exit 0/1
+    python scripts/validate-flow.py --validate --strict      # Warnings → errors too
+    python scripts/validate-flow.py --mermaid                # Print Mermaid to stdout
+    python scripts/validate-flow.py --mermaid -o FILE        # Write Mermaid to file
     python scripts/validate-flow.py --validate --mermaid -o docs/agent-flow.md  # Both
 """
 
 from __future__ import annotations
 
 import argparse
+import re
 import sys
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Iterator
 
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FLOW_FILE = REPO_ROOT / "config" / "agent-flow.yaml"
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
+
+# Day names for cron display
+CRON_DAYS = {0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat"}
+
+
+# ── Data Structures ──────────────────────────────────────────────
+
+
+@dataclass
+class CheckResult:
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    info: list[str] = field(default_factory=list)
+
+
+def merge_results(*results: CheckResult) -> CheckResult:
+    merged = CheckResult()
+    for r in results:
+        merged.errors.extend(r.errors)
+        merged.warnings.extend(r.warnings)
+        merged.info.extend(r.info)
+    return merged
+
+
+# ── Helpers ──────────────────────────────────────────────────────
 
 
 def load_flow() -> dict:
@@ -35,150 +64,639 @@ def load_workflow(filename: str) -> dict | None:
         return yaml.safe_load(f)
 
 
-def validate(flow: dict) -> list[str]:
-    """Run all validation checks. Returns list of error messages."""
-    errors: list[str] = []
-    events = flow.get("events", {})
-    agents = flow.get("agents", {})
+def get_wf_on(wf: dict) -> dict:
+    """Extract the `on:` block (YAML parses `on:` as True key)."""
+    return wf.get("on") or wf.get(True) or {}
 
-    # Track which events are dispatched and which are received
-    dispatched_events: set[str] = set()
-    received_events: set[str] = set()
 
-    for agent_id, agent in agents.items():
-        workflow_file = agent.get("workflow")
-        if not workflow_file:
-            errors.append(f"[{agent_id}] Missing 'workflow' field")
+def iter_agent_units(flow: dict) -> Iterator[tuple[str, dict, str]]:
+    """Yield (label, config_unit, workflow_file) for every validatable unit.
+
+    Regular agents yield once. Multi-job agents (like tech-lead) yield once
+    per job, with label like 'tech-lead/full-scan'.
+    """
+    for agent_id, agent in flow.get("agents", {}).items():
+        if "jobs" in agent:
+            for job_id, job in agent["jobs"].items():
+                label = f"{agent_id}/{job_id}"
+                wf = job.get("workflow", "")
+                yield label, job, wf
+        elif "workflow" in agent:
+            yield agent_id, agent, agent.get("workflow", "")
+
+
+def all_flow_workflows(flow: dict) -> set[str]:
+    """Collect every workflow filename referenced in the flow graph."""
+    wfs: set[str] = set()
+    for _, _, wf in iter_agent_units(flow):
+        if wf:
+            wfs.add(wf)
+    for _, infra in flow.get("infrastructure", {}).items():
+        wf = infra.get("workflow", "")
+        if wf:
+            wfs.add(wf)
+    return wfs
+
+
+def extract_wf_crons(wf_on: dict) -> list[str]:
+    """Extract cron strings from a workflow's on: block."""
+    schedule = wf_on.get("schedule", [])
+    if isinstance(schedule, list):
+        return [s.get("cron", "") for s in schedule if isinstance(s, dict)]
+    return []
+
+
+def extract_flow_crons(triggers: list[dict]) -> list[str]:
+    """Extract cron strings from a flow graph agent's triggers."""
+    return [t.get("cron", "") for t in triggers if t.get("type") == "schedule"]
+
+
+def normalize_cron(cron: str) -> str:
+    """Normalize cron whitespace for comparison."""
+    return " ".join(cron.strip().split())
+
+
+def cron_day_label(cron: str) -> str:
+    """Return a human-readable day hint for a cron expression."""
+    parts = cron.strip().split()
+    if len(parts) >= 5:
+        dow = parts[4]
+        if dow == "*":
+            dom = parts[2]
+            if dom.startswith("*/"):
+                return f"every {dom[2:]}d"
+            return "daily"
+        if dow in ("0", "1", "2", "3", "4", "5", "6"):
+            return CRON_DAYS.get(int(dow), dow)
+        if "," in dow:
+            days = [CRON_DAYS.get(int(d.strip()), d) for d in dow.split(",")]
+            return "/".join(days)
+    return ""
+
+
+def extract_wf_permissions(wf: dict) -> dict[str, str]:
+    """Extract top-level permissions from a workflow."""
+    perms = wf.get("permissions", {})
+    if isinstance(perms, dict):
+        return {k: str(v) for k, v in perms.items()}
+    return {}
+
+
+def extract_wf_concurrency(wf: dict) -> dict | None:
+    """Extract top-level concurrency from a workflow."""
+    conc = wf.get("concurrency")
+    if isinstance(conc, dict):
+        return conc
+    return None
+
+
+def _find_harness_ref_in_uses(uses: str) -> str | None:
+    """Extract @version from a YourMoveLabs/agent-harness uses string."""
+    match = re.search(r"YourMoveLabs/agent-harness(@[\w.\-]+)", uses)
+    return match.group(1) if match else None
+
+
+def extract_harness_ref(wf: dict) -> str | None:
+    """Find the YourMoveLabs/agent-harness@xxx reference in a workflow.
+
+    Parses jobs.*.uses (reusable callers) and jobs.*.steps[*].uses (custom)
+    directly instead of dumping the entire YAML to string.
+    """
+    for job in wf.get("jobs", {}).values():
+        if not isinstance(job, dict):
             continue
+        # Reusable caller pattern: jobs.run.uses: ./.github/workflows/reusable-agent.yml
+        # The harness ref won't be here, but check for direct harness uses
+        uses = str(job.get("uses", ""))
+        ref = _find_harness_ref_in_uses(uses)
+        if ref:
+            return ref
+        # Custom workflow: jobs.run.steps[*].uses
+        for step in job.get("steps", []):
+            if not isinstance(step, dict):
+                continue
+            uses = str(step.get("uses", ""))
+            ref = _find_harness_ref_in_uses(uses)
+            if ref:
+                return ref
+    return None
 
-        # Check workflow file exists
-        if not (WORKFLOWS_DIR / workflow_file).exists():
-            errors.append(
-                f"[{agent_id}] Workflow file not found: .github/workflows/{workflow_file}"
+
+def is_reusable_caller(wf: dict) -> bool:
+    """Check if a workflow calls reusable-agent.yml via workflow_call."""
+    for job in wf.get("jobs", {}).values():
+        if not isinstance(job, dict):
+            continue
+        uses = str(job.get("uses", ""))
+        # Match ./.github/workflows/reusable-agent.yml or similar paths
+        if uses.endswith("reusable-agent.yml"):
+            return True
+    return False
+
+
+# ── Validation Checks ────────────────────────────────────────────
+
+
+def check_workflow_exists(flow: dict) -> CheckResult:
+    """Every workflow referenced in the flow graph must exist on disk."""
+    r = CheckResult()
+    for label, _, wf_file in iter_agent_units(flow):
+        if not wf_file:
+            r.errors.append(f"[{label}] Missing 'workflow' field")
+        elif not (WORKFLOWS_DIR / wf_file).exists():
+            r.errors.append(
+                f"[{label}] Workflow not found: .github/workflows/{wf_file}"
+            )
+    for infra_id, infra in flow.get("infrastructure", {}).items():
+        wf = infra.get("workflow", "")
+        if wf and not (WORKFLOWS_DIR / wf).exists():
+            r.errors.append(
+                f"[infra/{infra_id}] Workflow not found: .github/workflows/{wf}"
+            )
+    return r
+
+
+def check_orphan_workflows(flow: dict) -> CheckResult:
+    """Every agent-*.yml file should have a flow graph entry."""
+    r = CheckResult()
+    registered = all_flow_workflows(flow)
+    for path in sorted(WORKFLOWS_DIR.glob("agent-*.yml")):
+        if path.name not in registered:
+            r.errors.append(
+                f"[orphan] .github/workflows/{path.name} has no flow graph entry"
+            )
+    return r
+
+
+def check_schedule_crons(flow: dict) -> CheckResult:
+    """Schedule crons must match between flow graph and workflow file."""
+    r = CheckResult()
+    for label, unit, wf_file in iter_agent_units(flow):
+        wf = load_workflow(wf_file)
+        if wf is None:
+            continue
+        wf_on = get_wf_on(wf)
+
+        flow_crons = sorted(
+            normalize_cron(c) for c in extract_flow_crons(unit.get("triggers", []))
+        )
+        wf_crons = sorted(normalize_cron(c) for c in extract_wf_crons(wf_on))
+
+        if flow_crons != wf_crons:
+            r.errors.append(
+                f"[{label}] Schedule mismatch — "
+                f"flow: {flow_crons or '(none)'}, "
+                f"workflow: {wf_crons or '(none)'}"
+            )
+    return r
+
+
+def check_repository_dispatch(flow: dict) -> CheckResult:
+    """repository_dispatch event types must match between flow graph and workflow."""
+    r = CheckResult()
+    events = flow.get("events", {})
+
+    for label, unit, wf_file in iter_agent_units(flow):
+        wf = load_workflow(wf_file)
+        if wf is None:
+            continue
+        wf_on = get_wf_on(wf)
+
+        # Flow graph says this agent listens for these events
+        flow_events = sorted(
+            t["event"]
+            for t in unit.get("triggers", [])
+            if t.get("type") == "repository_dispatch"
+        )
+
+        # Workflow actually declares these types
+        wf_dispatch = wf_on.get("repository_dispatch", {})
+        wf_types: list[str] = []
+        if isinstance(wf_dispatch, dict):
+            wf_types = sorted(wf_dispatch.get("types", []))
+        elif isinstance(wf_dispatch, list):
+            wf_types = sorted(wf_dispatch)
+
+        # Check flow events exist in registry
+        for evt in flow_events:
+            if evt not in events:
+                r.errors.append(
+                    f"[{label}] Trigger event '{evt}' not in events registry"
+                )
+
+        # Check bidirectional match
+        for evt in flow_events:
+            if evt not in wf_types:
+                r.errors.append(
+                    f"[{label}] Flow declares trigger '{evt}' but workflow "
+                    f"types = {wf_types}"
+                )
+        for evt in wf_types:
+            if evt not in flow_events:
+                r.errors.append(
+                    f"[{label}] Workflow listens for '{evt}' but flow graph "
+                    f"does not declare this trigger"
+                )
+    return r
+
+
+def check_trigger_types(flow: dict) -> CheckResult:
+    """Non-dispatch trigger types (issues, pull_request, check_suite, workflow_dispatch)
+    must match between flow graph and workflow."""
+    r = CheckResult()
+    # Trigger types we cross-check (excludes schedule and repository_dispatch
+    # which have their own checks)
+    CHECKED_TYPES = {"issues", "pull_request", "check_suite", "workflow_dispatch"}
+
+    for label, unit, wf_file in iter_agent_units(flow):
+        wf = load_workflow(wf_file)
+        if wf is None:
+            continue
+        wf_on = get_wf_on(wf)
+
+        # What the flow graph says
+        flow_types = {
+            t["type"]
+            for t in unit.get("triggers", [])
+            if t.get("type") in CHECKED_TYPES
+        }
+
+        # What the workflow actually has
+        wf_types = set()
+        for key in CHECKED_TYPES:
+            if key in wf_on:
+                wf_types.add(key)
+
+        # Check for types in flow but not in workflow
+        for t in flow_types - wf_types:
+            r.errors.append(
+                f"[{label}] Flow declares trigger '{t}' but workflow has no "
+                f"on.{t} block"
             )
 
-        # Load actual workflow to cross-check triggers
-        wf = load_workflow(workflow_file)
+        # Check for types in workflow but not in flow
+        for t in wf_types - flow_types:
+            r.errors.append(
+                f"[{label}] Workflow has on.{t} but flow graph doesn't declare it"
+            )
+
+        # Check trigger actions match for issues and pull_request
+        for ttype in ("issues", "pull_request"):
+            flow_triggers = [
+                t for t in unit.get("triggers", []) if t.get("type") == ttype
+            ]
+            if not flow_triggers or ttype not in wf_on:
+                continue
+
+            flow_actions = set()
+            for t in flow_triggers:
+                flow_actions.update(t.get("actions", []))
+
+            wf_trigger = wf_on[ttype]
+            wf_actions = set()
+            if isinstance(wf_trigger, dict):
+                wf_actions = set(wf_trigger.get("types", []))
+            # Note: GitHub uses "types:" for issues and pull_request
+
+            # Only check if both sides specify actions
+            if flow_actions and wf_actions and flow_actions != wf_actions:
+                r.warnings.append(
+                    f"[{label}] {ttype} actions differ — "
+                    f"flow: {sorted(flow_actions)}, workflow: {sorted(wf_actions)}"
+                )
+
+    return r
+
+
+def check_permissions(flow: dict) -> CheckResult:
+    """Declared permissions should match the workflow's top-level permissions."""
+    r = CheckResult()
+    for label, unit, wf_file in iter_agent_units(flow):
+        flow_perms = unit.get("permissions", {})
+        if not flow_perms:
+            continue  # Not all agents declare permissions in flow graph
+
+        wf = load_workflow(wf_file)
         if wf is None:
             continue
 
-        wf_on = wf.get("on") or wf.get(True) or {}
+        wf_perms = extract_wf_permissions(wf)
+        if not wf_perms:
+            # Reusable callers may not have top-level permissions
+            if unit.get("type") == "reusable":
+                continue
+            # Custom workflows might rely on defaults
+            continue
 
-        # Check repository_dispatch triggers match
-        flow_dispatch_events = [
-            t["event"]
-            for t in agent.get("triggers", [])
-            if t.get("type") == "repository_dispatch"
-        ]
-        for evt in flow_dispatch_events:
-            received_events.add(evt)
-
-            # Verify event is in the registry
-            if evt not in events:
-                errors.append(
-                    f"[{agent_id}] Trigger event '{evt}' not in events registry"
+        # Check each flow-declared permission exists in workflow
+        for perm, level in flow_perms.items():
+            wf_level = wf_perms.get(perm)
+            if wf_level is None:
+                r.warnings.append(
+                    f"[{label}] Flow declares permission '{perm}: {level}' "
+                    f"but workflow doesn't declare it"
+                )
+            elif wf_level != level:
+                r.errors.append(
+                    f"[{label}] Permission mismatch for '{perm}' — "
+                    f"flow: {level}, workflow: {wf_level}"
                 )
 
-            # Verify workflow actually declares this event type
-            wf_dispatch = wf_on.get("repository_dispatch", {})
-            wf_types = []
-            if isinstance(wf_dispatch, dict):
-                wf_types = wf_dispatch.get("types", [])
-            elif isinstance(wf_dispatch, list):
-                wf_types = wf_dispatch
+        # Check workflow has permissions not in flow graph
+        for perm, level in wf_perms.items():
+            if perm not in flow_perms:
+                r.warnings.append(
+                    f"[{label}] Workflow has permission '{perm}: {level}' "
+                    f"not declared in flow graph"
+                )
+    return r
 
-            if evt not in wf_types:
-                errors.append(
-                    f"[{agent_id}] Flow declares trigger event '{evt}' but "
-                    f"{workflow_file} on.repository_dispatch.types = {wf_types}"
+
+def check_concurrency(flow: dict) -> CheckResult:
+    """Concurrency groups should match between flow graph and workflow."""
+    r = CheckResult()
+    for label, unit, wf_file in iter_agent_units(flow):
+        flow_conc = unit.get("concurrency")
+        if not flow_conc:
+            continue  # Reusable agents inherit concurrency
+
+        wf = load_workflow(wf_file)
+        if wf is None:
+            continue
+
+        wf_conc = extract_wf_concurrency(wf)
+        if not wf_conc:
+            # Check job-level concurrency
+            jobs = wf.get("jobs", {})
+            for job in jobs.values():
+                if isinstance(job, dict) and "concurrency" in job:
+                    wf_conc = job["concurrency"]
+                    break
+
+        if not wf_conc:
+            continue
+
+        flow_group = flow_conc.get("group", "")
+        wf_group = wf_conc.get("group", "")
+
+        # Workflow groups may use expressions like ${{ ... }}
+        # Only compare if the workflow group is a simple string
+        if "${{" not in str(wf_group):
+            if flow_group != wf_group:
+                r.errors.append(
+                    f"[{label}] Concurrency group mismatch — "
+                    f"flow: '{flow_group}', workflow: '{wf_group}'"
                 )
 
-        # Check for undeclared repository_dispatch types in the workflow
-        wf_dispatch = wf_on.get("repository_dispatch", {})
-        wf_types = []
-        if isinstance(wf_dispatch, dict):
-            wf_types = wf_dispatch.get("types", [])
-        for wf_evt in wf_types:
-            if not any(
-                t.get("event") == wf_evt
-                for t in agent.get("triggers", [])
-                if t.get("type") == "repository_dispatch"
-            ):
-                errors.append(
-                    f"[{agent_id}] Workflow {workflow_file} listens for '{wf_evt}' "
-                    f"but flow graph does not declare this trigger"
-                )
+        flow_cancel = flow_conc.get("cancel_in_progress", False)
+        wf_cancel = wf_conc.get("cancel-in-progress", False)
+        if flow_cancel != wf_cancel:
+            r.warnings.append(
+                f"[{label}] cancel_in_progress differs — "
+                f"flow: {flow_cancel}, workflow: {wf_cancel}"
+            )
+    return r
 
-        # Check dispatch targets exist and events are registered
-        for dispatch in agent.get("dispatches", []):
+
+def check_harness_refs(flow: dict) -> CheckResult:
+    """Check harness version pinning consistency."""
+    r = CheckResult()
+    refs_seen: dict[str, list[str]] = {}
+
+    for label, unit, wf_file in iter_agent_units(flow):
+        wf = load_workflow(wf_file)
+        if wf is None:
+            continue
+
+        wf_ref = extract_harness_ref(wf)
+        flow_ref = unit.get("harness_ref", "")
+        # Also check parent-level harness_ref for multi-job agents
+        if not flow_ref:
+            # Walk up to find parent agent's harness_ref
+            for agent_id, agent in flow.get("agents", {}).items():
+                if "jobs" in agent:
+                    for job_id, job in agent["jobs"].items():
+                        if f"{agent_id}/{job_id}" == label:
+                            flow_ref = agent.get("harness_ref", "")
+                            break
+
+        if wf_ref:
+            refs_seen.setdefault(wf_ref, []).append(label)
+
+        if flow_ref and wf_ref and flow_ref != wf_ref:
+            r.warnings.append(
+                f"[{label}] Harness ref mismatch — flow: {flow_ref}, workflow: {wf_ref}"
+            )
+
+    # Report mixed versions
+    if len(refs_seen) > 1:
+        versions = ", ".join(
+            f"{ref} ({len(agents)})" for ref, agents in refs_seen.items()
+        )
+        r.info.append(f"Mixed harness versions in use: {versions}")
+
+    return r
+
+
+def check_dispatch_targets(flow: dict) -> CheckResult:
+    """Dispatch targets must exist. Events must be registered. Report in_agent dispatches."""
+    r = CheckResult()
+    events = flow.get("events", {})
+    agents = flow.get("agents", {})
+    infra = flow.get("infrastructure", {})
+
+    dispatched_events: set[str] = set()
+    received_events: set[str] = set()
+
+    # Collect valid target names: top-level agents, job IDs, infrastructure
+    valid_targets: set[str] = set(agents.keys()) | set(infra.keys())
+    for agent_id, agent in agents.items():
+        if "jobs" in agent:
+            for job_id in agent["jobs"]:
+                valid_targets.add(job_id)
+
+    # Collect received events
+    for _, unit, _ in iter_agent_units(flow):
+        for t in unit.get("triggers", []):
+            if t.get("type") == "repository_dispatch":
+                received_events.add(t["event"])
+
+    # Check dispatch targets and events
+    for label, unit, _ in iter_agent_units(flow):
+        for dispatch in unit.get("dispatches", []):
             targets = dispatch.get("target", [])
             if isinstance(targets, str):
                 targets = [targets]
 
+            location = dispatch.get("location", "post_step")
+
             for target in targets:
-                # Skip non-agent targets (like 'ingest')
-                if target not in agents and target != "ingest":
-                    errors.append(
-                        f"[{agent_id}] Dispatch target '{target}' not found in agents"
+                if target not in valid_targets:
+                    r.errors.append(
+                        f"[{label}] Dispatch target '{target}' not found in "
+                        f"agents, jobs, or infrastructure"
                     )
 
             evt = dispatch.get("event")
             if evt:
                 dispatched_events.add(evt)
                 if evt not in events:
-                    errors.append(
-                        f"[{agent_id}] Dispatch event '{evt}' not in events registry"
+                    r.errors.append(
+                        f"[{label}] Dispatch event '{evt}' not in events registry"
                     )
 
-    # Check for orphan events (in registry but never dispatched or received)
+            if location == "in_agent":
+                r.info.append(
+                    f"[{label}] Dispatch to {targets} is in_agent "
+                    f"(not validatable at workflow level)"
+                )
+
+    # Check for orphan events
     for evt_name, evt_config in events.items():
         evt_status = (evt_config or {}).get("status", "")
         is_exempt = evt_status in ("stub", "external")
-        if evt_name not in dispatched_events and not is_exempt:
-            if evt_name not in received_events:
-                errors.append(
+
+        if evt_name not in dispatched_events and evt_name not in received_events:
+            if not is_exempt:
+                r.errors.append(
                     f"[events] '{evt_name}' declared but never dispatched or received"
                 )
-            # Event received but never dispatched (and not stub)
-            elif evt_name not in dispatched_events:
-                errors.append(
-                    f"[events] '{evt_name}' has receivers but no sender "
-                    f"(add 'status: stub' if intentional)"
+        elif evt_name not in dispatched_events and not is_exempt:
+            r.warnings.append(
+                f"[events] '{evt_name}' has receivers but no sender "
+                f"(add 'status: stub' if intentional)"
+            )
+
+    return r
+
+
+def check_job_params(flow: dict) -> CheckResult:
+    """Verify that workflow with.job: parameters match flow graph job keys.
+
+    For multi-job agents (like tech-lead), each workflow passes a `job` parameter
+    to the harness via `with: { job: ... }`. This must match the job key in the
+    flow YAML.
+    """
+    r = CheckResult()
+    for agent_id, agent in flow.get("agents", {}).items():
+        if "jobs" not in agent:
+            continue
+        for job_id, job in agent["jobs"].items():
+            wf_file = job.get("workflow", "")
+            wf = load_workflow(wf_file)
+            if wf is None:
+                continue
+
+            # Find the step that calls agent-harness and extract with.job
+            wf_job_param = _extract_harness_job_param(wf)
+            if wf_job_param is None:
+                r.warnings.append(
+                    f"[{agent_id}/{job_id}] Could not find harness job: parameter "
+                    f"in {wf_file}"
+                )
+                continue
+
+            if wf_job_param != job_id:
+                r.errors.append(
+                    f"[{agent_id}/{job_id}] Workflow passes job: '{wf_job_param}' "
+                    f"to harness but flow graph key is '{job_id}'"
                 )
 
-    return errors
+    return r
+
+
+def _extract_harness_job_param(wf: dict) -> str | None:
+    """Extract the `with.job` value from the harness step in a workflow."""
+    for job in wf.get("jobs", {}).values():
+        if not isinstance(job, dict):
+            continue
+        for step in job.get("steps", []):
+            if not isinstance(step, dict):
+                continue
+            uses = str(step.get("uses", ""))
+            if "agent-harness" in uses:
+                with_block = step.get("with", {})
+                if isinstance(with_block, dict) and "job" in with_block:
+                    return str(with_block["job"])
+    return None
+
+
+def check_reusable_structure(flow: dict) -> CheckResult:
+    """Agents marked as type: reusable should actually call reusable-agent.yml."""
+    r = CheckResult()
+    for label, unit, wf_file in iter_agent_units(flow):
+        if unit.get("type") != "reusable":
+            continue
+
+        wf = load_workflow(wf_file)
+        if wf is None:
+            continue
+
+        if not is_reusable_caller(wf):
+            r.errors.append(
+                f"[{label}] Declared type: reusable but workflow doesn't call "
+                f"reusable-agent.yml"
+            )
+
+    # Also check the reverse: workflows that call reusable-agent.yml but
+    # aren't marked as reusable
+    for label, unit, wf_file in iter_agent_units(flow):
+        if unit.get("type") == "reusable":
+            continue
+
+        wf = load_workflow(wf_file)
+        if wf is None:
+            continue
+
+        if is_reusable_caller(wf):
+            r.warnings.append(
+                f"[{label}] Calls reusable-agent.yml but not marked type: reusable"
+            )
+
+    return r
+
+
+# ── Main Validation ──────────────────────────────────────────────
+
+
+def validate(flow: dict) -> CheckResult:
+    """Run all validation checks."""
+    return merge_results(
+        check_workflow_exists(flow),
+        check_orphan_workflows(flow),
+        check_schedule_crons(flow),
+        check_repository_dispatch(flow),
+        check_trigger_types(flow),
+        check_permissions(flow),
+        check_concurrency(flow),
+        check_harness_refs(flow),
+        check_dispatch_targets(flow),
+        check_job_params(flow),
+        check_reusable_structure(flow),
+    )
+
+
+# ── Mermaid Generation ───────────────────────────────────────────
+
+
+def _multi_job_node_id(agent_id: str, job_id: str) -> str:
+    """Build a Mermaid node ID for a multi-job agent's job.
+
+    Derives the prefix from the parent agent ID, so adding a second
+    multi-job agent won't collide with hardcoded prefixes.
+    """
+    prefix = agent_id.upper().replace("-", "_")
+    suffix = job_id.upper().replace("-", "_")
+    return f"{prefix}_{suffix}"
 
 
 def generate_mermaid(flow: dict) -> str:
-    """Generate a Mermaid flowchart from the flow graph."""
+    """Generate a Mermaid flowchart from the v2 flow graph."""
     agents = flow.get("agents", {})
+    infra = flow.get("infrastructure", {})
     lines: list[str] = []
     lines.append("```mermaid")
     lines.append("flowchart TD")
-
-    # Categorize agents for subgraph grouping
-    core_dev = {
-        "triage",
-        "product-owner",
-        "engineer",
-        "infra-engineer",
-        "reviewer",
-    }
-    strategic = {
-        "strategic",
-        "scans",
-        "product-analyst",
-        "financial-analyst",
-        "marketing-strategist",
-    }
-    ops = {
-        "site-reliability",
-        "qa-analyst",
-        "customer-ops",
-        "human-ops",
-        "escalation-lead",
-    }
-    content = {"content-creator", "user-experience"}
 
     def node_id(name: str) -> str:
         return name.upper().replace("-", "_")
@@ -186,105 +704,231 @@ def generate_mermaid(flow: dict) -> str:
     def node_label(name: str) -> str:
         return name.replace("-", " ").title()
 
-    # Define all nodes with shapes
-    for agent_id in agents:
-        nid = node_id(agent_id)
-        label = node_label(agent_id)
-        lines.append(f"    {nid}[{label}]")
-
+    # ── Subgraph: Core Dev Loop ──
+    core_dev = ["triage", "product-owner", "engineer", "infra-engineer", "reviewer"]
     lines.append("")
+    lines.append("    subgraph core[Core Dev Loop]")
+    for a in core_dev:
+        if a in agents:
+            lines.append(f"        {node_id(a)}[{node_label(a)}]")
+    lines.append("    end")
 
-    # External trigger nodes
-    lines.append("    PR_EVENT{{PR Opened}}:::external")
-    lines.append("    PR_MERGED{{PR Merged}}:::external")
+    # ── Subgraph: Strategic / Intelligence ──
+    strategic_agents = [
+        "strategic",
+        "product-analyst",
+        "financial-analyst",
+        "marketing-strategist",
+    ]
+    lines.append("")
+    lines.append("    subgraph strat[Strategic / Intelligence]")
+    for a in strategic_agents:
+        if a in agents:
+            lines.append(f"        {node_id(a)}[{node_label(a)}]")
+    lines.append("    end")
+
+    # ── Subgraph: Tech Lead (multi-job) ──
+    if "tech-lead" in agents and "jobs" in agents["tech-lead"]:
+        lines.append("")
+        lines.append("    subgraph techlead[Tech Lead]")
+        for job_id, job in agents["tech-lead"]["jobs"].items():
+            jid = _multi_job_node_id("tech-lead", job_id)
+            jlabel = job_id.replace("-", " ").title()
+            crons = extract_flow_crons(job.get("triggers", []))
+            day = cron_day_label(crons[0]) if crons else ""
+            suffix = f" ({day})" if day else ""
+            lines.append(f"        {jid}[{jlabel}{suffix}]")
+        lines.append("    end")
+
+    # ── Subgraph: Operations ──
+    ops_agents = [
+        "site-reliability",
+        "qa-analyst",
+        "customer-ops",
+        "human-ops",
+        "escalation-lead",
+    ]
+    lines.append("")
+    lines.append("    subgraph ops[Operations]")
+    for a in ops_agents:
+        if a in agents:
+            lines.append(f"        {node_id(a)}[{node_label(a)}]")
+    lines.append("    end")
+
+    # ── Subgraph: Content ──
+    content_agents = ["content-creator", "user-experience"]
+    lines.append("")
+    lines.append("    subgraph content[Content]")
+    for a in content_agents:
+        if a in agents:
+            lines.append(f"        {node_id(a)}[{node_label(a)}]")
+    lines.append("    end")
+
+    # ── Subgraph: Infrastructure ──
+    if infra:
+        lines.append("")
+        lines.append("    subgraph infra_wf[Infrastructure]")
+        for iid in infra:
+            lines.append(f"        {node_id(iid)}_WF[{node_label(iid)}]:::infraStyle")
+        lines.append("    end")
+
+    # ── External Trigger Nodes ──
+    lines.append("")
     lines.append("    ISSUE_OPENED{{Issue Opened}}:::external")
+    lines.append("    ISSUE_LABELED{{Issue Labeled}}:::external")
+    lines.append("    PR_OPENED{{PR Opened}}:::external")
+    lines.append("    PR_MERGED{{PR Merged}}:::external")
+    lines.append("    CHECK_SUITE{{Check Suite}}:::external")
     lines.append("    AZURE_ALERT{{Azure Alert}}:::external")
-    lines.append("    CI_FAILURE{{CI Failure}}:::external")
     lines.append("")
 
-    # Draw dispatch edges
+    # ── Dispatch Edges ──
+    # Regular agents
     for agent_id, agent in agents.items():
+        if "jobs" in agent:
+            continue  # Handle below
         src = node_id(agent_id)
-
         for dispatch in agent.get("dispatches", []):
-            targets = dispatch.get("target", [])
-            if isinstance(targets, str):
-                targets = [targets]
+            _draw_dispatch(lines, src, dispatch, agents, infra)
 
-            condition = dispatch.get("condition", {})
-            cond_type = condition.get("type", "")
-
-            # Build edge label
-            if cond_type == "intake_batch":
-                label = f"batch≥{condition.get('threshold', '?')}"
-            elif cond_type == "unassigned_issues":
-                label = "unassigned>0"
-            elif cond_type == "changes_requested":
-                label = "changes requested"
-            elif cond_type == "idle_backlog":
-                label = f"idle, PM>{condition.get('pm_cooldown_hours', '?')}h"
-            elif cond_type == "untriaged_label":
-                label = f"untriaged {condition.get('label', '?')}"
-            elif cond_type == "unconditional":
-                label = "always"
-            elif cond_type == "agent_driven":
-                label = "agent decision"
-            else:
-                label = cond_type or ""
-
-            method = dispatch.get("method", "")
-            style = "-->" if method == "repository_dispatch" else "-.->"
-
-            for target in targets:
-                if target == "ingest":
-                    lines.append(f'    {src} {style}|"{label}"| INGEST_WF[Ingest]')
-                elif target in agents:
-                    dst = node_id(target)
-                    lines.append(f'    {src} {style}|"{label}"| {dst}')
+    # Multi-job agents (tech-lead etc.)
+    for agent_id, agent in agents.items():
+        if "jobs" not in agent:
+            continue
+        for job_id, job in agent["jobs"].items():
+            src = _multi_job_node_id(agent_id, job_id)
+            for dispatch in job.get("dispatches", []):
+                _draw_dispatch(lines, src, dispatch, agents, infra)
 
     lines.append("")
 
-    # Draw external trigger edges
+    # ── External Trigger Edges ──
     for agent_id, agent in agents.items():
+        if "jobs" in agent:
+            # Tech-lead jobs don't have external triggers beyond schedule
+            continue
         nid = node_id(agent_id)
         for trigger in agent.get("triggers", []):
             ttype = trigger.get("type", "")
-            if ttype == "pull_request" or ttype.startswith("pull_request"):
-                actions = trigger.get("actions", [])
+            actions = trigger.get("actions", [])
+            if ttype == "issues":
+                if "opened" in actions:
+                    lines.append(f"    ISSUE_OPENED -.-> {nid}")
+                if "labeled" in actions or "unlabeled" in actions:
+                    lines.append(f"    ISSUE_LABELED -.-> {nid}")
+            elif ttype == "pull_request":
                 if "opened" in actions or "synchronize" in actions:
-                    lines.append(f"    PR_EVENT -.-> {nid}")
-            if ttype == "pull_request.closed":
-                lines.append(f"    PR_MERGED -.-> {nid}")
-            if ttype == "issues.opened":
-                lines.append(f"    ISSUE_OPENED -.-> {nid}")
-            if ttype == "repository_dispatch" and trigger.get("event") == "azure-alert":
-                lines.append(f"    AZURE_ALERT -.-> {nid}")
-            if ttype == "check_suite.completed":
-                lines.append(f"    CI_FAILURE -.-> {nid}")
+                    lines.append(f"    PR_OPENED -.-> {nid}")
+                if "closed" in actions:
+                    lines.append(f"    PR_MERGED -.-> {nid}")
+            elif ttype == "check_suite":
+                lines.append(f"    CHECK_SUITE -.-> {nid}")
+            elif ttype == "repository_dispatch":
+                if trigger.get("event") == "azure-alert":
+                    lines.append(f"    AZURE_ALERT -.-> {nid}")
 
     lines.append("")
 
-    # Style classes
+    # ── Style Definitions ──
     lines.append("    classDef external fill:#f9f,stroke:#333,stroke-width:1px")
     lines.append("    classDef core fill:#4a9eff,stroke:#333,color:#fff")
     lines.append("    classDef strat fill:#2ecc71,stroke:#333,color:#fff")
     lines.append("    classDef opsStyle fill:#e67e22,stroke:#333,color:#fff")
     lines.append("    classDef contentStyle fill:#9b59b6,stroke:#333,color:#fff")
+    lines.append("    classDef infraStyle fill:#95a5a6,stroke:#333,color:#fff")
+    lines.append("    classDef techleadStyle fill:#1abc9c,stroke:#333,color:#fff")
 
-    # Apply classes
-    for agent_id in agents:
-        nid = node_id(agent_id)
-        if agent_id in core_dev:
-            lines.append(f"    class {nid} core")
-        elif agent_id in strategic:
-            lines.append(f"    class {nid} strat")
-        elif agent_id in ops:
-            lines.append(f"    class {nid} opsStyle")
-        elif agent_id in content:
-            lines.append(f"    class {nid} contentStyle")
+    # ── Apply Classes ──
+    for a in core_dev:
+        if a in agents:
+            lines.append(f"    class {node_id(a)} core")
+    for a in strategic_agents:
+        if a in agents:
+            lines.append(f"    class {node_id(a)} strat")
+    for a in ops_agents:
+        if a in agents:
+            lines.append(f"    class {node_id(a)} opsStyle")
+    for a in content_agents:
+        if a in agents:
+            lines.append(f"    class {node_id(a)} contentStyle")
+    if "tech-lead" in agents and "jobs" in agents["tech-lead"]:
+        for job_id in agents["tech-lead"]["jobs"]:
+            jid = _multi_job_node_id("tech-lead", job_id)
+            lines.append(f"    class {jid} techleadStyle")
 
     lines.append("```")
     return "\n".join(lines)
+
+
+def _resolve_node_id(target: str, agents: dict, infra: dict) -> str:
+    """Resolve a dispatch target name to its Mermaid node ID."""
+    if target in infra:
+        return f"{target.upper().replace('-', '_')}_WF"
+    if target in agents:
+        return target.upper().replace("-", "_")
+    # Check if target matches a job ID within a multi-job agent
+    for agent_id, agent in agents.items():
+        if "jobs" in agent and target in agent["jobs"]:
+            return _multi_job_node_id(agent_id, target)
+    return target.upper().replace("-", "_")
+
+
+def _draw_dispatch(
+    lines: list[str],
+    src: str,
+    dispatch: dict,
+    agents: dict,
+    infra: dict,
+) -> None:
+    """Draw a single dispatch edge."""
+    targets = dispatch.get("target", [])
+    if isinstance(targets, str):
+        targets = [targets]
+
+    condition = dispatch.get("condition", {})
+    cond_type = condition.get("type", "")
+    location = dispatch.get("location", "post_step")
+
+    # Build edge label
+    label_parts = []
+    if cond_type == "intake_batch":
+        label_parts.append(f"batch≥{condition.get('threshold', '?')}")
+    elif cond_type == "unassigned_issues":
+        label_parts.append("unassigned>0")
+    elif cond_type == "changes_requested":
+        label_parts.append("changes requested")
+    elif cond_type == "idle_backlog":
+        label_parts.append(f"idle, PM>{condition.get('pm_cooldown_hours', '?')}h")
+    elif cond_type == "untriaged_label":
+        label_parts.append(f"untriaged {condition.get('label', '?')}")
+    elif cond_type == "unconditional":
+        label_parts.append("always")
+    elif cond_type == "agent_driven":
+        label_parts.append("agent decision")
+    elif cond_type:
+        label_parts.append(cond_type)
+
+    # Mark in_agent dispatches
+    if location == "in_agent":
+        label_parts.append("*")
+
+    label = " ".join(label_parts)
+
+    # Arrow style: solid for repository_dispatch, dashed for workflow_run
+    method = dispatch.get("method", "")
+    if location == "in_agent":
+        style = "-.->"  # Always dashed for in_agent
+    elif method == "repository_dispatch":
+        style = "-->"
+    else:
+        style = "-.->"
+
+    for target in targets:
+        dst = _resolve_node_id(target, agents, infra)
+        if label:
+            lines.append(f'    {src} {style}|"{label}"| {dst}')
+        else:
+            lines.append(f"    {src} {style} {dst}")
 
 
 def generate_event_table(flow: dict) -> str:
@@ -303,32 +947,70 @@ def generate_event_table(flow: dict) -> str:
 
 
 def generate_schedule_table(flow: dict) -> str:
-    """Generate a markdown table of agent schedules."""
+    """Generate a markdown table of agent schedules (including tech-lead jobs)."""
     agents = flow.get("agents", {})
-    lines = [
-        "| Agent | Schedule | Dispatch Triggers |",
-        "|-------|----------|-------------------|",
-    ]
-    for agent_id, agent in sorted(agents.items()):
-        schedules = []
-        dispatch_triggers = []
-        for t in agent.get("triggers", []):
-            if t.get("type") == "schedule":
-                schedules.append(t.get("cron", "?"))
-            elif t.get("type") == "repository_dispatch":
-                dispatch_triggers.append(f"`{t.get('event', '?')}`")
-            elif t.get("type") in ("pull_request", "pull_request.closed"):
-                dispatch_triggers.append("PR event")
-            elif t.get("type") == "issues.opened":
-                dispatch_triggers.append("Issue opened")
-            elif t.get("type") == "check_suite.completed":
-                dispatch_triggers.append("CI failure")
-            elif t.get("type") == "workflow_dispatch":
-                dispatch_triggers.append("Manual only")
+    rows: list[tuple[str, str, str, str]] = []  # (agent, schedule, day, triggers)
 
-        sched_str = ", ".join(f"`{s}`" for s in schedules) if schedules else "—"
-        disp_str = ", ".join(dispatch_triggers) if dispatch_triggers else "—"
-        lines.append(f"| {agent_id} | {sched_str} | {disp_str} |")
+    for agent_id, agent in sorted(agents.items()):
+        if "jobs" in agent:
+            # Multi-job: one row per job
+            for job_id, job in sorted(agent["jobs"].items()):
+                label = f"{agent_id}/{job_id}"
+                crons = extract_flow_crons(job.get("triggers", []))
+                dispatch_triggers = _format_triggers(job.get("triggers", []))
+                for cron in crons:
+                    day = cron_day_label(cron)
+                    rows.append((label, f"`{cron}`", day, dispatch_triggers))
+                if not crons:
+                    rows.append((label, "---", "", dispatch_triggers))
+        else:
+            crons = extract_flow_crons(agent.get("triggers", []))
+            dispatch_triggers = _format_triggers(agent.get("triggers", []))
+            for cron in crons:
+                day = cron_day_label(cron)
+                rows.append((agent_id, f"`{cron}`", day, dispatch_triggers))
+            if not crons:
+                rows.append((agent_id, "---", "", dispatch_triggers))
+
+    lines = [
+        "| Agent | Schedule | Day | Event Triggers |",
+        "|-------|----------|-----|----------------|",
+    ]
+    for agent, sched, day, triggers in rows:
+        lines.append(f"| {agent} | {sched} | {day} | {triggers} |")
+    return "\n".join(lines)
+
+
+def _format_triggers(triggers: list[dict]) -> str:
+    """Format non-schedule triggers as a comma-separated string."""
+    parts = []
+    for t in triggers:
+        ttype = t.get("type", "")
+        if ttype == "schedule":
+            continue
+        elif ttype == "repository_dispatch":
+            parts.append(f"`{t.get('event', '?')}`")
+        elif ttype == "pull_request":
+            actions = t.get("actions", [])
+            parts.append(f"PR {'/'.join(actions)}")
+        elif ttype == "issues":
+            actions = t.get("actions", [])
+            parts.append(f"Issues {'/'.join(actions)}")
+        elif ttype == "check_suite":
+            parts.append("Check suite")
+        elif ttype == "workflow_dispatch":
+            parts.append("Manual")
+    return ", ".join(parts) if parts else "---"
+
+
+def generate_safety_section(flow: dict) -> str:
+    """Generate safety constraints section."""
+    safety = flow.get("safety", {})
+    if not safety:
+        return ""
+    lines = ["| Constraint | Value |", "|------------|-------|"]
+    for key, value in sorted(safety.items()):
+        lines.append(f"| `{key}` | {value} |")
     return "\n".join(lines)
 
 
@@ -339,6 +1021,7 @@ def write_doc(flow: dict, output_path: Path) -> None:
     mermaid = generate_mermaid(flow)
     event_table = generate_event_table(flow)
     schedule_table = generate_schedule_table(flow)
+    safety_section = generate_safety_section(flow)
 
     content = f"""<!-- AUTO-GENERATED — Do not edit. Edit config/agent-flow.yaml instead. -->
 <!-- Last generated: {now} -->
@@ -348,14 +1031,19 @@ def write_doc(flow: dict, output_path: Path) -> None:
 
 Visual representation of how agents interact through dispatches, events, and triggers.
 
+**Source of truth**: `config/agent-flow.yaml` (v2 schema)
+
 **Legend:**
 - **Blue** = Core dev loop (triage, PO, engineers, reviewers)
-- **Green** = Strategic (PM, scans, analysts)
+- **Green** = Strategic (PM, analysts)
+- **Teal** = Tech Lead (multi-job agent)
 - **Orange** = Operations (SRE, QA, customer ops, human ops)
 - **Purple** = Content (creator, UX)
+- **Grey** = Infrastructure workflows (deploy, ingest, CI)
 - **Pink** = External triggers (PRs, issues, alerts)
 - **Solid arrows** = `repository_dispatch` (event-based)
 - **Dashed arrows** = `workflow_run` or external trigger
+- **`*`** = dispatch happens inside agent session (not in workflow YAML)
 
 {mermaid}
 
@@ -366,15 +1054,27 @@ Visual representation of how agents interact through dispatches, events, and tri
 ## Agent Schedules
 
 {schedule_table}
+
+## Safety Constraints
+
+{safety_section}
 """
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(content)
     print(f"Generated: {output_path}")
 
 
+# ── CLI ──────────────────────────────────────────────────────────
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Validate agent flow graph")
+    parser = argparse.ArgumentParser(description="Validate agent flow graph (v2)")
     parser.add_argument("--validate", action="store_true", help="Run validation checks")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Treat warnings as errors (for CI)",
+    )
     parser.add_argument(
         "--mermaid", action="store_true", help="Generate Mermaid diagram"
     )
@@ -391,17 +1091,38 @@ def main():
     exit_code = 0
 
     if args.validate:
-        errors = validate(flow)
-        if errors:
-            print(f"Flow validation FAILED ({len(errors)} errors):\n")
-            for err in errors:
-                print(f"  ✗ {err}")
+        result = validate(flow)
+
+        # Count units
+        units = list(iter_agent_units(flow))
+        events = flow.get("events", {})
+
+        if result.errors:
+            print(f"Flow validation FAILED ({len(result.errors)} errors):\n")
+            for err in result.errors:
+                print(f"  \u2717 {err}")
             exit_code = 1
-        else:
+
+        if result.warnings:
+            if exit_code == 0:
+                print("")
+            print(f"Warnings ({len(result.warnings)}):\n")
+            for warn in result.warnings:
+                print(f"  \u26a0 {warn}")
+            if args.strict:
+                exit_code = 1
+
+        if result.info:
+            print(f"\nInfo ({len(result.info)}):\n")
+            for info in result.info:
+                print(f"  \u2139 {info}")
+
+        if exit_code == 0:
             print(
-                f"Flow validation passed — {len(flow.get('agents', {}))} agents, "
-                f"{len(flow.get('events', {}))} events, all consistent."
+                f"\nFlow validation passed — {len(units)} units, "
+                f"{len(events)} events, all consistent."
             )
+        print("")
 
     if args.mermaid:
         if args.output:

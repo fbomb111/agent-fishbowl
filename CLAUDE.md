@@ -123,6 +123,7 @@ frontend/               Next.js frontend
   src/components/       React components
   src/lib/api.ts        API client
 config/                 Configuration
+  agent-flow.yaml       Agent flow graph — SINGLE SOURCE OF TRUTH (v2 schema)
   sources.yaml          RSS feed sources
   goals.md              Strategic goals and trade-off guidance (human-maintained, PM reads)
   objectives.md         Time-bounded objectives with signals (human-maintained, PM evaluates)
@@ -132,7 +133,10 @@ functions/              Azure Function (alert bridge)
   alert_bridge/         HTTP trigger: Azure Monitor → GitHub dispatch
   host.json             Functions runtime config
   requirements.txt      Python dependencies
+docs/
+  agent-flow.md         AUTO-GENERATED Mermaid diagram + tables (from agent-flow.yaml)
 scripts/                Project-specific scripts
+  validate-flow.py      Validate flow graph + generate diagram (CI enforced)
   health-check.sh       Full system health check (API, ingestion, deploys, GitHub)
   run-checks.sh         All quality checks (ruff + tsc + eslint + conventions)
   create-branch.sh      Create branch from issue number
@@ -146,14 +150,19 @@ scripts/                Project-specific scripts
   pick-issue.md         Find + claim highest-priority issue
   open-pr.md            Create draft PR with proper format
 .github/workflows/      CI + agent deployment (thin stubs → harness)
-  agent-product-owner.yml PO (event-driven: dispatch + daily)
-  agent-engineer.yml    Engineer (event-driven: dispatch + PR merged)
-  agent-infra-engineer.yml  Infra Engineer (event-driven: dispatch + PR merged)
+  ci.yml                CI: lint, typecheck, flow validation + diagram freshness
+  reusable-agent.yml    Shared agent runner (role or entry-point)
+  agent-product-owner.yml PO (event-driven: dispatch + 2x daily)
+  agent-engineer.yml    Engineer (event-driven: dispatch + PR merge + CI)
+  agent-infra-engineer.yml  Infra Engineer (event-driven: dispatch + PR merge)
   agent-reviewer.yml    Reviewer (event-driven: PR opened/sync + 12h)
-  agent-triage.yml      Triage (event-driven: issues.opened)
+  agent-triage.yml      Triage (event-driven: issues.opened + daily)
   agent-strategic.yml   PM review (daily schedule)
-  agent-scans.yml       Tech Lead + UX (every 3 days schedule)
-  agent-site-reliability.yml  SRE health monitoring (every 4 hours + alerts)
+  agent-scans.yml       Tech Lead: Full Scan (Wed)
+  agent-tech-lead-*.yml Tech Lead jobs (architecture Mon, debt Tue, security Thu, infra Fri, harness daily)
+  agent-site-reliability.yml  SRE (every 4h + azure alerts)
+  agent-content-creator.yml   Content Creator (daily)
+  agent-*.yml           Other agents: see config/agent-flow.yaml for full list
 ```
 
 ### Harness Repo (YourMoveLabs/agent-harness)
@@ -280,12 +289,89 @@ Engineer claims issues → opens PR → Reviewer merges (or backlogs via source/
 - **Scanning agents never set `priority/high`.** They use `priority/medium`. The PO decides what's urgent.
 - **Preserve `source/*` labels.** These track where issues originated. Don't remove them.
 
+## Agent Flow Graph (`config/agent-flow.yaml`)
+
+The flow graph is the **single source of truth** for how agents interact. CI validates it against actual workflow files and blocks merges when they drift.
+
+**Schema version**: v2
+
+### Required Fields (per agent)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `workflow` | string | GitHub Actions workflow filename |
+| `type` | `custom` \| `reusable` | Whether it uses `reusable-agent.yml` or has custom steps |
+| `harness_ref` | string | Harness version pin (e.g., `@v1.2.0`, `@main`) |
+| `timeout` | int | Job timeout in minutes |
+| `permissions` | map | Required GitHub token permissions |
+| `concurrency` | map | Concurrency group config (omit for reusable — inherits) |
+| `triggers` | list | Event triggers matching the workflow's `on:` block |
+| `dispatches` | list | Outbound edges to other agents |
+
+### Dispatch `location` Field
+
+| Value | Meaning | Validated? |
+|-------|---------|-----------|
+| `post_step` | Happens in a workflow step (YAML) | Yes — CI cross-checks |
+| `in_agent` | Happens inside Claude session via `scripts/dispatch-agent.sh` | No — informational only |
+
+### Multi-Job Agents
+
+Agents like `tech-lead` run multiple scheduled jobs, each with its own workflow file. Instead of one `workflow:` field, they use a `jobs:` map:
+
+```yaml
+tech-lead:
+  role: tech-lead
+  harness_ref: "@main"
+  jobs:
+    scans:
+      workflow: agent-scans.yml
+      triggers: [...]
+      dispatches: [...]
+    architecture-review:
+      workflow: agent-tech-lead-architecture.yml
+      # ...
+```
+
+Each job is validated independently. Dispatch targets can reference job IDs (e.g., `scans`).
+
+### Commands
+
+```bash
+# Validate flow graph against workflows (CI runs this)
+python scripts/validate-flow.py --validate
+
+# Validate with warnings as errors
+python scripts/validate-flow.py --validate --strict
+
+# Regenerate diagram (must commit the result)
+python scripts/validate-flow.py --mermaid -o docs/agent-flow.md
+
+# Both at once
+python scripts/validate-flow.py --validate --mermaid -o docs/agent-flow.md
+```
+
+### CI Enforcement
+
+The `flow-validation` CI job runs two checks:
+1. **Validation**: All 10+ checks pass (schedules, triggers, permissions, concurrency, dispatch targets, etc.)
+2. **Diagram freshness**: The committed `docs/agent-flow.md` matches what the generator produces
+
+### When Adding or Modifying Agents
+
+1. Update `config/agent-flow.yaml` **first**
+2. Create/modify the workflow file
+3. Run `python scripts/validate-flow.py --validate` to check consistency
+4. Run `python scripts/validate-flow.py --mermaid -o docs/agent-flow.md` to regenerate the diagram
+5. Commit all three files together
+
 ## Available Tools
 
 ### Project Scripts (`scripts/`)
 
 | Script | Purpose | When to Use |
 |--------|---------|-------------|
+| `validate-flow.py` | Validate flow graph + generate Mermaid diagram | After modifying agents/workflows |
 | `health-check.sh` | Full system health check (API, ingestion, deploys, GitHub) | SRE runs |
 | `run-checks.sh` | Quality checks (ruff + tsc + eslint + conventions) | Before every PR |
 | `create-branch.sh` | Create named branch from issue number | When starting work on an issue |
