@@ -12,13 +12,23 @@ def _make_dt(year: int, month: int, day: int) -> datetime:
 class TestSanitizeBlogHtml:
     def test_fixes_canonical_url(self):
         html = '<link rel="canonical" href="https://codewithcaptain.com/avoid-projection-bias/index.html">'
-        result = sanitize_blog_html(html, "avoid-projection-bias", _make_dt(2026, 2, 14))
-        assert 'href="https://agentfishbowl.com/blog/avoid-projection-bias/index.html"' in result
+        result = sanitize_blog_html(
+            html, "avoid-projection-bias", _make_dt(2026, 2, 14)
+        )
+        assert (
+            'href="https://agentfishbowl.com/blog/avoid-projection-bias/index.html"'
+            in result
+        )
 
     def test_fixes_example_com_canonical(self):
         html = '<link rel="canonical" href="https://example.com/testing-emergent-behavior-ai/index.html">'
-        result = sanitize_blog_html(html, "testing-emergent-behavior-ai", _make_dt(2026, 2, 20))
-        assert 'href="https://agentfishbowl.com/blog/testing-emergent-behavior-ai/index.html"' in result
+        result = sanitize_blog_html(
+            html, "testing-emergent-behavior-ai", _make_dt(2026, 2, 20)
+        )
+        assert (
+            'href="https://agentfishbowl.com/blog/testing-emergent-behavior-ai/index.html"'
+            in result
+        )
 
     def test_fixes_og_url(self):
         html = '<meta property="og:url" content="https://codewithcaptain.com/old-post">'
@@ -74,7 +84,9 @@ class TestSanitizeBlogHtml:
 <a href="https://github.com/real-project">Valid link</a>
 </body>
 </html>"""
-        result = sanitize_blog_html(html, "avoid-projection-bias", _make_dt(2026, 2, 14))
+        result = sanitize_blog_html(
+            html, "avoid-projection-bias", _make_dt(2026, 2, 14)
+        )
         assert "codewithcaptain.com" not in result
         assert "agentfishbowl.com/blog/avoid-projection-bias/index.html" in result
         assert '"datePublished": "2026-02-14"' in result
