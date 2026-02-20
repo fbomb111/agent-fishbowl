@@ -71,7 +71,7 @@ class TestCountCommits:
     async def test_uses_link_header(self, monkeypatch):
         """Parses last page number from Link header for total count."""
         link = (
-            '<https://api.github.com/repos/test/commits?since=2026-01-01&per_page=1&page=37>; '
+            "<https://api.github.com/repos/test/commits?since=2026-01-01&per_page=1&page=37>; "
             'rel="last"'
         )
 
@@ -121,14 +121,17 @@ class TestFetchWindowedCounts:
         """All three windows and three metrics are returned."""
         now = datetime.now(UTC)
 
-        with patch(
-            "api.services.goals_metrics._search_count",
-            new_callable=AsyncMock,
-            side_effect=[10, 5, 3, 20, 12, 8, 50, 30, 25],
-        ), patch(
-            "api.services.goals_metrics._count_commits",
-            new_callable=AsyncMock,
-            side_effect=[3, 8, 25],
+        with (
+            patch(
+                "api.services.goals_metrics._search_count",
+                new_callable=AsyncMock,
+                side_effect=[10, 5, 3, 20, 12, 8, 50, 30, 25],
+            ),
+            patch(
+                "api.services.goals_metrics._count_commits",
+                new_callable=AsyncMock,
+                side_effect=[3, 8, 25],
+            ),
         ):
             result = await _fetch_windowed_counts("test/repo", now)
 
@@ -316,18 +319,22 @@ class TestGetMetrics:
         }
         agent_stats = {"engineer": {"issues_closed": 3, "prs_merged": 2}}
 
-        with patch(
-            "api.services.goals_metrics._search_count",
-            new_callable=AsyncMock,
-            side_effect=[7, 2],  # open_issues, open_prs
-        ), patch(
-            "api.services.goals_metrics._fetch_windowed_counts",
-            new_callable=AsyncMock,
-            return_value=windowed,
-        ), patch(
-            "api.services.goals_metrics._fetch_agent_stats",
-            new_callable=AsyncMock,
-            return_value=agent_stats,
+        with (
+            patch(
+                "api.services.goals_metrics._search_count",
+                new_callable=AsyncMock,
+                side_effect=[7, 2],  # open_issues, open_prs
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_windowed_counts",
+                new_callable=AsyncMock,
+                return_value=windowed,
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_agent_stats",
+                new_callable=AsyncMock,
+                return_value=agent_stats,
+            ),
         ):
             cache = TTLCache(ttl=300, max_size=10)
             result = await get_metrics(cache)
@@ -362,18 +369,22 @@ class TestGetMetrics:
             "commits": {"24h": 0, "7d": 0, "30d": 0},
         }
 
-        with patch(
-            "api.services.goals_metrics._search_count",
-            new_callable=AsyncMock,
-            return_value=0,
-        ), patch(
-            "api.services.goals_metrics._fetch_windowed_counts",
-            new_callable=AsyncMock,
-            return_value=windowed,
-        ), patch(
-            "api.services.goals_metrics._fetch_agent_stats",
-            new_callable=AsyncMock,
-            return_value={},
+        with (
+            patch(
+                "api.services.goals_metrics._search_count",
+                new_callable=AsyncMock,
+                return_value=0,
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_windowed_counts",
+                new_callable=AsyncMock,
+                return_value=windowed,
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_agent_stats",
+                new_callable=AsyncMock,
+                return_value={},
+            ),
         ):
             cache = TTLCache(ttl=300, max_size=10)
             await get_metrics(cache)
