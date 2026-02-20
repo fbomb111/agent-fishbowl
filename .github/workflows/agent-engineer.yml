@@ -75,7 +75,7 @@ jobs:
 
       - name: Run Engineer agent
         if: steps.workcheck.outputs.idle != 'true'
-        uses: YourMoveLabs/agent-harness@v1.2.0
+        uses: YourMoveLabs/agent-harness@v1.3.0
         with:
           role: engineer
         env:
