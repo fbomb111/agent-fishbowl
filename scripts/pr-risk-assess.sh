@@ -17,7 +17,6 @@ fi
 KNOWN_BOTS=(
     "app/fishbowl-engineer"
     "app/fishbowl-ops-engineer"
-    "app/fishbowl-infra-engineer"
 )
 
 # Sensitive file patterns — changes to these need AI scrutiny
