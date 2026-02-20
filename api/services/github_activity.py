@@ -2,16 +2,20 @@
 
 Fetches repository events from the GitHub API, parses them into ActivityEvent
 dicts, groups them into threads by issue/PR, and caches the results.
+Falls back to the Issues/PRs REST API when the Events API returns empty.
 """
 
 import asyncio
+import logging
 import re
 from typing import Any
 
 from api.config import get_settings
 from api.services.cache import TTLCache
-from api.services.github_events import parse_events
+from api.services.github_events import _map_actor, parse_events
 from api.services.http_client import github_api_get
+
+logger = logging.getLogger(__name__)
 
 # TTL cache for activity events (5 min)
 _cache = TTLCache(ttl=300, max_size=20)
@@ -142,9 +146,11 @@ async def _fetch_repo_events(
 async def _fetch_all_events(per_page: int = 50) -> list[dict[str, Any]]:
     """Fetch raw events from all repos, merge and sort by timestamp."""
     settings = get_settings()
-    repos = [settings.github_repo]
-    if settings.harness_repo:
-        repos.append(settings.harness_repo)
+    repos = [r for r in [settings.github_repo, settings.harness_repo] if r]
+
+    if not repos:
+        logger.warning("No repos configured for activity feed (GITHUB_REPO is empty)")
+        return []
 
     raw_results = await asyncio.gather(
         *[_fetch_repo_events(repo, per_page, 1) for repo in repos]
@@ -153,8 +159,117 @@ async def _fetch_all_events(per_page: int = 50) -> list[dict[str, Any]]:
     all_raw: list[dict[str, Any]] = []
     for raw in raw_results:
         all_raw.extend(raw)
+
+    if not all_raw:
+        logger.warning(
+            "Events API returned 0 events from %d repo(s): %s",
+            len(repos),
+            ", ".join(repos),
+        )
+
     all_raw.sort(key=lambda e: e.get("created_at", ""), reverse=True)
     return all_raw[:per_page]
+
+
+async def _fetch_fallback_events(limit: int = 30) -> list[dict[str, Any]]:
+    """Build activity events from Issues/PRs REST API when Events API is empty.
+
+    The GitHub Events API is best-effort and can return empty due to rate
+    limits, token scope, or lag. This fallback queries the Issues and PRs
+    APIs directly to construct a basic activity feed.
+    """
+    settings = get_settings()
+    repo = settings.github_repo
+    if not repo:
+        return []
+
+    issues_url = f"https://api.github.com/repos/{repo}/issues"
+    params = {
+        "state": "all",
+        "sort": "updated",
+        "direction": "desc",
+        "per_page": str(limit),
+    }
+    raw = await github_api_get(issues_url, params, context="activity fallback")
+    if not raw or not isinstance(raw, list):
+        return []
+
+    events: list[dict[str, Any]] = []
+    for item in raw:
+        is_pr = "pull_request" in item
+        number = item.get("number")
+        title = item.get("title", "")
+        state = item.get("state", "")
+        user = item.get("user", {})
+        login = user.get("login", "unknown")
+        avatar = user.get("avatar_url")
+
+        actor = _map_actor(login)
+
+        if is_pr:
+            pr_data = item.get("pull_request", {})
+            merged = pr_data.get("merged_at") is not None
+            if merged:
+                evt_type = "pr_merged"
+                desc = f"Merged PR #{number}: {title}"
+                ts = pr_data.get("merged_at") or item.get("updated_at", "")
+            elif state == "open":
+                evt_type = "pr_opened"
+                desc = f"Opened PR #{number}: {title}"
+                ts = item.get("created_at", "")
+            else:
+                continue
+            events.append({
+                "id": f"fallback-pr-{number}",
+                "type": evt_type,
+                "actor": actor,
+                "avatar_url": avatar,
+                "description": desc,
+                "timestamp": ts,
+                "url": item.get("html_url"),
+                "subject_type": "pr",
+                "subject_number": number,
+                "subject_title": title,
+            })
+        else:
+            if state == "open":
+                evt_type = "issue_created"
+                desc = f"Opened issue #{number}: {title}"
+                ts = item.get("created_at", "")
+            elif state == "closed":
+                evt_type = "issue_closed"
+                desc = f"Closed issue #{number}: {title}"
+                ts = item.get("closed_at") or item.get("updated_at", "")
+            else:
+                continue
+            events.append({
+                "id": f"fallback-issue-{number}",
+                "type": evt_type,
+                "actor": actor,
+                "avatar_url": avatar,
+                "description": desc,
+                "timestamp": ts,
+                "url": item.get("html_url"),
+                "subject_type": "issue",
+                "subject_number": number,
+                "subject_title": title,
+            })
+
+    events.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
+    return events[:limit]
+
+
+async def _get_events_with_fallback(per_page: int = 50) -> list[dict[str, Any]]:
+    """Fetch activity events via Events API, falling back to Issues/PRs API."""
+    all_raw = await _fetch_all_events(per_page)
+    events = parse_events(all_raw)
+
+    if not events:
+        logger.info("Events API empty — using Issues/PRs API fallback")
+        events = await _fetch_fallback_events(per_page)
+
+    await _backfill_pr_titles(events)
+    return events
 
 
 async def get_activity_events(
@@ -163,6 +278,7 @@ async def get_activity_events(
     """Fetch activity events from GitHub with caching.
 
     Fetches from both the project repo and harness repo, merges by timestamp.
+    Falls back to Issues/PRs REST API when the Events API returns empty.
     """
     cache_key = f"flat:{page}:{per_page}"
 
@@ -170,9 +286,7 @@ async def get_activity_events(
     if cached is not None:
         return cached
 
-    all_raw = await _fetch_all_events(per_page)
-    events = parse_events(all_raw)
-    await _backfill_pr_titles(events)
+    events = await _get_events_with_fallback(per_page)
 
     if events:
         _cache.set(cache_key, events)
@@ -190,6 +304,7 @@ async def get_threaded_activity(
     """Fetch activity events and group them into threads by issue/PR.
 
     Returns a list of thread objects and standalone events sorted by recency.
+    Falls back to Issues/PRs REST API when the Events API returns empty.
     """
     cache_key = f"threaded:{per_page}"
 
@@ -197,9 +312,7 @@ async def get_threaded_activity(
     if cached is not None:
         return cached
 
-    all_raw = await _fetch_all_events(per_page)
-    events = parse_events(all_raw)
-    await _backfill_pr_titles(events)
+    events = await _get_events_with_fallback(per_page)
     threads = _group_events_into_threads(events)
 
     if threads:
