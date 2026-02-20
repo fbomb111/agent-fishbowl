@@ -2,7 +2,7 @@ name: Agent - Tech Lead QA Tooling Review
 
 on:
   schedule:
-    - cron: "0 14 * * 4"   # Weekly Thursday at 14:00 UTC
+    - cron: "0 15 * * *"   # Daily at 15:00 UTC
   workflow_dispatch: {}
 
 permissions:

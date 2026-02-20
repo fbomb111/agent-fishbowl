@@ -271,7 +271,7 @@ agents:
           cancel_in_progress: false
         triggers:
           - type: schedule
-            cron: "0 10 * * 3"
+            cron: "0 9 * * *"
           - type: workflow_dispatch
         dispatches:
           - target: product-owner
@@ -293,7 +293,7 @@ agents:
           cancel_in_progress: false
         triggers:
           - type: schedule
-            cron: "0 10 * * 1"
+            cron: "0 7 * * *"
           - type: workflow_dispatch
         dispatches:
           - target: product-owner
@@ -315,7 +315,7 @@ agents:
           cancel_in_progress: false
         triggers:
           - type: schedule
-            cron: "0 10 * * 2"
+            cron: "0 8 * * *"
           - type: workflow_dispatch
         dispatches:
           - target: product-owner
@@ -356,7 +356,7 @@ agents:
           cancel_in_progress: false
         triggers:
           - type: schedule
-            cron: "0 10 * * 4"
+            cron: "0 11 * * *"
           - type: workflow_dispatch
         dispatches:
           - target: product-owner
@@ -378,7 +378,7 @@ agents:
           cancel_in_progress: false
         triggers:
           - type: schedule
-            cron: "0 14 * * 4"
+            cron: "0 15 * * *"
           - type: workflow_dispatch
         dispatches:
           - target: product-owner
@@ -400,7 +400,95 @@ agents:
           cancel_in_progress: false
         triggers:
           - type: schedule
-            cron: "0 10 * * 5"
+            cron: "0 13 * * *"
+          - type: workflow_dispatch
+        dispatches:
+          - target: product-owner
+            method: workflow_run
+            location: post_step
+            condition:
+              type: unconditional
+        pre_steps: []
+        post_steps:
+          - name: "Dispatch PO to process new issues"
+      doc-review:
+        workflow: agent-tech-lead-doc-review.yml
+        timeout: 45
+        permissions:
+          contents: read
+          actions: write
+        concurrency:
+          group: agent-tech-lead-doc-review
+          cancel_in_progress: false
+        triggers:
+          - type: schedule
+            cron: "0 16 * * *"
+          - type: workflow_dispatch
+        dispatches:
+          - target: product-owner
+            method: workflow_run
+            location: post_step
+            condition:
+              type: unconditional
+        pre_steps: []
+        post_steps:
+          - name: "Dispatch PO to process new issues"
+      test-review:
+        workflow: agent-tech-lead-test-review.yml
+        timeout: 45
+        permissions:
+          contents: read
+          actions: write
+        concurrency:
+          group: agent-tech-lead-test-review
+          cancel_in_progress: false
+        triggers:
+          - type: schedule
+            cron: "0 17 * * *"
+          - type: workflow_dispatch
+        dispatches:
+          - target: product-owner
+            method: workflow_run
+            location: post_step
+            condition:
+              type: unconditional
+        pre_steps: []
+        post_steps:
+          - name: "Dispatch PO to process new issues"
+      project-structure-review:
+        workflow: agent-tech-lead-structure-review.yml
+        timeout: 45
+        permissions:
+          contents: read
+          actions: write
+        concurrency:
+          group: agent-tech-lead-structure-review
+          cancel_in_progress: false
+        triggers:
+          - type: schedule
+            cron: "0 19 * * *"
+          - type: workflow_dispatch
+        dispatches:
+          - target: product-owner
+            method: workflow_run
+            location: post_step
+            condition:
+              type: unconditional
+        pre_steps: []
+        post_steps:
+          - name: "Dispatch PO to process new issues"
+      pipeline-quality-review:
+        workflow: agent-tech-lead-pipeline-quality.yml
+        timeout: 45
+        permissions:
+          contents: read
+          actions: write
+        concurrency:
+          group: agent-tech-lead-pipeline-quality
+          cancel_in_progress: false
+        triggers:
+          - type: schedule
+            cron: "0 20 * * *"
           - type: workflow_dispatch
         dispatches:
           - target: product-owner

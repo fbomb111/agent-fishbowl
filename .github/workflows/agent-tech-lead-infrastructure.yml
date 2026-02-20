@@ -2,7 +2,7 @@ name: Agent - Tech Lead Infrastructure Review
 
 on:
   schedule:
-    - cron: "0 10 * * 5"   # Weekly Friday at 10:00 UTC
+    - cron: "0 13 * * *"   # Daily at 13:00 UTC
   workflow_dispatch: {}
 
 permissions:

@@ -1,8 +1,8 @@
-name: Agent - Tech Lead Full Scan
+name: Agent - Tech Lead Test Review
 
 on:
   schedule:
-    - cron: "0 9 * * *"   # Daily at 09:00 UTC
+    - cron: "0 17 * * *"   # Daily at 17:00 UTC
   workflow_dispatch: {}
 
 permissions:
@@ -10,22 +10,22 @@ permissions:
   actions: write
 
 concurrency:
-  group: agent-scans
+  group: agent-tech-lead-test-review
   cancel-in-progress: false
 
 jobs:
-  full-scan:
-    name: Run Tech Lead full scan
+  test-review:
+    name: Run test review
     runs-on: self-hosted
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Tech Lead full scan
+      - name: Run Tech Lead test review
         uses: YourMoveLabs/agent-harness@main
         with:
           role: tech-lead
-          job: full-scan
+          job: test-review
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

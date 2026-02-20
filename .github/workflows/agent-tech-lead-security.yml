@@ -2,7 +2,7 @@ name: Agent - Tech Lead Security Scan
 
 on:
   schedule:
-    - cron: "0 10 * * 4"   # Weekly Thursday at 10:00 UTC
+    - cron: "0 11 * * *"   # Daily at 11:00 UTC
   workflow_dispatch: {}
 
 permissions:
