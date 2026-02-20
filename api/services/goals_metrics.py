@@ -156,17 +156,13 @@ async def _fetch_windowed_counts(repo: str, now: datetime) -> dict[str, dict[str
         "7d": (now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "30d": (now - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
-    date_cutoffs = {
-        "24h": (now - timedelta(hours=24)).strftime("%Y-%m-%d"),
-        "7d": (now - timedelta(days=7)).strftime("%Y-%m-%d"),
-        "30d": (now - timedelta(days=30)).strftime("%Y-%m-%d"),
-    }
 
     # Issue counts via Search API (is:closed works reliably)
+    # Use full ISO timestamps to avoid date-only rounding (#239)
     # Merged PR counts via Pulls REST API (is:merged has indexing issues — #187)
     # Fetch merged PRs for the widest window (30d) and filter client-side
     issue_tasks = [
-        _search_count(f"repo:{repo} is:issue is:closed closed:>={date_cutoffs[window]}")
+        _search_count(f"repo:{repo} is:issue is:closed closed:>={cutoffs[window]}")
         for window in ("24h", "7d", "30d")
     ]
     commit_tasks = [
@@ -174,7 +170,7 @@ async def _fetch_windowed_counts(repo: str, now: datetime) -> dict[str, dict[str
     ]
 
     all_merged_prs, *rest = await asyncio.gather(
-        fetch_merged_prs(repo, date_cutoffs["30d"]),
+        fetch_merged_prs(repo, cutoffs["30d"]),
         *issue_tasks,
         *commit_tasks,
     )
@@ -451,7 +447,7 @@ async def get_metrics(cache: TTLCache) -> dict[str, Any]:
 
     try:
         now = datetime.now(timezone.utc)
-        since_7d = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+        since_7d = (now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         # Fetch open issues/PRs counts, windowed metrics, and agent stats in parallel
         open_issues_task = _search_count(f"repo:{repo} is:issue is:open")
