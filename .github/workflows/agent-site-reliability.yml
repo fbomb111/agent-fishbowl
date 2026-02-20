@@ -36,7 +36,7 @@ jobs:
           fi
 
       - name: Run SRE
-        uses: YourMoveLabs/agent-harness@v1.3.0
+        uses: YourMoveLabs/agent-harness@v1.4.0
         with:
           entry-point: scripts/run-sre.sh
         env:
