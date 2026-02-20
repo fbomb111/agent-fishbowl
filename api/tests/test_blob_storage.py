@@ -49,7 +49,7 @@ def _make_blog_post(post_id="post-1", title="Test Post", slug="test-post"):
         "title": title,
         "slug": slug,
         "description": "A test post",
-        "published_at": "2026-01-15T10:00:00Z",
+        "published_at": "2026-02-15T10:00:00Z",
         "preview_url": "https://example.com/blog/test-post",
     }
 
@@ -450,3 +450,24 @@ class TestGetBlogIndex:
         result = await get_blog_index()
         assert result.total == 0
         assert result.posts == []
+
+
+class TestBlogPostDateValidation:
+    """Tests for BlogPost published_at clamping."""
+
+    def test_date_before_project_is_clamped(self):
+        """A published_at date before the project existed gets clamped."""
+        from api.models.blog import PROJECT_CREATED_AT, BlogPost
+
+        post_dict = _make_blog_post()
+        post_dict["published_at"] = "2024-12-24T10:00:00Z"
+        clamped = BlogPost(**post_dict)
+        assert clamped.published_at == PROJECT_CREATED_AT
+
+    def test_valid_date_preserved(self):
+        """A published_at date after the project existed is preserved."""
+        from api.models.blog import BlogPost
+
+        post = BlogPost(**_make_blog_post())
+        assert post.published_at.year == 2026
+        assert post.published_at.month == 2
