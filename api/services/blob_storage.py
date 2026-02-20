@@ -28,6 +28,7 @@ def validate_blob_path_segment(segment: str) -> str:
         raise ValueError(f"Invalid blob path segment: {segment!r}")
     return segment
 
+
 INDEX_BLOB = "index.json"
 BLOG_INDEX_BLOB = "blog-index.json"
 
