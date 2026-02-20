@@ -252,7 +252,9 @@ def parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
             review_body = review_body_raw[:500]
             pr_url = pr.get("html_url")
             if not pr_url and number is not None:
-                pr_url = f"https://github.com/{get_settings().github_repo}/pull/{number}"
+                pr_url = (
+                    f"https://github.com/{get_settings().github_repo}/pull/{number}"
+                )
             review_url = review.get("html_url") or pr_url
 
             parsed.append(
