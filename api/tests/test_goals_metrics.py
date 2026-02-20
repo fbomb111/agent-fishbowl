@@ -1,6 +1,6 @@
 """Tests for goals_metrics service — Search API counts, commit counting, agent stats."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 import httpx
