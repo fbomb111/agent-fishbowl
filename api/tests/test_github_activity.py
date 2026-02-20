@@ -133,19 +133,12 @@ class TestGroupEventsIntoThreads:
         assert result[1]["subject_number"] == 42
         assert len(result[1]["events"]) == 2
 
-    def test_deduplicates_label_events(self):
+    def test_threads_all_label_events(self):
+        """Label dedup happens in parse_events, so threading keeps all events."""
         events = [
             _make_activity_event(
                 "issue_labeled",
                 timestamp="2026-01-15T10:00:00Z",
-                subject_type="issue",
-                subject_number=42,
-                subject_title="Test",
-                description="priority/high",
-            ),
-            _make_activity_event(
-                "issue_labeled",
-                timestamp="2026-01-15T10:01:00Z",
                 subject_type="issue",
                 subject_number=42,
                 subject_title="Test",
@@ -164,7 +157,6 @@ class TestGroupEventsIntoThreads:
 
         assert len(result) == 1
         thread = result[0]
-        # Should keep one "priority/high" and one "type/bug"
         assert len(thread["events"]) == 2
         descriptions = [e["description"] for e in thread["events"]]
         assert "priority/high" in descriptions
