@@ -32,8 +32,27 @@ WORKFLOW_AGENT_MAP: dict[str, list[str]] = {
 }
 
 
+async def _fetch_workflow_runs(
+    repo: str, workflow_file: str
+) -> tuple[str, list[dict[str, Any]]]:
+    """Fetch the most recent run for a single workflow file.
+
+    Returns (workflow_file, runs) so callers can map results back.
+    """
+    url = f"https://api.github.com/repos/{repo}/actions/workflows/{workflow_file}/runs"
+    params = {"per_page": "1"}
+    result = await github_api_get(
+        url, params, response_key="workflow_runs", context=workflow_file
+    )
+    return (workflow_file, result if result is not None else [])
+
+
 async def get_agent_status() -> list[dict[str, Any]]:
     """Fetch the current status of each agent from GitHub Actions workflow runs.
+
+    Queries each workflow individually (per_page=1) to guarantee that
+    infrequent agents are never pushed out of the result window by
+    high-frequency agents like reviewer or engineer.
 
     Returns a list of agent status dicts with role, status, timing, etc.
     Cached with 60s TTL.
@@ -44,32 +63,35 @@ async def get_agent_status() -> list[dict[str, Any]]:
         return cached
 
     settings = get_settings()
-    url = f"https://api.github.com/repos/{settings.github_repo}/actions/runs"
-    params = {"per_page": "50"}
 
-    result = await github_api_get(
-        url, params, response_key="workflow_runs", context="workflow runs"
+    # Fetch latest run for each workflow concurrently
+    fetch_results = await asyncio.gather(
+        *(
+            _fetch_workflow_runs(settings.github_repo, wf)
+            for wf in WORKFLOW_AGENT_MAP
+        ),
+        return_exceptions=True,
     )
-    if result is None:
-        stale = _status_cache.get_stale(cache_key)
-        return stale if stale is not None else []
-    runs = result
 
     # Build a map of agent role -> most recent run
     agent_runs: dict[str, dict[str, Any]] = {}
+    any_success = False
 
-    for run in runs:
-        # Extract workflow filename from path
-        # e.g. ".github/workflows/agent-engineer.yml"
-        workflow_path = run.get("path", "")
-        workflow_file = (
-            workflow_path.split("/")[-1] if "/" in workflow_path else workflow_path
-        )
-        roles = WORKFLOW_AGENT_MAP.get(workflow_file, [])
+    for item in fetch_results:
+        if isinstance(item, Exception):
+            continue
+        # At least one fetch completed without raising — API is reachable
+        any_success = True
+        workflow_file, runs = item
+        if runs:
+            roles = WORKFLOW_AGENT_MAP.get(workflow_file, [])
+            for role in roles:
+                if role not in agent_runs:
+                    agent_runs[role] = runs[0]
 
-        for role in roles:
-            if role not in agent_runs:
-                agent_runs[role] = run
+    if not any_success:
+        stale = _status_cache.get_stale(cache_key)
+        return stale if stale is not None else []
 
     # Fetch usage data for completed runs (from blob storage, permanently cached)
     completed_run_ids: set[int] = set()

@@ -1,6 +1,6 @@
 """Tests for GitHub agent status — workflow-to-agent mapping, caching, errors."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -36,28 +36,41 @@ class TestWorkflowAgentMap:
         assert WORKFLOW_AGENT_MAP["agent-strategic.yml"] == ["pm"]
 
 
+def _make_workflow_run(
+    workflow_file,
+    status="completed",
+    conclusion="success",
+    run_id=1000,
+    updated_at="2026-01-15T10:00:00Z",
+    run_started_at="2026-01-15T09:55:00Z",
+    event="workflow_dispatch",
+):
+    return {
+        "id": run_id,
+        "path": f".github/workflows/{workflow_file}",
+        "status": status,
+        "conclusion": conclusion,
+        "updated_at": updated_at,
+        "run_started_at": run_started_at,
+        "event": event,
+    }
+
+
+def _mock_fetch(workflow_runs: dict[str, list[dict]]):
+    """Build a mock _fetch_workflow_runs that returns runs per workflow.
+
+    Args:
+        workflow_runs: mapping of workflow filename -> list of run dicts
+    """
+
+    async def fake_fetch(repo: str, workflow_file: str):
+        return (workflow_file, workflow_runs.get(workflow_file, []))
+
+    return fake_fetch
+
+
 class TestGetAgentStatus:
     """Tests for get_agent_status() — fetching, mapping, and caching."""
-
-    def _make_workflow_run(
-        self,
-        workflow_file,
-        status="completed",
-        conclusion="success",
-        run_id=1000,
-        updated_at="2026-01-15T10:00:00Z",
-        run_started_at="2026-01-15T09:55:00Z",
-        event="workflow_dispatch",
-    ):
-        return {
-            "id": run_id,
-            "path": f".github/workflows/{workflow_file}",
-            "status": status,
-            "conclusion": conclusion,
-            "updated_at": updated_at,
-            "run_started_at": run_started_at,
-            "event": event,
-        }
 
     @pytest.mark.asyncio
     async def test_returns_cached_data(self):
@@ -75,21 +88,13 @@ class TestGetAgentStatus:
         self, mock_settings, monkeypatch
     ):
         """In-progress workflow run maps to 'active' agent status."""
-        runs = [
-            self._make_workflow_run(
-                "agent-engineer.yml", status="in_progress", conclusion=None
-            ),
-        ]
-
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"workflow_runs": runs}
-
-        mock_client = AsyncMock()
-        mock_client.get.return_value = mock_response
+        run = _make_workflow_run(
+            "agent-engineer.yml", status="in_progress", conclusion=None
+        )
 
         monkeypatch.setattr(
-            "api.services.http_client.get_shared_client", lambda: mock_client
+            "api.services.github_status._fetch_workflow_runs",
+            _mock_fetch({"agent-engineer.yml": [run]}),
         )
         monkeypatch.setattr(
             "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
@@ -106,21 +111,13 @@ class TestGetAgentStatus:
         self, mock_settings, monkeypatch
     ):
         """Failed workflow run maps to 'failed' agent status."""
-        runs = [
-            self._make_workflow_run(
-                "agent-reviewer.yml", status="completed", conclusion="failure"
-            ),
-        ]
-
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"workflow_runs": runs}
-
-        mock_client = AsyncMock()
-        mock_client.get.return_value = mock_response
+        run = _make_workflow_run(
+            "agent-reviewer.yml", status="completed", conclusion="failure"
+        )
 
         monkeypatch.setattr(
-            "api.services.http_client.get_shared_client", lambda: mock_client
+            "api.services.github_status._fetch_workflow_runs",
+            _mock_fetch({"agent-reviewer.yml": [run]}),
         )
         monkeypatch.setattr(
             "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
@@ -135,21 +132,13 @@ class TestGetAgentStatus:
         self, mock_settings, monkeypatch
     ):
         """Completed-success workflow run maps to 'idle' agent status."""
-        runs = [
-            self._make_workflow_run(
-                "agent-product-owner.yml", status="completed", conclusion="success"
-            ),
-        ]
-
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"workflow_runs": runs}
-
-        mock_client = AsyncMock()
-        mock_client.get.return_value = mock_response
+        run = _make_workflow_run(
+            "agent-product-owner.yml", status="completed", conclusion="success"
+        )
 
         monkeypatch.setattr(
-            "api.services.http_client.get_shared_client", lambda: mock_client
+            "api.services.github_status._fetch_workflow_runs",
+            _mock_fetch({"agent-product-owner.yml": [run]}),
         )
         monkeypatch.setattr(
             "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
@@ -163,15 +152,9 @@ class TestGetAgentStatus:
     @pytest.mark.asyncio
     async def test_unmapped_agents_are_idle(self, mock_settings, monkeypatch):
         """Agents with no matching workflow run show as 'idle'."""
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"workflow_runs": []}
-
-        mock_client = AsyncMock()
-        mock_client.get.return_value = mock_response
-
         monkeypatch.setattr(
-            "api.services.http_client.get_shared_client", lambda: mock_client
+            "api.services.github_status._fetch_workflow_runs",
+            _mock_fetch({}),
         )
 
         result = await get_agent_status()
@@ -179,17 +162,40 @@ class TestGetAgentStatus:
             assert entry["status"] == "idle"
 
     @pytest.mark.asyncio
-    async def test_all_roles_present_in_output(self, mock_settings, monkeypatch):
-        """Output always includes all 13 agent roles."""
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"workflow_runs": []}
-
-        mock_client = AsyncMock()
-        mock_client.get.return_value = mock_response
+    async def test_unmapped_agents_idle_when_some_have_runs(
+        self, mock_settings, monkeypatch
+    ):
+        """Agents with no matching run show 'idle' when others have runs."""
+        run = _make_workflow_run(
+            "agent-engineer.yml", status="completed", conclusion="success"
+        )
 
         monkeypatch.setattr(
-            "api.services.http_client.get_shared_client", lambda: mock_client
+            "api.services.github_status._fetch_workflow_runs",
+            _mock_fetch({"agent-engineer.yml": [run]}),
+        )
+        monkeypatch.setattr(
+            "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
+        )
+
+        result = await get_agent_status()
+        sre = next(r for r in result if r["role"] == "sre")
+        assert sre["status"] == "idle"
+
+    @pytest.mark.asyncio
+    async def test_all_roles_present_in_output(self, mock_settings, monkeypatch):
+        """Output always includes all 10 agent roles."""
+        # Need at least one run so any_success is True
+        run = _make_workflow_run(
+            "agent-engineer.yml", status="completed", conclusion="success"
+        )
+
+        monkeypatch.setattr(
+            "api.services.github_status._fetch_workflow_runs",
+            _mock_fetch({"agent-engineer.yml": [run]}),
+        )
+        monkeypatch.setattr(
+            "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
         )
 
         result = await get_agent_status()
@@ -212,52 +218,64 @@ class TestGetAgentStatus:
         assert roles == expected_roles
 
     @pytest.mark.asyncio
-    async def test_api_failure_returns_empty(self, mock_settings, monkeypatch):
-        """Non-200 API response returns empty list."""
-        mock_response = MagicMock()
-        mock_response.status_code = 500
+    async def test_all_fetches_fail_returns_empty(self, mock_settings, monkeypatch):
+        """When all per-workflow fetches fail, returns empty list."""
 
-        mock_client = AsyncMock()
-        mock_client.get.return_value = mock_response
+        async def failing_fetch(repo, workflow_file):
+            raise Exception("Connection refused")
 
         monkeypatch.setattr(
-            "api.services.http_client.get_shared_client", lambda: mock_client
+            "api.services.github_status._fetch_workflow_runs",
+            failing_fetch,
         )
 
         result = await get_agent_status()
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_api_exception_returns_empty(self, mock_settings, monkeypatch):
-        """Network exception returns empty list."""
-        mock_client = AsyncMock()
-        mock_client.get.side_effect = Exception("Connection refused")
+    async def test_partial_fetch_failure_still_works(self, mock_settings, monkeypatch):
+        """When some per-workflow fetches fail, others still populate."""
+        run = _make_workflow_run(
+            "agent-engineer.yml", status="completed", conclusion="success"
+        )
+
+        call_count = 0
+
+        async def partial_fetch(repo, workflow_file):
+            nonlocal call_count
+            call_count += 1
+            if workflow_file == "agent-engineer.yml":
+                return ("agent-engineer.yml", [run])
+            if workflow_file == "agent-reviewer.yml":
+                raise Exception("timeout")
+            return (workflow_file, [])
 
         monkeypatch.setattr(
-            "api.services.http_client.get_shared_client", lambda: mock_client
+            "api.services.github_status._fetch_workflow_runs",
+            partial_fetch,
+        )
+        monkeypatch.setattr(
+            "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
         )
 
         result = await get_agent_status()
-        assert result == []
+        engineer = next(r for r in result if r["role"] == "engineer")
+        assert engineer["status"] == "idle"
+        assert engineer["last_conclusion"] == "success"
+        # Reviewer should be idle (fetch failed, no data)
+        reviewer = next(r for r in result if r["role"] == "reviewer")
+        assert reviewer["status"] == "idle"
 
     @pytest.mark.asyncio
     async def test_scans_workflow_maps_to_both_roles(self, mock_settings, monkeypatch):
         """agent-scans.yml maps to both tech-lead and ux roles."""
-        runs = [
-            self._make_workflow_run(
-                "agent-scans.yml", status="in_progress", conclusion=None
-            ),
-        ]
-
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"workflow_runs": runs}
-
-        mock_client = AsyncMock()
-        mock_client.get.return_value = mock_response
+        run = _make_workflow_run(
+            "agent-scans.yml", status="in_progress", conclusion=None
+        )
 
         monkeypatch.setattr(
-            "api.services.http_client.get_shared_client", lambda: mock_client
+            "api.services.github_status._fetch_workflow_runs",
+            _mock_fetch({"agent-scans.yml": [run]}),
         )
         monkeypatch.setattr(
             "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
@@ -272,21 +290,17 @@ class TestGetAgentStatus:
     @pytest.mark.asyncio
     async def test_usage_data_enriches_completed_run(self, mock_settings, monkeypatch):
         """Completed runs are enriched with usage data from blob storage."""
-        runs = [
-            self._make_workflow_run(
-                "agent-engineer.yml",
-                status="completed",
-                conclusion="success",
-                run_id=5000,
-            ),
-        ]
+        run = _make_workflow_run(
+            "agent-engineer.yml",
+            status="completed",
+            conclusion="success",
+            run_id=5000,
+        )
 
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"workflow_runs": runs}
-
-        mock_client = AsyncMock()
-        mock_client.get.return_value = mock_response
+        monkeypatch.setattr(
+            "api.services.github_status._fetch_workflow_runs",
+            _mock_fetch({"agent-engineer.yml": [run]}),
+        )
 
         usage_data = {
             "agents": [
@@ -307,9 +321,6 @@ class TestGetAgentStatus:
         }
 
         monkeypatch.setattr(
-            "api.services.http_client.get_shared_client", lambda: mock_client
-        )
-        monkeypatch.setattr(
             "api.services.github_status.get_run_usage",
             AsyncMock(return_value=usage_data),
         )
@@ -321,3 +332,44 @@ class TestGetAgentStatus:
         assert engineer["usage"]["num_turns"] == 15
         assert engineer["usage"]["duration_s"] == 120
         assert engineer["last_summary"] == "Implemented feature X"
+
+    @pytest.mark.asyncio
+    async def test_per_workflow_fetch_finds_infrequent_agents(
+        self, mock_settings, monkeypatch
+    ):
+        """Regression: infrequent agents (SRE) are found even when
+        frequent agents (reviewer, engineer) have many more runs.
+
+        This is the core bug from issue #233 — the old 50-run window
+        approach missed infrequent agents entirely.
+        """
+        sre_run = _make_workflow_run(
+            "agent-site-reliability.yml",
+            status="completed",
+            conclusion="failure",
+            run_id=2000,
+        )
+        engineer_run = _make_workflow_run(
+            "agent-engineer.yml",
+            status="completed",
+            conclusion="success",
+            run_id=3000,
+        )
+
+        monkeypatch.setattr(
+            "api.services.github_status._fetch_workflow_runs",
+            _mock_fetch(
+                {
+                    "agent-site-reliability.yml": [sre_run],
+                    "agent-engineer.yml": [engineer_run],
+                }
+            ),
+        )
+        monkeypatch.setattr(
+            "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
+        )
+
+        result = await get_agent_status()
+        sre = next(r for r in result if r["role"] == "sre")
+        assert sre["status"] == "failed"
+        assert sre["last_conclusion"] == "failure"
