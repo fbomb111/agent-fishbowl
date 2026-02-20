@@ -32,8 +32,12 @@ def _agent_role(login: str) -> str | None:
     return ACTOR_MAP.get(login)
 
 
-async def _search_count(query: str) -> int:
-    """Run a GitHub search and return the total_count."""
+async def _search_count(query: str) -> int | None:
+    """Run a GitHub search and return the total_count.
+
+    Returns None on API errors so callers can distinguish "zero results"
+    from "request failed".
+    """
     url = "https://api.github.com/search/issues"
     params = {"q": query, "per_page": "1"}
     client = get_shared_client()
@@ -45,22 +49,30 @@ async def _search_count(query: str) -> int:
         logger.warning("GitHub search API returned %d for: %s", resp.status_code, query)
     except Exception:
         logger.exception("GitHub search error for: %s", query)
-    return 0
+    return None
 
 
-async def _search_items(query: str) -> list[dict[str, Any]]:
-    """Run a GitHub search and return all items (up to 100)."""
+async def _search_items(query: str) -> list[dict[str, Any]] | None:
+    """Run a GitHub search and return all items (up to 100).
+
+    Returns None on API errors so callers can distinguish "no results"
+    from "request failed".
+    """
     result = await github_api_get(
         "https://api.github.com/search/issues",
         {"q": query, "per_page": "100"},
         response_key="items",
         context=query,
     )
-    return result if result is not None else []
+    return result
 
 
-async def _count_commits(repo: str, since: str) -> int:
-    """Count commits on default branch since a given ISO date."""
+async def _count_commits(repo: str, since: str) -> int | None:
+    """Count commits on default branch since a given ISO date.
+
+    Returns None on API errors so callers can distinguish "zero commits"
+    from "request failed".
+    """
     url = f"https://api.github.com/repos/{repo}/commits"
     params = {"since": since, "per_page": "1"}
     client = get_shared_client()
@@ -68,7 +80,7 @@ async def _count_commits(repo: str, since: str) -> int:
     try:
         resp = await client.get(url, headers=headers, params=params)
         if resp.status_code != 200:
-            return 0
+            return None
         # Use the Link header to get total count if available
         # Otherwise fall back to fetching all and counting
         link = resp.headers.get("Link", "")
@@ -84,7 +96,31 @@ async def _count_commits(repo: str, since: str) -> int:
         return len(resp.json())
     except Exception:
         logger.exception("Commits count error")
-        return 0
+        return None
+
+
+def _enforce_monotonic(values: list[int | None]) -> list[int]:
+    """Ensure cumulative window values satisfy 24h <= 7d <= 30d.
+
+    When an API call fails (None), fill it from its neighbours.  When
+    a successful value is smaller than a shorter window, clamp it up.
+    """
+    v24, v7, v30 = values
+
+    # Replace None with a safe substitute: propagate from neighbours
+    if v24 is None and v7 is None and v30 is None:
+        return [0, 0, 0]
+    if v30 is None:
+        v30 = v7 if v7 is not None else (v24 if v24 is not None else 0)
+    if v7 is None:
+        v7 = v24 if v24 is not None else v30
+    if v24 is None:
+        v24 = 0
+
+    # Clamp so 24h <= 7d <= 30d
+    v7 = max(v7, v24)
+    v30 = max(v30, v7)
+    return [v24, v7, v30]
 
 
 async def _fetch_windowed_counts(repo: str, now: datetime) -> dict[str, dict[str, int]]:
@@ -117,8 +153,14 @@ async def _fetch_windowed_counts(repo: str, now: datetime) -> dict[str, dict[str
         *commit_tasks,
     )
 
-    issues_24h, issues_7d, issues_30d = rest[0], rest[1], rest[2]
-    commits_24h, commits_7d, commits_30d = rest[3], rest[4], rest[5]
+    raw_issues = [rest[0], rest[1], rest[2]]
+    raw_commits = [rest[3], rest[4], rest[5]]
+
+    # Enforce monotonicity: 24h <= 7d <= 30d.  When an API call fails
+    # (returns None), fill it from its neighbours so the response is
+    # never internally contradictory.
+    issues = _enforce_monotonic(raw_issues)
+    commits = _enforce_monotonic(raw_commits)
 
     # Count merged PRs per window from the single fetch
     pr_counts: dict[str, int] = {"24h": 0, "7d": 0, "30d": 0}
@@ -132,15 +174,15 @@ async def _fetch_windowed_counts(repo: str, now: datetime) -> dict[str, dict[str
 
     return {
         "issues_closed": {
-            "24h": issues_24h,
-            "7d": issues_7d,
-            "30d": issues_30d,
+            "24h": issues[0],
+            "7d": issues[1],
+            "30d": issues[2],
         },
         "prs_merged": pr_counts,
         "commits": {
-            "24h": commits_24h,
-            "7d": commits_7d,
-            "30d": commits_30d,
+            "24h": commits[0],
+            "7d": commits[1],
+            "30d": commits[2],
         },
     }
 
@@ -305,36 +347,41 @@ async def _fetch_agent_stats(repo: str, since_str: str) -> dict[str, dict[str, i
 
     agent_stats: dict[str, dict[str, int]] = {}
 
-    for item in issues_closed_items:
-        # Use assignee as closer (more accurate for agent work)
-        assignees = item.get("assignees", [])
-        login = assignees[0].get("login", "") if assignees else ""
-        if not login:
+    # Only process each category if its API call succeeded (not None).
+    # Skipping failed categories avoids overwriting real data with zeros.
+    if issues_closed_items is not None:
+        for item in issues_closed_items:
+            # Use assignee as closer (more accurate for agent work)
+            assignees = item.get("assignees", [])
+            login = assignees[0].get("login", "") if assignees else ""
+            if not login:
+                login = item.get("user", {}).get("login", "")
+            role = _agent_role(login)
+            if not role:
+                continue
+            if role not in agent_stats:
+                agent_stats[role] = _empty_agent_stats()
+            agent_stats[role]["issues_closed"] += 1
+
+    if issues_opened_items is not None:
+        for item in issues_opened_items:
             login = item.get("user", {}).get("login", "")
-        role = _agent_role(login)
-        if not role:
-            continue
-        if role not in agent_stats:
-            agent_stats[role] = _empty_agent_stats()
-        agent_stats[role]["issues_closed"] += 1
+            role = _agent_role(login)
+            if not role:
+                continue
+            if role not in agent_stats:
+                agent_stats[role] = _empty_agent_stats()
+            agent_stats[role]["issues_opened"] += 1
 
-    for item in issues_opened_items:
-        login = item.get("user", {}).get("login", "")
-        role = _agent_role(login)
-        if not role:
-            continue
-        if role not in agent_stats:
-            agent_stats[role] = _empty_agent_stats()
-        agent_stats[role]["issues_opened"] += 1
-
-    for item in prs_opened_items:
-        login = item.get("user", {}).get("login", "")
-        role = _agent_role(login)
-        if not role:
-            continue
-        if role not in agent_stats:
-            agent_stats[role] = _empty_agent_stats()
-        agent_stats[role]["prs_opened"] += 1
+    if prs_opened_items is not None:
+        for item in prs_opened_items:
+            login = item.get("user", {}).get("login", "")
+            role = _agent_role(login)
+            if not role:
+                continue
+            if role not in agent_stats:
+                agent_stats[role] = _empty_agent_stats()
+            agent_stats[role]["prs_opened"] += 1
 
     for item in prs_merged_items:
         login = item.get("user", {}).get("login", "")
@@ -393,8 +440,8 @@ async def get_metrics(cache: TTLCache) -> dict[str, Any]:
             open_issues_task, open_prs_task, windowed_task, agent_stats_task
         )
 
-        metrics["open_issues"] = open_issues
-        metrics["open_prs"] = open_prs
+        metrics["open_issues"] = open_issues if open_issues is not None else 0
+        metrics["open_prs"] = open_prs if open_prs is not None else 0
         metrics["issues_closed"] = windowed["issues_closed"]
         metrics["prs_merged"] = windowed["prs_merged"]
         metrics["commits"] = windowed["commits"]

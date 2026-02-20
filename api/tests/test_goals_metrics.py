@@ -10,6 +10,7 @@ from api.services.cache import TTLCache
 from api.services.goals_metrics import (
     _agent_role,
     _count_commits,
+    _enforce_monotonic,
     _fetch_agent_stats,
     _fetch_commits_by_agent,
     _fetch_review_counts,
@@ -48,22 +49,22 @@ class TestSearchCount:
         assert result == 42
 
     @pytest.mark.asyncio
-    async def test_returns_zero_on_error(self, monkeypatch):
+    async def test_returns_none_on_error(self, monkeypatch):
         async def mock_get(self, url, **kwargs):
             return httpx.Response(403, json={"message": "rate limited"})
 
         monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
         result = await _search_count("repo:test is:issue is:open")
-        assert result == 0
+        assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_zero_on_exception(self, monkeypatch):
+    async def test_returns_none_on_exception(self, monkeypatch):
         async def mock_get(self, url, **kwargs):
             raise httpx.HTTPError("connection failed")
 
         monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
         result = await _search_count("repo:test is:issue is:open")
-        assert result == 0
+        assert result is None
 
 
 class TestCountCommits:
@@ -97,22 +98,55 @@ class TestCountCommits:
         assert result == 2
 
     @pytest.mark.asyncio
-    async def test_returns_zero_on_non_200(self, monkeypatch):
+    async def test_returns_none_on_non_200(self, monkeypatch):
         async def mock_get(self, url, **kwargs):
             return httpx.Response(500, json={"message": "error"})
 
         monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
         result = await _count_commits("test/repo", "2026-01-01T00:00:00Z")
-        assert result == 0
+        assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_zero_on_exception(self, monkeypatch):
+    async def test_returns_none_on_exception(self, monkeypatch):
         async def mock_get(self, url, **kwargs):
             raise httpx.HTTPError("connection failed")
 
         monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
         result = await _count_commits("test/repo", "2026-01-01T00:00:00Z")
-        assert result == 0
+        assert result is None
+
+
+class TestEnforceMonotonic:
+    """Tests for _enforce_monotonic()."""
+
+    def test_all_valid_ascending(self):
+        assert _enforce_monotonic([3, 10, 25]) == [3, 10, 25]
+
+    def test_all_none(self):
+        assert _enforce_monotonic([None, None, None]) == [0, 0, 0]
+
+    def test_7d_none_fills_from_24h(self):
+        """When 7d fails, it should be at least 24h."""
+        assert _enforce_monotonic([10, None, 50]) == [10, 10, 50]
+
+    def test_24h_none_fills_with_zero(self):
+        assert _enforce_monotonic([None, 20, 50]) == [0, 20, 50]
+
+    def test_30d_none_fills_from_7d(self):
+        assert _enforce_monotonic([5, 20, None]) == [5, 20, 20]
+
+    def test_clamps_7d_up_to_24h(self):
+        """Even with real data, 7d can't be less than 24h."""
+        assert _enforce_monotonic([67, 0, 112]) == [67, 67, 112]
+
+    def test_clamps_30d_up_to_7d(self):
+        assert _enforce_monotonic([5, 20, 10]) == [5, 20, 20]
+
+    def test_only_24h_available(self):
+        assert _enforce_monotonic([42, None, None]) == [42, 42, 42]
+
+    def test_only_30d_available(self):
+        assert _enforce_monotonic([None, None, 100]) == [0, 100, 100]
 
 
 class TestFetchWindowedCounts:
@@ -123,26 +157,36 @@ class TestFetchWindowedCounts:
         """All three windows and three metrics are returned."""
         now = datetime.now(UTC)
 
+        # Merged PRs with timestamps spanning multiple windows
+        merged_prs = [
+            {"merged_at": now.strftime("%Y-%m-%dT%H:%M:%SZ")},  # within 24h
+        ]
+
         with (
             patch(
                 "api.services.goals_metrics._search_count",
                 new_callable=AsyncMock,
-                side_effect=[10, 5, 3, 20, 12, 8, 50, 30, 25],
+                side_effect=[3, 10, 25],  # issues_closed: 24h, 7d, 30d
             ),
             patch(
                 "api.services.goals_metrics._count_commits",
                 new_callable=AsyncMock,
-                side_effect=[3, 8, 25],
+                side_effect=[3, 8, 25],  # commits: 24h, 7d, 30d
+            ),
+            patch(
+                "api.services.goals_metrics.fetch_merged_prs",
+                new_callable=AsyncMock,
+                return_value=merged_prs,
             ),
         ):
             result = await _fetch_windowed_counts("test/repo", now)
 
-        assert result["issues_closed"]["24h"] == 10
-        assert result["issues_closed"]["7d"] == 20
-        assert result["issues_closed"]["30d"] == 50
-        assert result["prs_merged"]["24h"] == 5
-        assert result["prs_merged"]["7d"] == 12
-        assert result["prs_merged"]["30d"] == 30
+        assert result["issues_closed"]["24h"] == 3
+        assert result["issues_closed"]["7d"] == 10
+        assert result["issues_closed"]["30d"] == 25
+        assert result["prs_merged"]["24h"] == 1
+        assert result["prs_merged"]["7d"] == 1
+        assert result["prs_merged"]["30d"] == 1
         assert result["commits"]["24h"] == 3
         assert result["commits"]["7d"] == 8
         assert result["commits"]["30d"] == 25
@@ -152,17 +196,11 @@ class TestFetchWindowedCounts:
         """Verify correct index mapping by mocking at asyncio.gather level."""
         now = datetime.now(UTC)
 
-        # The function creates 9 tasks in order:
-        # 24h: issues_closed, prs_merged, commits
-        # 7d:  issues_closed, prs_merged, commits
-        # 30d: issues_closed, prs_merged, commits
-        mock_results = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-
-        async def mock_search_count(query):
-            return 0  # won't be called directly
-
-        async def mock_count_commits(repo, since):
-            return 0
+        # The function creates 7 tasks via asyncio.gather:
+        # [0]: fetch_merged_prs (list of PRs)
+        # [1..3]: _search_count for issues_closed (24h, 7d, 30d)
+        # [4..6]: _count_commits (24h, 7d, 30d)
+        mock_results = [[], 2, 5, 10, 3, 8, 20]
 
         with patch(
             "api.services.goals_metrics.asyncio.gather",
@@ -171,10 +209,9 @@ class TestFetchWindowedCounts:
         ):
             result = await _fetch_windowed_counts("test/repo", now)
 
-        # Verify index mapping: results[0]=24h issues, [3]=7d issues, [6]=30d issues
-        assert result["issues_closed"] == {"24h": 1, "7d": 4, "30d": 7}
-        assert result["prs_merged"] == {"24h": 2, "7d": 5, "30d": 8}
-        assert result["commits"] == {"24h": 3, "7d": 6, "30d": 9}
+        assert result["issues_closed"] == {"24h": 2, "7d": 5, "30d": 10}
+        assert result["prs_merged"] == {"24h": 0, "7d": 0, "30d": 0}
+        assert result["commits"] == {"24h": 3, "7d": 8, "30d": 20}
 
 
 class TestFetchReviewCounts:
