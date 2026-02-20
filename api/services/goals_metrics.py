@@ -278,48 +278,45 @@ async def _fetch_review_counts(repo: str, since_str: str) -> dict[str, int]:
 async def _fetch_commits_by_agent(repo: str, since_str: str) -> dict[str, int]:
     """Count commits per agent role within the time window.
 
-    Uses the Commits API with per-author filtering. Only queries known
-    agent logins from ACTOR_MAP (plus the human login).
+    Fetches all commits in the window and attributes them client-side
+    using commit.author.login. The GitHub Commits API author parameter
+    does not work for bot accounts, so we fetch all and filter locally.
     """
     if "T" not in since_str:
         since_iso = since_str + "T00:00:00Z"
     else:
         since_iso = since_str
 
-    # Build login→role mapping for all known agents
-    logins: dict[str, str] = {}
-    for login, role in ACTOR_MAP.items():
-        logins[login] = role
-    logins["fbomb111"] = "human"
+    client = get_shared_client()
+    headers = github_headers()
+    all_commits: list[dict[str, Any]] = []
+    page = 1
 
-    async def _count_for_author(login: str) -> tuple[str, int]:
+    while True:
         url = f"https://api.github.com/repos/{repo}/commits"
-        params = {"since": since_iso, "author": login, "per_page": "1"}
-        client = get_shared_client()
-        headers = github_headers()
+        params = {"since": since_iso, "per_page": "100", "page": str(page)}
         try:
             resp = await client.get(url, headers=headers, params=params)
             if resp.status_code != 200:
-                return login, 0
-            link = resp.headers.get("Link", "")
-            if 'rel="last"' in link:
-                for part in link.split(","):
-                    if 'rel="last"' in part:
-                        url_part = part.split(";")[0].strip().strip("<>")
-                        for param in url_part.split("?")[1].split("&"):
-                            if param.startswith("page="):
-                                return login, int(param.split("=")[1])
-            return login, len(resp.json())
+                break
+            items = resp.json()
+            if not items:
+                break
+            all_commits.extend(items)
+            if len(items) < 100:
+                break
+            page += 1
         except Exception:
-            logger.exception("Commits count error for %s", login)
-            return login, 0
+            logger.exception("Commits fetch error (page=%d)", page)
+            break
 
-    results = await asyncio.gather(*[_count_for_author(login) for login in logins])
     counts: dict[str, int] = {}
-    for login, count in results:
-        if count > 0:
-            role = logins[login]
-            counts[role] = counts.get(role, 0) + count
+    for commit in all_commits:
+        login = (commit.get("author") or {}).get("login", "")
+        role = _agent_role(login)
+        if not role:
+            continue
+        counts[role] = counts.get(role, 0) + 1
     return counts
 
 
