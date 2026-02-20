@@ -221,6 +221,104 @@ class TestGroupEventsIntoThreads:
         assert thread["subject_title"] == "The real title"
 
 
+class TestBackfillPrTitles:
+    """Tests for _backfill_pr_titles() — fetching missing PR titles."""
+
+    @pytest.mark.asyncio
+    async def test_backfills_missing_pr_titles(self, mock_settings, monkeypatch):
+        """Events with empty subject_title get backfilled from the PR API."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from api.services.github_activity import _backfill_pr_titles
+
+        events = [
+            _make_activity_event(
+                "pr_merged",
+                subject_type="pr",
+                subject_number=177,
+                subject_title="",
+                description="Merged PR #177: ",
+            ),
+        ]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"title": "Remove orphaned avatars"}
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+
+        monkeypatch.setattr(
+            "api.services.http_client.get_shared_client", lambda: mock_client
+        )
+
+        await _backfill_pr_titles(events)
+
+        assert events[0]["subject_title"] == "Remove orphaned avatars"
+        assert events[0]["description"] == "Merged PR #177: Remove orphaned avatars"
+
+    @pytest.mark.asyncio
+    async def test_skips_events_with_titles(self, mock_settings, monkeypatch):
+        """Events that already have titles are not fetched."""
+        from unittest.mock import AsyncMock
+
+        from api.services.github_activity import _backfill_pr_titles
+
+        events = [
+            _make_activity_event(
+                "pr_opened",
+                subject_type="pr",
+                subject_number=10,
+                subject_title="Already has title",
+                description="Opened PR #10: Already has title",
+            ),
+        ]
+
+        mock_client = AsyncMock()
+        monkeypatch.setattr(
+            "api.services.http_client.get_shared_client", lambda: mock_client
+        )
+
+        await _backfill_pr_titles(events)
+
+        # No API call should have been made
+        mock_client.get.assert_not_called()
+        assert events[0]["subject_title"] == "Already has title"
+
+    @pytest.mark.asyncio
+    async def test_handles_api_failure_gracefully(self, mock_settings, monkeypatch):
+        """If the PR API returns an error, the event stays unchanged."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from api.services.github_activity import _backfill_pr_titles
+
+        events = [
+            _make_activity_event(
+                "pr_reviewed",
+                subject_type="pr",
+                subject_number=999,
+                subject_title="",
+                description="Approved PR #999: ",
+            ),
+        ]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_response.json.return_value = {"message": "Not Found"}
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+
+        monkeypatch.setattr(
+            "api.services.http_client.get_shared_client", lambda: mock_client
+        )
+
+        await _backfill_pr_titles(events)
+
+        # Should remain empty — no crash
+        assert events[0]["subject_title"] == ""
+
+
 class TestGetActivityEventsCaching:
     """Tests for get_activity_events() cache behavior."""
 

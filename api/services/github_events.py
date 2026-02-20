@@ -182,7 +182,7 @@ def parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         elif event_type == "PullRequestEvent":
             action = payload.get("action", "")
             pr = payload.get("pull_request", {})
-            title = pr.get("title", "")
+            title = pr.get("title") or ""
             number = pr.get("number")
             url = pr.get("html_url")
             subject = dict(
@@ -229,7 +229,7 @@ def parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
             pr = payload.get("pull_request", {})
             review = payload.get("review", {})
             state = review.get("state", "")
-            title = pr.get("title", "")
+            title = pr.get("title") or ""
             number = pr.get("number")
             subject = dict(
                 subject_type="pr",

@@ -119,6 +119,55 @@ def test_deduplicates_label_events():
     assert "source/qa-analyst" in labeled[0]["description"]
 
 
+def test_parse_pr_event_null_title():
+    """GitHub Events API often returns null for pull_request.title.
+
+    parse_events should treat null title as empty string, not propagate None.
+    """
+    event = _make_event(
+        "PullRequestEvent",
+        "fishbowl-reviewer[bot]",
+        {
+            "action": "closed",
+            "pull_request": {
+                "number": 177,
+                "title": None,
+                "html_url": "https://github.com/test/repo/pull/177",
+                "merged": True,
+            },
+        },
+    )
+    parsed = parse_events([event])
+    assert len(parsed) == 1
+    assert parsed[0]["type"] == "pr_merged"
+    # subject_title should not be set (empty string is falsy, _make_event skips it)
+    assert "subject_title" not in parsed[0]
+    # Description should not contain "None"
+    assert "None" not in parsed[0]["description"]
+    assert "PR #177" in parsed[0]["description"]
+
+
+def test_parse_pr_review_null_title():
+    """PullRequestReviewEvent also gets null titles from the Events API."""
+    event = _make_event(
+        "PullRequestReviewEvent",
+        "fishbowl-reviewer[bot]",
+        {
+            "review": {"state": "approved", "body": "LGTM"},
+            "pull_request": {
+                "number": 177,
+                "title": None,
+                "html_url": "https://github.com/test/repo/pull/177",
+            },
+        },
+    )
+    parsed = parse_events([event])
+    assert len(parsed) == 1
+    assert parsed[0]["type"] == "pr_reviewed"
+    assert "None" not in parsed[0]["description"]
+    assert "PR #177" in parsed[0]["description"]
+
+
 def test_dedup_keeps_different_labels():
     """Dedup should not collapse events for different labels on the same issue."""
     base_payload = {

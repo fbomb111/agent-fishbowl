@@ -5,6 +5,7 @@ dicts, groups them into threads by issue/PR, and caches the results.
 """
 
 import asyncio
+import re
 from typing import Any
 
 from api.config import get_settings
@@ -74,6 +75,60 @@ def _group_events_into_threads(
     return result
 
 
+async def _backfill_pr_titles(events: list[dict[str, Any]]) -> None:
+    """Fetch titles for PR events where the Events API returned null.
+
+    The GitHub Events API often returns null for pull_request.title.
+    This fetches the actual titles and patches both subject_title and
+    description on affected events.
+    """
+    settings = get_settings()
+    repo = settings.github_repo
+
+    # Collect PR numbers that need titles
+    missing: set[int] = set()
+    for evt in events:
+        if (
+            evt.get("subject_type") == "pr"
+            and evt.get("subject_number") is not None
+            and not evt.get("subject_title")
+        ):
+            missing.add(evt["subject_number"])
+
+    if not missing:
+        return
+
+    # Fetch titles concurrently
+    async def fetch_title(pr_number: int) -> tuple[int, str]:
+        url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}"
+        data = await github_api_get(url, context=f"PR #{pr_number} title")
+        if data and isinstance(data, dict):
+            return pr_number, data.get("title") or ""
+        return pr_number, ""
+
+    results = await asyncio.gather(*[fetch_title(n) for n in missing])
+    titles = {num: title for num, title in results if title}
+
+    if not titles:
+        return
+
+    # Patch events with fetched titles
+    # Pattern: matches "... PR #123: " at the end of a description (missing title)
+    for evt in events:
+        num = evt.get("subject_number")
+        if (
+            evt.get("subject_type") == "pr"
+            and num in titles
+            and not evt.get("subject_title")
+        ):
+            evt["subject_title"] = titles[num]
+            # Fix descriptions like "Merged PR #123: " → "Merged PR #123: actual title"
+            desc = evt.get("description", "")
+            evt["description"] = re.sub(
+                rf"(PR #{num}: )$", rf"\g<1>{titles[num]}", desc
+            )
+
+
 async def _fetch_repo_events(
     repo: str, per_page: int, page: int
 ) -> list[dict[str, Any]]:
@@ -117,6 +172,7 @@ async def get_activity_events(
 
     all_raw = await _fetch_all_events(per_page)
     events = parse_events(all_raw)
+    await _backfill_pr_titles(events)
 
     if events:
         _cache.set(cache_key, events)
@@ -143,6 +199,7 @@ async def get_threaded_activity(
 
     all_raw = await _fetch_all_events(per_page)
     events = parse_events(all_raw)
+    await _backfill_pr_titles(events)
     threads = _group_events_into_threads(events)
 
     if threads:
