@@ -36,6 +36,10 @@ events:
   deploy-complete:
     description: "Deployment finished, triggers QA triage (deploy.yml → qa-triage.yml)"
     status: external  # flows between infrastructure workflows, not through agents
+  pr-needs-review:
+    description: "PR Manager flagged a PR for AI review (non-trivial risk)"
+    payload: [pr_number, risk_level, chain_depth]
+    status: external  # sent by pr-manager.yml infrastructure workflow
   dispute-detected:
     description: "Agent disagreement loop detected"
     status: stub  # receiver wired, no sender yet
@@ -179,19 +183,20 @@ agents:
   reviewer:
     workflow: agent-reviewer.yml
     type: custom
+    note: "AI code reviewer — only runs for flagged PRs (via pr-manager) or 12h sweep"
 
     timeout: 30
     permissions:
       contents: write
-      pull-requests: read
+      pull-requests: write
       issues: write
       actions: write
     concurrency:
       group: agent-reviewer
       cancel_in_progress: false
     triggers:
-      - type: pull_request
-        actions: [opened, synchronize]
+      - type: repository_dispatch
+        event: pr-needs-review
       - type: schedule
         cron: "0 */12 * * *"
       - type: workflow_dispatch
@@ -217,9 +222,7 @@ agents:
           type: untriaged_label
           label: "source/tech-lead"
           min: 1
-    pre_steps:
-      - name: "Check review round limit"
-        guard: true
+    pre_steps: []
     post_steps:
       - name: "Free engineer from approved PRs"
       - name: "Dispatch PO if intake batch ready"
@@ -680,6 +683,9 @@ infrastructure:
   deploy:
     workflow: deploy.yml
     note: "Dispatches deploy-complete after successful API + frontend deploy"
+  pr-manager:
+    workflow: pr-manager.yml
+    note: "PR risk assessment + auto-approve. Dispatches pr-needs-review for flagged PRs."
   qa-triage:
     workflow: qa-triage.yml
     note: "Post-deploy QA: runs scripts then AI triage. Triggered by deploy-complete."

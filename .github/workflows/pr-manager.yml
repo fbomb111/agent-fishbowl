@@ -1,0 +1,187 @@
+name: PR Manager
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to assess (manual mode)'
+        required: false
+
+permissions:
+  contents: write          # dispatch events
+  pull-requests: write     # approve + merge
+  issues: write            # unassign engineer, close issues
+  actions: write           # gh workflow run
+
+concurrency:
+  group: pr-manager-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  assess:
+    name: Assess PR risk
+    runs-on: self-hosted
+    timeout-minutes: 5
+    # Skip fork PRs (security: self-hosted runner)
+    if: >
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    outputs:
+      risk_level: ${{ steps.assess.outputs.risk_level }}
+      auto_approvable: ${{ steps.assess.outputs.auto_approvable }}
+      pr_number: ${{ steps.assess.outputs.pr_number }}
+      skip: ${{ steps.assess.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check review round limit
+        id: rounds
+        if: github.event_name == 'pull_request'
+        run: |
+          PR=${{ github.event.pull_request.number }}
+          AUTHOR="fishbowl-reviewer[bot]"
+          REVIEWS=$(gh api "repos/${{ github.repository }}/pulls/$PR/reviews" \
+            --jq "[.[] | select(.user.login == \"$AUTHOR\" and .state == \"CHANGES_REQUESTED\")] | length" \
+            2>/dev/null || echo "0")
+          if [ "$REVIEWS" -ge 3 ]; then
+            echo "Max review rounds (3) reached for PR #$PR — skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Review round $REVIEWS for PR #$PR"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run risk assessment
+        id: assess
+        if: steps.rounds.outputs.skip != 'true'
+        run: |
+          PR="${{ github.event.pull_request.number || inputs.pr_number }}"
+          if [ -z "$PR" ]; then
+            echo "No PR number available"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          RESULT=$(bash scripts/pr-risk-assess.sh --pr "$PR" 2>/dev/null || echo '{"risk_level":"high","auto_approvable":false,"flags":[{"flag":"script_error","risk":"high","detail":"Risk assessment script failed"}]}')
+
+          RISK=$(echo "$RESULT" | jq -r '.risk_level')
+          AUTO=$(echo "$RESULT" | jq -r '.auto_approvable')
+
+          echo "risk_level=$RISK" >> "$GITHUB_OUTPUT"
+          echo "auto_approvable=$AUTO" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR" >> "$GITHUB_OUTPUT"
+
+          if [ "$RISK" = "skip" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Post step summary
+          echo "## PR Risk Assessment" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| PR | #$PR |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Risk | \`$RISK\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Auto-approvable | \`$AUTO\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          # Show flags
+          FLAG_COUNT=$(echo "$RESULT" | jq '.flags | length')
+          if [ "$FLAG_COUNT" -gt 0 ]; then
+            echo "**Flags:**" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "$RESULT" | jq -r '.flags[] | "- `\(.flag)` (\(.risk)): \(.detail)"' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No risk flags — clean PR." >> "$GITHUB_STEP_SUMMARY"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  auto-approve:
+    name: Auto-approve low-risk PR
+    runs-on: self-hosted
+    needs: assess
+    timeout-minutes: 5
+    if: needs.assess.outputs.auto_approvable == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Approve and merge
+        run: |
+          PR=${{ needs.assess.outputs.pr_number }}
+
+          gh pr review "$PR" --approve --body "## Auto-Review: Approved
+
+          Low-risk PR — automated approval by PR Manager.
+          CI passing, linked issue present, clean diff."
+
+          gh pr edit "$PR" --add-label "review/approved,review/auto-approved"
+          gh pr merge "$PR" --squash --delete-branch --auto
+
+          # Close linked issue
+          ISSUE=$(gh pr view "$PR" --json body --jq '.body' | grep -oP '(?:Closes|Fixes|Resolves)\s+#\K\d+' | head -1)
+          if [ -n "$ISSUE" ]; then
+            gh issue close "$ISSUE" --comment "Closed via PR #$PR merge (auto-approved)." 2>/dev/null || true
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Free engineer from approved PRs
+        run: |
+          gh pr list --state open --label "review/approved" \
+            --json number,body --jq '.[] | "\(.number)\t\(.body)"' | while IFS=$'\t' read -r PR BODY; do
+            [ -z "$PR" ] && continue
+            ISSUE=$(echo "$BODY" | grep -oP '(?:Closes|Fixes|Resolves)\s+#\K\d+' | head -1)
+            [ -z "$ISSUE" ] && continue
+            ASSIGNEES=$(gh issue view "$ISSUE" --json assignees --jq '.assignees | length' 2>/dev/null || echo "0")
+            [ "$ASSIGNEES" -eq 0 ] && continue
+            echo "PR #$PR approved → freeing engineer from issue #$ISSUE"
+            gh issue edit "$ISSUE" --remove-assignee "" 2>/dev/null || true
+            gh issue edit "$ISSUE" --remove-label "status/in-progress" --add-label "status/awaiting-merge" 2>/dev/null || true
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dispatch PO if intake batch ready
+        run: |
+          INTAKE=$(gh issue list --state open --json labels \
+            --jq '[.[] | select(
+              (.labels | map(.name) | any(test("^source/"))) and
+              (.labels | map(.name) | any(test("^priority/")) | not)
+            )] | length')
+          if [ "$INTAKE" -ge 5 ]; then
+            echo "Batch ready: $INTAKE unprocessed intake items — dispatching PO"
+            gh workflow run agent-product-owner.yml
+          else
+            echo "Only $INTAKE unprocessed items — accumulating (threshold: 5)"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dispatch-review:
+    name: Dispatch AI reviewer
+    runs-on: self-hosted
+    needs: assess
+    timeout-minutes: 5
+    if: >
+      needs.assess.outputs.auto_approvable == 'false' &&
+      needs.assess.outputs.skip != 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Label and dispatch AI review
+        run: |
+          PR=${{ needs.assess.outputs.pr_number }}
+          RISK=${{ needs.assess.outputs.risk_level }}
+
+          gh pr edit "$PR" --add-label "review/needs-ai-review" 2>/dev/null || true
+
+          gh api "repos/$GITHUB_REPOSITORY/dispatches" \
+            --input - <<< "{\"event_type\":\"pr-needs-review\",\"client_payload\":{\"pr_number\":$PR,\"risk_level\":\"$RISK\",\"chain_depth\":0}}"
+
+          echo "Dispatched AI reviewer for PR #$PR (risk: $RISK)"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
