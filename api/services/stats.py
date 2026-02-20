@@ -5,7 +5,7 @@ Results are cached with a 5-minute TTL.
 """
 
 import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from api.config import get_settings
@@ -56,7 +56,7 @@ async def get_team_stats() -> dict[str, Any]:
     settings = get_settings()
     repo = settings.github_repo
 
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     since = now - timedelta(days=7)
     since_str = since.strftime("%Y-%m-%d")
 

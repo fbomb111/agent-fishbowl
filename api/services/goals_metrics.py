@@ -7,7 +7,7 @@ accurate issue/PR counts (the Events API is capped at ~300 events).
 
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -450,7 +450,7 @@ async def get_metrics(cache: TTLCache) -> dict[str, Any]:
     }
 
     try:
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         since_7d = (now - timedelta(days=7)).strftime("%Y-%m-%d")
 
         # Fetch open issues/PRs counts, windowed metrics, and agent stats in parallel

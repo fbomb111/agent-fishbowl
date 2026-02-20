@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run all quality checks (ruff + tsc + eslint + convention lint)
+# Run all quality checks (ruff + pytest + tsc + eslint + convention lint + flow validation)
 # Exit codes: 0 = all pass, 1 = failures found
 set -uo pipefail
 
@@ -40,6 +40,22 @@ else
     fi
 fi
 
+# --- Python tests (pytest) ---
+echo ""
+echo "▸ pytest (Python tests)"
+if ! command -v pytest &>/dev/null && ! python -m pytest --version &>/dev/null 2>&1; then
+    echo "  SKIP: pytest not installed"
+    echo "  FIX: Run 'pip install pytest' or install from requirements.txt."
+else
+    if ! (cd "$PROJECT_ROOT/api" && python -m pytest tests/ -x -q --tb=short); then
+        FAILED=1
+        echo "  FAIL: Tests failed"
+        echo "  FIX: Read failures above, fix the code, run 'cd api && pytest tests/ -x' again."
+    else
+        echo "  PASS"
+    fi
+fi
+
 # --- TypeScript (tsc + eslint) ---
 echo ""
 echo "▸ tsc --noEmit (TypeScript typecheck)"
@@ -71,6 +87,36 @@ if [ -f "$LINT_SCRIPT" ]; then
     fi
 else
     echo "  SKIP: lint-conventions.sh not found (run via harness or set HARNESS_ROOT)"
+fi
+
+# --- Flow validation ---
+echo ""
+echo "▸ Flow validation"
+if [ -f "$PROJECT_ROOT/scripts/validate-flow.py" ]; then
+    if ! python "$PROJECT_ROOT/scripts/validate-flow.py" --validate; then
+        FAILED=1
+        echo "  FAIL: Flow graph validation failed"
+        echo "  FIX: Read errors above, fix config/agent-flow.yaml."
+    else
+        echo "  PASS"
+    fi
+else
+    echo "  SKIP: validate-flow.py not found"
+fi
+
+# --- Shell script lint (shellcheck) ---
+echo ""
+echo "▸ shellcheck (Shell scripts)"
+if command -v shellcheck &>/dev/null; then
+    if ! shellcheck "$PROJECT_ROOT"/scripts/*.sh; then
+        FAILED=1
+        echo "  FAIL: shellcheck found issues"
+        echo "  FIX: Read errors above, fix the reported shell script issues."
+    else
+        echo "  PASS"
+    fi
+else
+    echo "  SKIP: shellcheck not installed"
 fi
 
 echo ""

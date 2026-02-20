@@ -1,6 +1,6 @@
 """Tests for goals_metrics service — Search API counts, commit counting, agent stats."""
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -74,7 +74,8 @@ class TestCountCommits:
     async def test_uses_link_header(self, monkeypatch):
         """Parses last page number from Link header for total count."""
         link = (
-            "<https://api.github.com/repos/test/commits?since=2026-01-01&per_page=1&page=37>; "
+            "<https://api.github.com/repos/test/commits"
+            "?since=2026-01-01&per_page=1&page=37>; "
             'rel="last"'
         )
 
@@ -155,7 +156,7 @@ class TestFetchWindowedCounts:
     @pytest.mark.asyncio
     async def test_returns_all_windows(self):
         """All three windows and three metrics are returned."""
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
 
         # Merged PRs with timestamps spanning multiple windows
         merged_prs = [
@@ -194,7 +195,7 @@ class TestFetchWindowedCounts:
     @pytest.mark.asyncio
     async def test_returns_all_windows_directly(self):
         """Verify correct index mapping by mocking at asyncio.gather level."""
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
 
         # The function creates 7 tasks via asyncio.gather:
         # [0]: fetch_merged_prs (list of PRs)

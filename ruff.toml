@@ -1,0 +1,5 @@
+[lint]
+select = ["E", "F", "S", "B"]
+
+[lint.per-file-ignores]
+"api/tests/*" = ["S101", "S106"]  # assert + test fixture passwords OK in tests

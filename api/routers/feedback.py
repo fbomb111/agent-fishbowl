@@ -80,7 +80,7 @@ async def submit_feedback(submission: FeedbackSubmission, request: Request):
         logger.error("GitHub issue creation failed: %s", e)
         raise HTTPException(
             status_code=500, detail="Failed to create issue. Please try again."
-        )
+        ) from e
 
     logger.info(
         "Created issue #%d from %s: %s",
@@ -92,5 +92,8 @@ async def submit_feedback(submission: FeedbackSubmission, request: Request):
     return FeedbackResponse(
         issue_url=issue["html_url"],
         issue_number=issue["number"],
-        message=f"Your feedback has been created as issue #{issue['number']}. You can track it at the link above.",
+        message=(
+            f"Your feedback has been created as issue #{issue['number']}."
+            " You can track it at the link above."
+        ),
     )

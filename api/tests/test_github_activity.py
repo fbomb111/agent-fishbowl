@@ -409,7 +409,7 @@ class TestFallbackEvents:
     @pytest.mark.asyncio
     async def test_fallback_returns_issue_events(self, mock_settings, monkeypatch):
         """Fallback creates events from the Issues REST API."""
-        from unittest.mock import AsyncMock, MagicMock
+        from unittest.mock import AsyncMock
 
         from api.services.github_activity import _fetch_fallback_events
 
@@ -441,15 +441,12 @@ class TestFallbackEvents:
             },
         ]
 
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = issues_response
-
-        mock_client = AsyncMock()
-        mock_client.get.return_value = mock_response
-
         monkeypatch.setattr(
-            "api.services.http_client.get_shared_client", lambda: mock_client
+            "api.services.github_activity.get_settings", lambda: mock_settings
+        )
+        monkeypatch.setattr(
+            "api.services.github_activity.github_api_get",
+            AsyncMock(return_value=issues_response),
         )
 
         result = await _fetch_fallback_events(limit=30)
@@ -466,7 +463,7 @@ class TestFallbackEvents:
     @pytest.mark.asyncio
     async def test_fallback_returns_pr_events(self, mock_settings, monkeypatch):
         """Fallback creates PR events from the Issues REST API."""
-        from unittest.mock import AsyncMock, MagicMock
+        from unittest.mock import AsyncMock
 
         from api.services.github_activity import _fetch_fallback_events
 
@@ -488,15 +485,12 @@ class TestFallbackEvents:
             },
         ]
 
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = issues_response
-
-        mock_client = AsyncMock()
-        mock_client.get.return_value = mock_response
-
         monkeypatch.setattr(
-            "api.services.http_client.get_shared_client", lambda: mock_client
+            "api.services.github_activity.get_settings", lambda: mock_settings
+        )
+        monkeypatch.setattr(
+            "api.services.github_activity.github_api_get",
+            AsyncMock(return_value=issues_response),
         )
 
         result = await _fetch_fallback_events(limit=30)
@@ -557,7 +551,7 @@ class TestEventsWithFallback:
     @pytest.mark.asyncio
     async def test_uses_events_api_when_available(self, mock_settings, monkeypatch):
         """When Events API returns data, fallback is not called."""
-        from unittest.mock import AsyncMock, MagicMock
+        from unittest.mock import AsyncMock
 
         from api.services.github_activity import _get_events_with_fallback
 
@@ -578,43 +572,30 @@ class TestEventsWithFallback:
             }
         ]
 
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = raw_events
-
-        mock_client = AsyncMock()
-        mock_client.get.return_value = mock_response
-
-        monkeypatch.setattr(
-            "api.services.http_client.get_shared_client", lambda: mock_client
-        )
+        mock_api = AsyncMock(return_value=raw_events)
+        monkeypatch.setattr("api.services.github_activity.github_api_get", mock_api)
 
         result = await _get_events_with_fallback(per_page=30)
 
         assert len(result) == 1
         assert result[0]["type"] == "issue_created"
         # Only one API call (events), no fallback
-        assert mock_client.get.call_count == 1
+        assert mock_api.call_count == 1
 
     @pytest.mark.asyncio
     async def test_falls_back_when_events_api_empty(self, mock_settings, monkeypatch):
         """When Events API returns empty, falls back to Issues API."""
-        from unittest.mock import AsyncMock, MagicMock
-
         from api.services.github_activity import _get_events_with_fallback
 
         call_count = 0
 
-        async def mock_get(url, **kwargs):
+        async def mock_github_api_get(url, params=None, **kwargs):
             nonlocal call_count
             call_count += 1
-            resp = MagicMock()
-            resp.status_code = 200
-
             if "/events" in url:
-                resp.json.return_value = []
-            elif "/issues" in url:
-                resp.json.return_value = [
+                return []
+            if "/issues" in url:
+                return [
                     {
                         "number": 50,
                         "title": "Fallback issue",
@@ -628,13 +609,14 @@ class TestEventsWithFallback:
                         },
                     }
                 ]
-            return resp
-
-        mock_client = AsyncMock()
-        mock_client.get = mock_get
+            return None
 
         monkeypatch.setattr(
-            "api.services.http_client.get_shared_client", lambda: mock_client
+            "api.services.github_activity.get_settings", lambda: mock_settings
+        )
+        monkeypatch.setattr(
+            "api.services.github_activity.github_api_get",
+            mock_github_api_get,
         )
 
         result = await _get_events_with_fallback(per_page=30)
