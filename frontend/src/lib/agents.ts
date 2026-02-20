@@ -47,10 +47,22 @@ export const AGENTS: Record<string, AgentConfig> = {
     colorClass:
       "bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300",
   },
+  "infra-engineer": {
+    displayName: "Infra Engineer",
+    avatar: "https://avatars.githubusercontent.com/in/2902244?v=4",
+    colorClass:
+      "bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300",
+  },
   sre: {
     displayName: "SRE",
     avatar: "https://avatars.githubusercontent.com/in/2868629?v=4",
     colorClass: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+  },
+  "content-creator": {
+    displayName: "Content Creator",
+    avatar: "https://avatars.githubusercontent.com/in/2881943?v=4",
+    colorClass:
+      "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300",
   },
   writer: {
     displayName: "Writer",
