@@ -11,6 +11,7 @@ from api.services.goals_metrics import (
     _agent_role,
     _count_commits,
     _fetch_agent_stats,
+    _fetch_review_counts,
     _fetch_windowed_counts,
     _search_count,
     get_metrics,
@@ -175,6 +176,109 @@ class TestFetchWindowedCounts:
         assert result["commits"] == {"24h": 3, "7d": 6, "30d": 9}
 
 
+class TestFetchReviewCounts:
+    """Tests for _fetch_review_counts()."""
+
+    @pytest.mark.asyncio
+    async def test_counts_reviews_by_agent(self, monkeypatch):
+        """Reviews are counted per agent role within the time window."""
+        prs_response = [{"number": 10}]
+        reviews_response = [
+            {
+                "user": {"login": "fishbowl-reviewer[bot]"},
+                "submitted_at": "2026-01-05T12:00:00Z",
+            },
+            {
+                "user": {"login": "fishbowl-reviewer[bot]"},
+                "submitted_at": "2026-01-06T12:00:00Z",
+            },
+        ]
+
+        call_count = 0
+
+        async def mock_get(self, url, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if "/pulls" in url and "/reviews" in url:
+                return httpx.Response(200, json=reviews_response)
+            if "/pulls" in url:
+                # Return PRs only for "open" state, empty for "closed"
+                params = kwargs.get("params", {})
+                if params.get("state") == "open":
+                    return httpx.Response(200, json=prs_response)
+                return httpx.Response(200, json=[])
+            return httpx.Response(200, json=[])
+
+        monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
+        result = await _fetch_review_counts("test/repo", "2026-01-01")
+        assert result["reviewer"] == 2
+
+    @pytest.mark.asyncio
+    async def test_filters_by_date(self, monkeypatch):
+        """Reviews before the since date are excluded."""
+        prs_response = [{"number": 10, "updated_at": "2026-01-10T00:00:00Z"}]
+        reviews_response = [
+            {
+                "user": {"login": "fishbowl-reviewer[bot]"},
+                "submitted_at": "2025-12-25T12:00:00Z",
+            },
+            {
+                "user": {"login": "fishbowl-reviewer[bot]"},
+                "submitted_at": "2026-01-05T12:00:00Z",
+            },
+        ]
+
+        async def mock_get(self, url, **kwargs):
+            if "/pulls" in url and "/reviews" in url:
+                return httpx.Response(200, json=reviews_response)
+            if "/pulls" in url:
+                params = kwargs.get("params", {})
+                if params.get("state") == "open":
+                    return httpx.Response(200, json=prs_response)
+                return httpx.Response(200, json=[])
+            return httpx.Response(200, json=[])
+
+        monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
+        result = await _fetch_review_counts("test/repo", "2026-01-01")
+        assert result["reviewer"] == 1
+
+    @pytest.mark.asyncio
+    async def test_skips_unknown_reviewers(self, monkeypatch):
+        """Reviews from non-agent users are not counted."""
+        prs_response = [{"number": 10, "updated_at": "2026-01-10T00:00:00Z"}]
+        reviews_response = [
+            {
+                "user": {"login": "random-user"},
+                "submitted_at": "2026-01-05T12:00:00Z",
+            },
+        ]
+
+        async def mock_get(self, url, **kwargs):
+            if "/pulls" in url and "/reviews" in url:
+                return httpx.Response(200, json=reviews_response)
+            if "/pulls" in url:
+                params = kwargs.get("params", {})
+                if params.get("state") == "open":
+                    return httpx.Response(200, json=prs_response)
+                return httpx.Response(200, json=[])
+            return httpx.Response(200, json=[])
+
+        monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
+        result = await _fetch_review_counts("test/repo", "2026-01-01")
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_empty_when_no_prs(self, monkeypatch):
+        """Returns empty dict when no PRs found."""
+
+        async def mock_get(self, url, **kwargs):
+            return httpx.Response(200, json=[])
+
+        monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
+        result = await _fetch_review_counts("test/repo", "2026-01-01")
+        assert result == {}
+
+
 class TestFetchAgentStats:
     """Tests for _fetch_agent_stats()."""
 
@@ -188,10 +292,22 @@ class TestFetchAgentStats:
             },
         ]
 
-        with patch(
-            "api.services.goals_metrics._search_items",
-            new_callable=AsyncMock,
-            side_effect=[issues, []],
+        with (
+            patch(
+                "api.services.goals_metrics._search_items",
+                new_callable=AsyncMock,
+                return_value=issues,
+            ),
+            patch(
+                "api.services.goals_metrics.fetch_merged_prs",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_review_counts",
+                new_callable=AsyncMock,
+                return_value={},
+            ),
         ):
             result = await _fetch_agent_stats("test/repo", "2026-01-01")
 
@@ -207,10 +323,22 @@ class TestFetchAgentStats:
             },
         ]
 
-        with patch(
-            "api.services.goals_metrics._search_items",
-            new_callable=AsyncMock,
-            side_effect=[issues, []],
+        with (
+            patch(
+                "api.services.goals_metrics._search_items",
+                new_callable=AsyncMock,
+                return_value=issues,
+            ),
+            patch(
+                "api.services.goals_metrics.fetch_merged_prs",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_review_counts",
+                new_callable=AsyncMock,
+                return_value={},
+            ),
         ):
             result = await _fetch_agent_stats("test/repo", "2026-01-01")
 
@@ -223,10 +351,22 @@ class TestFetchAgentStats:
             {"user": {"login": "fishbowl-engineer[bot]"}},
         ]
 
-        with patch(
-            "api.services.goals_metrics._search_items",
-            new_callable=AsyncMock,
-            side_effect=[[], prs],
+        with (
+            patch(
+                "api.services.goals_metrics._search_items",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "api.services.goals_metrics.fetch_merged_prs",
+                new_callable=AsyncMock,
+                return_value=prs,
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_review_counts",
+                new_callable=AsyncMock,
+                return_value={},
+            ),
         ):
             result = await _fetch_agent_stats("test/repo", "2026-01-01")
 
@@ -242,10 +382,22 @@ class TestFetchAgentStats:
             },
         ]
 
-        with patch(
-            "api.services.goals_metrics._search_items",
-            new_callable=AsyncMock,
-            side_effect=[issues, []],
+        with (
+            patch(
+                "api.services.goals_metrics._search_items",
+                new_callable=AsyncMock,
+                return_value=issues,
+            ),
+            patch(
+                "api.services.goals_metrics.fetch_merged_prs",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_review_counts",
+                new_callable=AsyncMock,
+                return_value={},
+            ),
         ):
             result = await _fetch_agent_stats("test/repo", "2026-01-01")
 
@@ -261,28 +413,53 @@ class TestFetchAgentStats:
             },
         ]
         prs = [
-            {"user": {"login": "fishbowl-reviewer[bot]"}},
+            {"user": {"login": "fishbowl-engineer[bot]"}},
         ]
 
-        with patch(
-            "api.services.goals_metrics._search_items",
-            new_callable=AsyncMock,
-            side_effect=[issues, prs],
+        with (
+            patch(
+                "api.services.goals_metrics._search_items",
+                new_callable=AsyncMock,
+                return_value=issues,
+            ),
+            patch(
+                "api.services.goals_metrics.fetch_merged_prs",
+                new_callable=AsyncMock,
+                return_value=prs,
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_review_counts",
+                new_callable=AsyncMock,
+                return_value={"reviewer": 5},
+            ),
         ):
             result = await _fetch_agent_stats("test/repo", "2026-01-01")
 
         assert result["engineer"]["issues_closed"] == 1
-        assert result["reviewer"]["prs_merged"] == 1
+        assert result["engineer"]["prs_merged"] == 1
+        assert result["reviewer"]["reviews"] == 5
 
     @pytest.mark.asyncio
     async def test_initializes_all_stat_fields(self):
         """Each agent entry has all six stat fields initialized."""
         prs = [{"user": {"login": "fishbowl-engineer[bot]"}}]
 
-        with patch(
-            "api.services.goals_metrics._search_items",
-            new_callable=AsyncMock,
-            side_effect=[[], prs],
+        with (
+            patch(
+                "api.services.goals_metrics._search_items",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "api.services.goals_metrics.fetch_merged_prs",
+                new_callable=AsyncMock,
+                return_value=prs,
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_review_counts",
+                new_callable=AsyncMock,
+                return_value={},
+            ),
         ):
             result = await _fetch_agent_stats("test/repo", "2026-01-01")
 
@@ -295,6 +472,32 @@ class TestFetchAgentStats:
             "commits",
         }
         assert set(result["engineer"].keys()) == expected_keys
+
+    @pytest.mark.asyncio
+    async def test_review_counts_merged_into_stats(self):
+        """Review counts from _fetch_review_counts are merged into agent stats."""
+        with (
+            patch(
+                "api.services.goals_metrics._search_items",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "api.services.goals_metrics.fetch_merged_prs",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_review_counts",
+                new_callable=AsyncMock,
+                return_value={"reviewer": 12, "human": 3},
+            ),
+        ):
+            result = await _fetch_agent_stats("test/repo", "2026-01-01")
+
+        assert result["reviewer"]["reviews"] == 12
+        assert result["human"]["reviews"] == 3
+        assert result["reviewer"]["issues_closed"] == 0
 
 
 class TestGetMetrics:
