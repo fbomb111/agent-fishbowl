@@ -58,6 +58,19 @@ def _get_blog_container_client() -> ContainerClient:
     return _blog_container_client
 
 
+def check_storage_connectivity() -> bool:
+    """Lightweight storage connectivity check — lists 1 blob."""
+    try:
+        client = _get_container_client()
+        next(client.list_blobs(results_per_page=1).__iter__())
+        return True
+    except StopIteration:
+        # Container exists but is empty — still connected
+        return True
+    except Exception:
+        return False
+
+
 async def get_article_index(
     category: str | None = None,
     search: str | None = None,
