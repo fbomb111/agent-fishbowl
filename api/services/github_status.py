@@ -18,12 +18,14 @@ _status_cache = TTLCache(ttl=60, max_size=5)
 # Map workflow filenames to agent roles
 WORKFLOW_AGENT_MAP: dict[str, list[str]] = {
     "agent-engineer.yml": ["engineer"],
+    "agent-infra-engineer.yml": ["infra-engineer"],
     "agent-reviewer.yml": ["reviewer"],
     "agent-product-owner.yml": ["po"],
     "agent-triage.yml": ["triage"],
     "agent-sre.yml": ["sre"],
     "agent-scans.yml": ["tech-lead", "ux"],
     "agent-strategic.yml": ["pm"],
+    "agent-content-creator.yml": ["content-creator"],
 }
 
 
@@ -80,7 +82,18 @@ async def get_agent_status() -> list[dict[str, Any]]:
 
     # Convert to response format
     result: list[dict[str, Any]] = []
-    all_roles = ["po", "engineer", "reviewer", "triage", "sre", "pm", "tech-lead", "ux"]
+    all_roles = [
+        "po",
+        "engineer",
+        "infra-engineer",
+        "reviewer",
+        "triage",
+        "sre",
+        "pm",
+        "tech-lead",
+        "ux",
+        "content-creator",
+    ]
 
     for role in all_roles:
         run = agent_runs.get(role)
