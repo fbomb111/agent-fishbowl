@@ -2,18 +2,29 @@ name: Agent - QA Analyst
 
 on:
   schedule:
-    - cron: "0 16 */2 * *"   # Every 2 days at 16:00 UTC
-  repository_dispatch:
-    types: [deploy-complete]
+    - cron: "0 16 * * *"   # Daily at 16:00 UTC (deep sweep)
   workflow_dispatch: {}
 
 permissions:
   contents: read
   issues: write
 
+concurrency:
+  group: agent-qa-analyst
+  cancel-in-progress: false
+
 jobs:
   run:
-    uses: ./.github/workflows/reusable-agent.yml
-    with:
-      role: qa-analyst
-    secrets: inherit
+    name: Run QA Analyst (deep sweep)
+    runs-on: self-hosted
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run QA Analyst (default job)
+        uses: YourMoveLabs/agent-harness@v1.2.0
+        with:
+          role: qa-analyst
+          job: default
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,89 @@
+name: QA Triage
+
+on:
+  repository_dispatch:
+    types: [deploy-complete]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: qa-triage
+  cancel-in-progress: false
+
+jobs:
+  run-scripts:
+    name: Run QA scripts
+    runs-on: self-hosted
+    timeout-minutes: 10
+    outputs:
+      consistency_results: ${{ steps.consistency.outputs.results }}
+      github_results: ${{ steps.github_check.outputs.results }}
+      consistency_failed: ${{ steps.consistency.outputs.failed }}
+      github_failed: ${{ steps.github_check.outputs.failed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run API consistency checks
+        id: consistency
+        run: |
+          RESULTS=$(bash scripts/qa-api-consistency.sh 2>/dev/null || echo '{"passed":0,"failed":0,"total":0,"checks":[]}')
+          echo "results<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$RESULTS" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          FAILED=$(echo "$RESULTS" | jq '.failed // 0')
+          PASSED=$(echo "$RESULTS" | jq '.passed // 0')
+          TOTAL=$(echo "$RESULTS" | jq '.total // 0')
+          echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
+          echo "passed=$PASSED" >> "$GITHUB_OUTPUT"
+          echo "total=$TOTAL" >> "$GITHUB_OUTPUT"
+
+      - name: Run API vs GitHub checks
+        id: github_check
+        run: |
+          RESULTS=$(bash scripts/qa-api-vs-github.sh 2>/dev/null || echo '{"passed":0,"failed":0,"total":0,"checks":[]}')
+          echo "results<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$RESULTS" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          FAILED=$(echo "$RESULTS" | jq '.failed // 0')
+          PASSED=$(echo "$RESULTS" | jq '.passed // 0')
+          TOTAL=$(echo "$RESULTS" | jq '.total // 0')
+          echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
+          echo "passed=$PASSED" >> "$GITHUB_OUTPUT"
+          echo "total=$TOTAL" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Post step summary
+        if: always()
+        run: |
+          echo "## QA Script Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Script | Passed | Failed | Total |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|--------|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| api-consistency | ${{ steps.consistency.outputs.passed }} | ${{ steps.consistency.outputs.failed }} | ${{ steps.consistency.outputs.total }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| api-vs-github | ${{ steps.github_check.outputs.passed }} | ${{ steps.github_check.outputs.failed }} | ${{ steps.github_check.outputs.total }} |" >> "$GITHUB_STEP_SUMMARY"
+
+  triage:
+    name: AI Triage
+    runs-on: self-hosted
+    needs: run-scripts
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run QA Analyst (triage mode)
+        uses: YourMoveLabs/agent-harness@v1.2.0
+        with:
+          role: qa-analyst
+          job: triage
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          QA_SCRIPT_CONTEXT: |
+            {
+              "consistency_results": ${{ toJSON(needs.run-scripts.outputs.consistency_results) }},
+              "github_results": ${{ toJSON(needs.run-scripts.outputs.github_results) }},
+              "triggered_by": "${{ github.event_name == 'repository_dispatch' && github.event.action || 'manual' }}"
+            }

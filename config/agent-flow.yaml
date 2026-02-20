@@ -12,6 +12,10 @@
 
 version: "2"
 
+# All agent workflows must pin this harness version.
+# Bump via: scripts/bump-harness.sh <new-version>
+harness_ref: "@v1.2.0"
+
 # ─── Event Registry ───────────────────────────────────────────────
 # Every repository_dispatch event_type MUST be declared here.
 # This prevents event name drift across workflows.
@@ -30,8 +34,8 @@ events:
     description: "Azure Monitor alert fired via alert bridge function"
     status: external  # sent by func-fishbowl-alert-bridge, not a workflow
   deploy-complete:
-    description: "Deployment finished, QA should verify"
-    status: stub  # receiver wired, no sender yet
+    description: "Deployment finished, triggers QA triage (deploy.yml → qa-triage.yml)"
+    status: external  # flows between infrastructure workflows, not through agents
   dispute-detected:
     description: "Agent disagreement loop detected"
     status: stub  # receiver wired, no sender yet
@@ -41,7 +45,6 @@ events:
 # Schema (v2):
 #   workflow:       GitHub Actions workflow filename
 #   type:           custom | reusable (reusable = calls reusable-agent.yml)
-#   harness_ref:    Harness version pin (@v1.2.0 or @main)
 #   timeout:        Job timeout in minutes
 #   permissions:    Required GitHub token permissions
 #   concurrency:    Concurrency group config (omit for reusable — inherits)
@@ -58,7 +61,7 @@ agents:
   triage:
     workflow: agent-triage.yml
     type: custom
-    harness_ref: "@v1.2.0"
+
     timeout: 20
     permissions:
       contents: read
@@ -86,7 +89,7 @@ agents:
   product-owner:
     workflow: agent-product-owner.yml
     type: custom
-    harness_ref: "@v1.2.0"
+
     timeout: 30
     permissions:
       contents: write
@@ -123,7 +126,7 @@ agents:
   engineer:
     workflow: agent-engineer.yml
     type: custom
-    harness_ref: "@v1.2.0"
+
     timeout: 30
     permissions:
       contents: read
@@ -160,7 +163,7 @@ agents:
   infra-engineer:
     workflow: agent-infra-engineer.yml
     type: reusable
-    harness_ref: "@v1.2.0"
+
     timeout: 30
     permissions:
       contents: read
@@ -181,7 +184,7 @@ agents:
   reviewer:
     workflow: agent-reviewer.yml
     type: custom
-    harness_ref: "@v1.2.0"
+
     timeout: 30
     permissions:
       contents: write
@@ -233,7 +236,7 @@ agents:
   strategic:
     workflow: agent-strategic.yml
     type: custom
-    harness_ref: "@v1.2.0"
+
     timeout: 30
     permissions:
       contents: read
@@ -259,7 +262,7 @@ agents:
     description: "Tech Lead runs as multiple scheduled jobs, each a separate workflow"
     workflow: agent-scans.yml
     role: tech-lead
-    harness_ref: "@main"
+
     jobs:
       full-scan:
         workflow: agent-scans.yml
@@ -504,7 +507,7 @@ agents:
   product-analyst:
     workflow: agent-product-analyst.yml
     type: reusable
-    harness_ref: "@v1.2.0"
+
     timeout: 30
     permissions:
       contents: read
@@ -519,7 +522,7 @@ agents:
   financial-analyst:
     workflow: agent-financial-analyst.yml
     type: reusable
-    harness_ref: "@v1.2.0"
+
     timeout: 30
     permissions:
       contents: read
@@ -534,7 +537,7 @@ agents:
   marketing-strategist:
     workflow: agent-marketing-strategist.yml
     type: reusable
-    harness_ref: "@v1.2.0"
+
     timeout: 30
     permissions:
       contents: read
@@ -551,7 +554,7 @@ agents:
   site-reliability:
     workflow: agent-site-reliability.yml
     type: custom
-    harness_ref: "@v1.2.0"
+
     timeout: 30
     permissions:
       contents: read
@@ -577,25 +580,26 @@ agents:
 
   qa-analyst:
     workflow: agent-qa-analyst.yml
-    type: reusable
-    harness_ref: "@v1.2.0"
+    type: custom
+
     timeout: 30
     permissions:
       contents: read
       issues: write
-    # concurrency: inherited from reusable-agent.yml → agent-qa-analyst
+    concurrency:
+      group: agent-qa-analyst
+      cancel_in_progress: false
     triggers:
-      - type: repository_dispatch
-        event: deploy-complete
       - type: schedule
-        cron: "0 16 */2 * *"
+        cron: "0 16 * * *"
       - type: workflow_dispatch
     dispatches: []
+    note: "Daily deep sweep. Post-deploy triage handled by qa-triage infrastructure workflow."
 
   customer-ops:
     workflow: agent-customer-ops.yml
     type: reusable
-    harness_ref: "@v1.2.0"
+
     timeout: 30
     permissions:
       contents: read
@@ -610,7 +614,7 @@ agents:
   human-ops:
     workflow: agent-human-ops.yml
     type: reusable
-    harness_ref: "@v1.2.0"
+
     timeout: 30
     permissions:
       contents: read
@@ -625,7 +629,7 @@ agents:
   escalation-lead:
     workflow: agent-escalation-lead.yml
     type: reusable
-    harness_ref: "@v1.2.0"
+
     timeout: 30
     permissions:
       contents: read
@@ -645,7 +649,7 @@ agents:
   content-creator:
     workflow: agent-content-creator.yml
     type: custom
-    harness_ref: "@v1.2.0"
+
     timeout: 30
     permissions:
       contents: read
@@ -664,7 +668,7 @@ agents:
   user-experience:
     workflow: agent-user-experience.yml
     type: reusable
-    harness_ref: "@v1.2.0"
+
     timeout: 30
     permissions:
       contents: read
@@ -680,7 +684,10 @@ agents:
 infrastructure:
   deploy:
     workflow: deploy.yml
-    note: "Will dispatch deploy-complete when wired (currently stub)"
+    note: "Dispatches deploy-complete after successful API + frontend deploy"
+  qa-triage:
+    workflow: qa-triage.yml
+    note: "Post-deploy QA: runs scripts then AI triage. Triggered by deploy-complete."
   ingest:
     workflow: ingest.yml
     note: "SRE dispatch target — retriggered when articles are stale"
