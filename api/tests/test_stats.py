@@ -11,7 +11,7 @@ class TestAgentRole:
     def test_known_login(self):
         assert _agent_role("fishbowl-engineer[bot]") == "engineer"
         assert _agent_role("fishbowl-reviewer[bot]") == "reviewer"
-        assert _agent_role("fishbowl-po[bot]") == "po"
+        assert _agent_role("fishbowl-product-owner[bot]") == "po"
 
     def test_unknown_login(self):
         assert _agent_role("some-random-user") is None
@@ -70,11 +70,11 @@ class TestGetTeamStats:
         """Fetches issues and PRs from API, computes aggregates."""
         issues_items = [
             {
-                "user": {"login": "fishbowl-po[bot]"},
+                "user": {"login": "fishbowl-product-owner[bot]"},
                 "assignees": [{"login": "fishbowl-engineer[bot]"}],
             },
             {
-                "user": {"login": "fishbowl-po[bot]"},
+                "user": {"login": "fishbowl-product-owner[bot]"},
                 "assignees": [{"login": "fishbowl-engineer[bot]"}],
             },
         ]
