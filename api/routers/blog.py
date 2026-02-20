@@ -1,6 +1,8 @@
 """Blog post endpoints."""
 
 import logging
+import re
+from datetime import datetime
 
 import httpx
 from fastapi import APIRouter, Header, HTTPException, Query
@@ -21,6 +23,62 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/blog", tags=["blog"])
 
 FISHBOWL_BLOG_BASE = "https://agentfishbowl.com/blog"
+FISHBOWL_HOST = "https://agentfishbowl.com"
+
+
+def sanitize_blog_html(html: str, slug: str, published_at: datetime) -> str:
+    """Rewrite blog HTML to fix canonical URLs, og:url, dates, and CTAs.
+
+    The generation API sometimes produces HTML with wrong canonical URLs
+    (e.g. codewithcaptain.com, example.com), fabricated dates, and CTA
+    links pointing to other products. This function corrects them before
+    the HTML is stored.
+    """
+    correct_canonical = f"{FISHBOWL_BLOG_BASE}/{slug}/index.html"
+    date_str = published_at.strftime("%B %d, %Y")
+    date_iso = published_at.strftime("%Y-%m-%d")
+
+    # Fix <link rel="canonical" href="...">
+    html = re.sub(
+        r'(<link\s+rel="canonical"\s+href=")[^"]*(")',
+        rf"\g<1>{correct_canonical}\2",
+        html,
+    )
+
+    # Fix <meta property="og:url" content="...">
+    html = re.sub(
+        r'(<meta\s+property="og:url"\s+content=")[^"]*(")',
+        rf"\g<1>{correct_canonical}\2",
+        html,
+    )
+
+    # Fix JSON-LD datePublished and dateModified
+    html = re.sub(
+        r'("datePublished"\s*:\s*")([^"]*?)(")',
+        rf"\g<1>{date_iso}\3",
+        html,
+    )
+    html = re.sub(
+        r'("dateModified"\s*:\s*")([^"]*?)(")',
+        rf"\g<1>{date_iso}\3",
+        html,
+    )
+
+    # Fix hero-date display (e.g. <div class="hero-date">December 24, 2024</div>)
+    html = re.sub(
+        r'(<[^>]*class="hero-date"[^>]*>)([^<]*)(</)',
+        rf"\g<1>{date_str}\3",
+        html,
+    )
+
+    # Replace href/src URLs from known-bad placeholder domains
+    html = re.sub(
+        r'((?:href|src)=")https?://(?:codewithcaptain\.com|example\.com)[^"]*(")',
+        rf"\g<1>{FISHBOWL_HOST}\2",
+        html,
+    )
+
+    return html
 
 
 @router.get("", response_model=BlogIndex)
@@ -49,7 +107,8 @@ async def add_blog_post(post: BlogPost, x_ingest_key: str = Header()):
         client = get_shared_client()
         resp = await client.get(post.preview_url)
         resp.raise_for_status()
-        await upload_blog_html(post.slug, resp.text)
+        html = sanitize_blog_html(resp.text, post.slug, post.published_at)
+        await upload_blog_html(post.slug, html)
         post.preview_url = f"{FISHBOWL_BLOG_BASE}/{post.slug}/index.html"
         copied = True
         logger.info("Copied blog HTML for %s to fishbowl storage", post.slug)
@@ -91,7 +150,9 @@ async def get_blog_post_content(post_id: str):
     # Try local blob first
     html = await read_blog_html(post.slug)
     if html:
-        return HTMLResponse(content=html)
+        return HTMLResponse(
+            content=sanitize_blog_html(html, post.slug, post.published_at)
+        )
 
     # Fallback: proxy from preview_url
     try:
@@ -104,7 +165,9 @@ async def get_blog_post_content(post_id: str):
             status_code=502, detail="Failed to fetch blog content"
         ) from exc
 
-    return HTMLResponse(content=resp.text)
+    return HTMLResponse(
+        content=sanitize_blog_html(resp.text, post.slug, post.published_at)
+    )
 
 
 @router.get("/{post_id}")
