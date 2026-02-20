@@ -70,11 +70,16 @@ async def github_api_get(
         return None
 
 
-async def fetch_closed_issues(repo: str, since: str) -> list[dict[str, Any]]:
+async def fetch_closed_issues(
+    repo: str, since: str
+) -> list[dict[str, Any]] | None:
     """Fetch issues closed since a date using the Issues REST API.
 
     Uses /repos/{owner}/{repo}/issues?state=closed instead of the Search API,
     which can return 0 items due to GitHub indexing issues.
+
+    Returns None if the first page fails (callers should fall back to stale
+    cache).  Partial results from later-page failures are returned as-is.
 
     Args:
         repo: Owner/repo string (e.g. "YourMoveLabs/agent-fishbowl")
@@ -106,7 +111,7 @@ async def fetch_closed_issues(repo: str, since: str) -> list[dict[str, Any]]:
                 logger.warning(
                     "Issues API returned %d (page %d)", resp.status_code, page
                 )
-                break
+                return None if page == 1 else closed
             items = resp.json()
             if not items:
                 break
@@ -127,16 +132,19 @@ async def fetch_closed_issues(repo: str, since: str) -> list[dict[str, Any]]:
             page += 1
         except Exception:
             logger.exception("Issues API error (page %d)", page)
-            break
+            return None if page == 1 else closed
 
     return closed
 
 
-async def fetch_merged_prs(repo: str, since: str) -> list[dict[str, Any]]:
+async def fetch_merged_prs(repo: str, since: str) -> list[dict[str, Any]] | None:
     """Fetch merged PRs since a date using the Pulls REST API.
 
     Uses /repos/{owner}/{repo}/pulls?state=closed instead of the Search API
     is:merged qualifier, which can return 0 results due to GitHub indexing issues.
+
+    Returns None if the first page fails (callers should fall back to stale
+    cache).  Partial results from later-page failures are returned as-is.
 
     Args:
         repo: Owner/repo string (e.g. "YourMoveLabs/agent-fishbowl")
@@ -167,7 +175,7 @@ async def fetch_merged_prs(repo: str, since: str) -> list[dict[str, Any]]:
                 logger.warning(
                     "Pulls API returned %d (page %d)", resp.status_code, page
                 )
-                break
+                return None if page == 1 else merged
             items = resp.json()
             if not items:
                 break
@@ -195,6 +203,6 @@ async def fetch_merged_prs(repo: str, since: str) -> list[dict[str, Any]]:
             page += 1
         except Exception:
             logger.exception("Pulls API error (page %d)", page)
-            break
+            return None if page == 1 else merged
 
     return merged

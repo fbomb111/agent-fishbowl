@@ -67,6 +67,18 @@ async def get_team_stats() -> dict[str, Any]:
         fetch_merged_prs(repo, since_str),
     )
 
+    # If both API calls failed, serve stale cache rather than zeroed data (#223)
+    if issues_items is None and prs_items is None:
+        stale = _cache.get_stale(cache_key)
+        if stale is not None:
+            return stale
+    # Treat None as empty for the computation below (partial failure is better
+    # than returning stale data for everything)
+    if issues_items is None:
+        issues_items = []
+    if prs_items is None:
+        prs_items = []
+
     # Per-agent activity counts
     agent_activity: dict[str, dict[str, int]] = {}
 
