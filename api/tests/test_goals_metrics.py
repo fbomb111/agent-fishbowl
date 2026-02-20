@@ -322,25 +322,41 @@ class TestFetchCommitsByAgent:
 
     @pytest.mark.asyncio
     async def test_counts_commits_per_agent(self, monkeypatch):
-        """Commits are counted per agent using the author filter."""
-        call_log: list[str] = []
+        """Commits are attributed to agent roles by author login."""
+        commits = [
+            {"author": {"login": "fishbowl-engineer[bot]"}},
+            {"author": {"login": "fishbowl-engineer[bot]"}},
+            {"author": {"login": "fishbowl-reviewer[bot]"}},
+            {"author": {"login": "fbomb111"}},
+        ]
 
         async def mock_get(self, url, **kwargs):
-            params = kwargs.get("params", {})
-            author = params.get("author", "")
-            call_log.append(author)
-            if author == "fishbowl-engineer[bot]":
-                link = '<https://api.github.com/repos/test/commits?page=5>; rel="last"'
-                return httpx.Response(200, json=[{}], headers={"Link": link})
-            return httpx.Response(200, json=[])
+            return httpx.Response(200, json=commits)
 
         monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
         result = await _fetch_commits_by_agent("test/repo", "2026-01-01")
-        assert result.get("engineer") == 5
+        assert result["engineer"] == 2
+        assert result["reviewer"] == 1
+        assert result["human"] == 1
 
     @pytest.mark.asyncio
-    async def test_skips_agents_with_zero_commits(self, monkeypatch):
-        """Agents with zero commits are not included in results."""
+    async def test_skips_unknown_authors(self, monkeypatch):
+        """Commits from unknown authors are not counted."""
+        commits = [
+            {"author": {"login": "random-user"}},
+            {"author": None},
+        ]
+
+        async def mock_get(self, url, **kwargs):
+            return httpx.Response(200, json=commits)
+
+        monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
+        result = await _fetch_commits_by_agent("test/repo", "2026-01-01")
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_empty_when_no_commits(self, monkeypatch):
+        """Returns empty dict when no commits found."""
 
         async def mock_get(self, url, **kwargs):
             return httpx.Response(200, json=[])
@@ -351,7 +367,7 @@ class TestFetchCommitsByAgent:
 
     @pytest.mark.asyncio
     async def test_handles_api_errors(self, monkeypatch):
-        """API errors return zero commits for that agent."""
+        """API errors return empty counts."""
 
         async def mock_get(self, url, **kwargs):
             return httpx.Response(500, json={"message": "error"})
@@ -359,6 +375,25 @@ class TestFetchCommitsByAgent:
         monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
         result = await _fetch_commits_by_agent("test/repo", "2026-01-01")
         assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_paginates_commits(self, monkeypatch):
+        """Fetches multiple pages of commits."""
+        page1 = [{"author": {"login": "fishbowl-engineer[bot]"}}] * 100
+        page2 = [{"author": {"login": "fishbowl-engineer[bot]"}}] * 20
+
+        call_count = 0
+
+        async def mock_get(self, url, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return httpx.Response(200, json=page1)
+            return httpx.Response(200, json=page2)
+
+        monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
+        result = await _fetch_commits_by_agent("test/repo", "2026-01-01")
+        assert result["engineer"] == 120
 
 
 class TestFetchAgentStats:
