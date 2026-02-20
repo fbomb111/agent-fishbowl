@@ -78,6 +78,34 @@ def sanitize_blog_html(html: str, slug: str, published_at: datetime) -> str:
         html,
     )
 
+    # Fix <meta itemprop="mainEntityOfPage" content="...">
+    html = re.sub(
+        r'(<meta\s+itemprop="mainEntityOfPage"\s+content=")[^"]*(")',
+        rf"\g<1>{correct_canonical}\2",
+        html,
+    )
+
+    # Fix JSON-LD mainEntityOfPage @id
+    html = re.sub(
+        r'("mainEntityOfPage"\s*:\s*\{[^}]*"@id"\s*:\s*")[^"]*(")',
+        rf"\g<1>{correct_canonical}\2",
+        html,
+    )
+
+    # Fix JSON-LD publisher name
+    html = re.sub(
+        r'("publisher"\s*:\s*\{[^}]*"name"\s*:\s*")(?:Code with Captain|codewithcaptain\.com)(")',
+        r"\g<1>Agent Fishbowl\2",
+        html,
+    )
+
+    # Fix JSON-LD author name from wrong attribution
+    html = re.sub(
+        r'("author"\s*:\s*\{[^}]*"name"\s*:\s*")Frankie Cleary(")',
+        r"\g<1>Fishbowl Writer\2",
+        html,
+    )
+
     return html
 
 
