@@ -1,5 +1,5 @@
 <!-- AUTO-GENERATED — Do not edit. Edit config/agent-flow.yaml instead. -->
-<!-- Last generated: 2026-02-20 17:44 UTC -->
+<!-- Last generated: 2026-02-20 20:02 UTC -->
 <!-- Regenerate: python scripts/validate-flow.py --mermaid -o docs/agent-flow.md -->
 
 # Agent Flow Graph
@@ -67,6 +67,7 @@ flowchart TD
 
     subgraph infra_wf[Infrastructure]
         DEPLOY_WF[Deploy]:::infraStyle
+        PR_MANAGER_WF[Pr Manager]:::infraStyle
         QA_TRIAGE_WF[Qa Triage]:::infraStyle
         INGEST_WF[Ingest]:::infraStyle
         CI_WF[Ci]:::infraStyle
@@ -105,7 +106,6 @@ flowchart TD
     PR_MERGED -.-> ENGINEER
     CHECK_SUITE -.-> ENGINEER
     ISSUE_LABELED -.-> OPS_ENGINEER
-    PR_OPENED -.-> REVIEWER
     AZURE_ALERT -.-> SITE_RELIABILITY
 
     classDef external fill:#f9f,stroke:#333,stroke-width:1px
@@ -154,6 +154,7 @@ flowchart TD
 | `azure-alert` | Azure Monitor alert fired via alert bridge function | external |
 | `deploy-complete` | Deployment finished, triggers QA triage (deploy.yml → qa-triage.yml) | external |
 | `dispute-detected` | Agent disagreement loop detected | stub |
+| `pr-needs-review` | PR Manager flagged a PR for AI review (non-trivial risk) (payload: pr_number, risk_level, chain_depth) | external |
 
 ## Agent Schedules
 
@@ -170,7 +171,7 @@ flowchart TD
 | product-analyst | `0 14 * * *` | daily | Manual |
 | product-owner | `0 6,18 * * *` | daily | `agent-product-manager-feedback`, Manual |
 | qa-analyst | `0 16 * * *` | daily | Manual |
-| reviewer | `0 */12 * * *` | daily | PR opened/synchronize, Manual |
+| reviewer | `0 */12 * * *` | daily | `pr-needs-review`, Manual |
 | site-reliability | `30 */4 * * *` | daily | `azure-alert`, Manual |
 | strategic | `0 6 * * *` | daily | Manual |
 | tech-lead/architecture-review | `0 7 * * *` | daily | Manual |
