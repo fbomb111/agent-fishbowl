@@ -183,7 +183,7 @@ class TestFetchAgentStats:
         """Issues are attributed to the first assignee's agent role."""
         issues = [
             {
-                "assignees": [{"login": "fishbowl-po[bot]"}],
+                "assignees": [{"login": "fishbowl-product-owner[bot]"}],
                 "user": {"login": "fishbowl-triage[bot]"},
             },
         ]

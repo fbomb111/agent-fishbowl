@@ -99,7 +99,7 @@ def test_deduplicates_label_events():
     events = [
         _make_event(
             "IssuesEvent",
-            "fishbowl-po[bot]",
+            "fishbowl-product-owner[bot]",
             {
                 "action": "labeled",
                 "label": {"name": "source/qa-analyst"},
@@ -181,13 +181,13 @@ def test_dedup_keeps_different_labels():
     events = [
         _make_event(
             "IssuesEvent",
-            "fishbowl-po[bot]",
+            "fishbowl-product-owner[bot]",
             {**base_payload, "label": {"name": "priority/high"}},
             event_id="1",
         ),
         _make_event(
             "IssuesEvent",
-            "fishbowl-po[bot]",
+            "fishbowl-product-owner[bot]",
             {**base_payload, "label": {"name": "source/tech-lead"}},
             event_id="2",
         ),
