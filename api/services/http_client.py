@@ -70,6 +70,68 @@ async def github_api_get(
         return None
 
 
+async def fetch_closed_issues(repo: str, since: str) -> list[dict[str, Any]]:
+    """Fetch issues closed since a date using the Issues REST API.
+
+    Uses /repos/{owner}/{repo}/issues?state=closed instead of the Search API,
+    which can return 0 items due to GitHub indexing issues.
+
+    Args:
+        repo: Owner/repo string (e.g. "YourMoveLabs/agent-fishbowl")
+        since: ISO date string (e.g. "2026-02-13") — issues closed on or after
+    """
+    client = get_shared_client()
+    headers = github_headers()
+    url = f"https://api.github.com/repos/{repo}/issues"
+    closed: list[dict[str, Any]] = []
+    page = 1
+
+    if "T" not in since:
+        since_dt = datetime.fromisoformat(since + "T00:00:00+00:00")
+    else:
+        since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+
+    while True:
+        params = {
+            "state": "closed",
+            "sort": "updated",
+            "direction": "desc",
+            "per_page": "100",
+            "since": since_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "page": str(page),
+        }
+        try:
+            resp = await client.get(url, headers=headers, params=params)
+            if resp.status_code != 200:
+                logger.warning(
+                    "Issues API returned %d (page %d)", resp.status_code, page
+                )
+                break
+            items = resp.json()
+            if not items:
+                break
+
+            for issue in items:
+                # Skip pull requests (Issues API includes them)
+                if issue.get("pull_request"):
+                    continue
+                closed_at = issue.get("closed_at")
+                if not closed_at:
+                    continue
+                closed_dt = datetime.fromisoformat(closed_at.replace("Z", "+00:00"))
+                if closed_dt >= since_dt:
+                    closed.append(issue)
+
+            if len(items) < 100:
+                break
+            page += 1
+        except Exception:
+            logger.exception("Issues API error (page %d)", page)
+            break
+
+    return closed
+
+
 async def fetch_merged_prs(repo: str, since: str) -> list[dict[str, Any]]:
     """Fetch merged PRs since a date using the Pulls REST API.
 
