@@ -93,24 +93,28 @@ def test_parse_push_event_multiple_commits():
 def test_deduplicates_label_events():
     """GitHub fires multiple IssuesEvent/labeled for a single label action.
 
-    parse_events should keep only one per unique (actor, description, issue, timestamp).
+    parse_events should keep only one per unique (actor, description, issue),
+    even when timestamps differ by a second.
     """
-    # Simulate 4 duplicate label events with consecutive IDs (same label action)
+    # Simulate 4 duplicate label events with consecutive IDs and slightly
+    # different timestamps (GitHub often emits these 1-2s apart)
+    base = {
+        "action": "labeled",
+        "label": {"name": "source/qa-analyst"},
+        "issue": {
+            "number": 179,
+            "title": "Some issue",
+            "html_url": "https://github.com/test/repo/issues/179",
+        },
+    }
     events = [
-        _make_event(
-            "IssuesEvent",
-            "fishbowl-product-owner[bot]",
-            {
-                "action": "labeled",
-                "label": {"name": "source/qa-analyst"},
-                "issue": {
-                    "number": 179,
-                    "title": "Some issue",
-                    "html_url": "https://github.com/test/repo/issues/179",
-                },
-            },
-            event_id=str(i),
-        )
+        {
+            "id": str(i),
+            "type": "IssuesEvent",
+            "actor": {"login": "fishbowl-product-owner[bot]"},
+            "payload": base,
+            "created_at": f"2026-02-20T15:23:{40 + i}Z",
+        }
         for i in range(4)
     ]
     parsed = parse_events(events)
