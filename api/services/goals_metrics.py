@@ -157,9 +157,7 @@ def _empty_agent_stats() -> dict[str, int]:
     }
 
 
-async def _fetch_review_counts(
-    repo: str, since_str: str
-) -> dict[str, int]:
+async def _fetch_review_counts(repo: str, since_str: str) -> dict[str, int]:
     """Count PR reviews per agent role within the time window.
 
     Fetches recently updated PRs (open and closed), then fetches reviews
