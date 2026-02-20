@@ -219,18 +219,20 @@ async def _fetch_fallback_events(limit: int = 30) -> list[dict[str, Any]]:
                 ts = item.get("created_at", "")
             else:
                 continue
-            events.append({
-                "id": f"fallback-pr-{number}",
-                "type": evt_type,
-                "actor": actor,
-                "avatar_url": avatar,
-                "description": desc,
-                "timestamp": ts,
-                "url": item.get("html_url"),
-                "subject_type": "pr",
-                "subject_number": number,
-                "subject_title": title,
-            })
+            events.append(
+                {
+                    "id": f"fallback-pr-{number}",
+                    "type": evt_type,
+                    "actor": actor,
+                    "avatar_url": avatar,
+                    "description": desc,
+                    "timestamp": ts,
+                    "url": item.get("html_url"),
+                    "subject_type": "pr",
+                    "subject_number": number,
+                    "subject_title": title,
+                }
+            )
         else:
             if state == "open":
                 evt_type = "issue_created"
@@ -242,18 +244,20 @@ async def _fetch_fallback_events(limit: int = 30) -> list[dict[str, Any]]:
                 ts = item.get("closed_at") or item.get("updated_at", "")
             else:
                 continue
-            events.append({
-                "id": f"fallback-issue-{number}",
-                "type": evt_type,
-                "actor": actor,
-                "avatar_url": avatar,
-                "description": desc,
-                "timestamp": ts,
-                "url": item.get("html_url"),
-                "subject_type": "issue",
-                "subject_number": number,
-                "subject_title": title,
-            })
+            events.append(
+                {
+                    "id": f"fallback-issue-{number}",
+                    "type": evt_type,
+                    "actor": actor,
+                    "avatar_url": avatar,
+                    "description": desc,
+                    "timestamp": ts,
+                    "url": item.get("html_url"),
+                    "subject_type": "issue",
+                    "subject_number": number,
+                    "subject_title": title,
+                }
+            )
 
     events.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
     return events[:limit]

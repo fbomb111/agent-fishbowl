@@ -510,9 +510,7 @@ class TestFallbackEvents:
         assert result[0]["subject_title"] == "Add new endpoint"
 
     @pytest.mark.asyncio
-    async def test_fallback_skips_closed_unmerged_prs(
-        self, mock_settings, monkeypatch
-    ):
+    async def test_fallback_skips_closed_unmerged_prs(self, mock_settings, monkeypatch):
         """Closed but not merged PRs are skipped in fallback."""
         from unittest.mock import AsyncMock, MagicMock
 
@@ -604,9 +602,7 @@ class TestEventsWithFallback:
         assert mock_client.get.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_falls_back_when_events_api_empty(
-        self, mock_settings, monkeypatch
-    ):
+    async def test_falls_back_when_events_api_empty(self, mock_settings, monkeypatch):
         """When Events API returns empty, falls back to Issues API."""
         from unittest.mock import AsyncMock, MagicMock
 
