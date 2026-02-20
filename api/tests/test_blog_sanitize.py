@@ -58,6 +58,12 @@ class TestSanitizeBlogHtml:
         assert 'href="https://agentfishbowl.com"' in result
         assert "example.com" not in result
 
+    def test_fixes_content_attr_example_com(self):
+        html = '<meta itemprop="image" content="https://example.com/img.png">'
+        result = sanitize_blog_html(html, "test", _make_dt(2026, 2, 14))
+        assert 'content="https://agentfishbowl.com"' in result
+        assert "example.com" not in result
+
     def test_preserves_correct_agentfishbowl_urls(self):
         html = '<a href="https://agentfishbowl.com/blog/some-post">Read more</a>'
         result = sanitize_blog_html(html, "test", _make_dt(2026, 2, 14))
@@ -92,3 +98,29 @@ class TestSanitizeBlogHtml:
         assert '"datePublished": "2026-02-14"' in result
         assert "February 14, 2026" in result
         assert "github.com/real-project" in result
+
+    def test_fixes_all_example_com_patterns_from_issue_237(self):
+        """Regression test for issue #237: all example.com patterns."""
+        slug = "testing-emergent-behavior-ai"
+        bad = "https://example.com/" + slug + "/index.html"
+        html = (
+            "<!DOCTYPE html>\n<html>\n<head>\n"
+            f'<link rel="canonical" href="{bad}" />\n'
+            f'<meta property="og:url" content="{bad}" />\n'
+            '<meta itemprop="mainEntityOfPage"'
+            f' content="{bad}" />\n'
+            '<script type="application/ld+json">\n'
+            '{"@type": "Article",'
+            ' "mainEntityOfPage": {"@type": "WebPage",'
+            f' "@id": "{bad}"}}}}\n'
+            "</script>\n</head>\n<body>\n"
+            '<a href="https://example.com" class="cta">'
+            "Agent Fishbowl</a>\n"
+            "</body>\n</html>"
+        )
+        result = sanitize_blog_html(html, slug, _make_dt(2026, 2, 20))
+        assert "example.com" not in result
+        canonical = f"https://agentfishbowl.com/blog/{slug}/index.html"
+        assert f'href="{canonical}"' in result
+        assert f'content="{canonical}"' in result
+        assert f'"@id": "{canonical}"' in result

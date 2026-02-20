@@ -71,9 +71,9 @@ def sanitize_blog_html(html: str, slug: str, published_at: datetime) -> str:
         html,
     )
 
-    # Replace href/src URLs from known-bad placeholder domains
+    # Replace href/src/content URLs from known-bad placeholder domains
     html = re.sub(
-        r'((?:href|src)=")https?://(?:codewithcaptain\.com|example\.com)[^"]*(")',
+        r'((?:href|src|content)=")https?://(?:codewithcaptain\.com|example\.com)[^"]*(")',
         rf"\g<1>{FISHBOWL_HOST}\2",
         html,
     )
@@ -153,6 +153,32 @@ async def add_blog_post(post: BlogPost, x_ingest_key: str = Header()):
     index.posts.insert(0, post)
     await write_blog_index(index.posts)
     return {"status": "created", "id": post.id, "copied": copied}
+
+
+@router.post("/resanitize")
+async def resanitize_blog_posts(x_ingest_key: str = Header()):
+    """Re-sanitize all stored blog HTML to fix placeholder URLs.
+
+    Reads each blog post's HTML from blob storage, applies sanitization,
+    and re-uploads the cleaned version. Protected by the ingest API key.
+    """
+    settings = get_settings()
+    if not settings.ingest_api_key or x_ingest_key != settings.ingest_api_key:
+        raise HTTPException(status_code=403, detail="Invalid ingest key")
+
+    index = await get_blog_index()
+    fixed = []
+    skipped = []
+    for post in index.posts:
+        html = await read_blog_html(post.slug)
+        if not html:
+            skipped.append(post.slug)
+            continue
+        sanitized = sanitize_blog_html(html, post.slug, post.published_at)
+        if sanitized != html:
+            await upload_blog_html(post.slug, sanitized)
+            fixed.append(post.slug)
+    return {"fixed": fixed, "skipped": skipped, "total": len(index.posts)}
 
 
 @router.get("/by-slug/{slug}")
