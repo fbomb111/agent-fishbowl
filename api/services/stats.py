@@ -11,17 +11,9 @@ from typing import Any
 from api.config import get_settings
 from api.services.cache import TTLCache
 from api.services.github_events import ACTOR_MAP
-from api.services.http_client import fetch_merged_prs, github_api_get
+from api.services.http_client import fetch_closed_issues, fetch_merged_prs
 
 _cache = TTLCache(ttl=300, max_size=5)
-
-
-async def _search_issues(query: str) -> list[dict[str, Any]]:
-    """Run a GitHub issue/PR search query and return all items."""
-    url = "https://api.github.com/search/issues"
-    params = {"q": query, "per_page": "100"}
-    result = await github_api_get(url, params, response_key="items", context=query)
-    return result if result is not None else []
 
 
 def _agent_role(login: str) -> str | None:
@@ -66,13 +58,10 @@ async def get_team_stats() -> dict[str, Any]:
     since = now - timedelta(days=7)
     since_str = since.strftime("%Y-%m-%d")
 
-    # Search for closed issues and merged PRs in the last 7 days
-    # Use Search API for issues (is:closed works reliably) but Pulls REST API
-    # for merged PRs (is:merged qualifier has GitHub indexing issues — #187)
-    issues_query = f"repo:{repo} is:issue is:closed closed:>={since_str}"
-
+    # Fetch closed issues and merged PRs using REST APIs instead of Search API
+    # (Search API items can return 0 due to GitHub indexing issues — #186, #187)
     issues_items, prs_items = await asyncio.gather(
-        _search_issues(issues_query),
+        fetch_closed_issues(repo, since_str),
         fetch_merged_prs(repo, since_str),
     )
 
