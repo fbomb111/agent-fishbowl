@@ -459,41 +459,50 @@ def check_concurrency(flow: dict) -> CheckResult:
 
 
 def check_harness_refs(flow: dict) -> CheckResult:
-    """Check harness version pinning consistency."""
-    r = CheckResult()
-    refs_seen: dict[str, list[str]] = {}
+    """All workflows must pin the global harness_ref declared in agent-flow.yaml.
 
+    Reusable callers are exempt (they inherit from reusable-agent.yml, which
+    IS validated directly). Missing global harness_ref is an error.
+    """
+    r = CheckResult()
+    global_ref = flow.get("harness_ref", "")
+
+    if not global_ref:
+        r.errors.append(
+            "[config] Missing top-level 'harness_ref' in agent-flow.yaml. "
+            'Add: harness_ref: "@v1.2.0"'
+        )
+        return r
+
+    # Validate reusable-agent.yml itself (the single pin for all reusable callers)
+    reusable_wf = load_workflow("reusable-agent.yml")
+    if reusable_wf:
+        reusable_ref = extract_harness_ref(reusable_wf)
+        if reusable_ref and reusable_ref != global_ref:
+            r.errors.append(
+                f"[reusable-agent.yml] Harness ref is {reusable_ref}, "
+                f"expected {global_ref} (from agent-flow.yaml harness_ref)"
+            )
+
+    # Validate all agent workflows
     for label, unit, wf_file in iter_agent_units(flow):
         wf = load_workflow(wf_file)
         if wf is None:
             continue
 
+        # Skip reusable callers — their pin is validated via reusable-agent.yml above
+        if is_reusable_caller(wf):
+            continue
+
         wf_ref = extract_harness_ref(wf)
-        flow_ref = unit.get("harness_ref", "")
-        # Also check parent-level harness_ref for multi-job agents
-        if not flow_ref:
-            # Walk up to find parent agent's harness_ref
-            for agent_id, agent in flow.get("agents", {}).items():
-                if "jobs" in agent:
-                    for job_id, job in agent["jobs"].items():
-                        if f"{agent_id}/{job_id}" == label:
-                            flow_ref = agent.get("harness_ref", "")
-                            break
+        if wf_ref is None:
+            continue
 
-        if wf_ref:
-            refs_seen.setdefault(wf_ref, []).append(label)
-
-        if flow_ref and wf_ref and flow_ref != wf_ref:
-            r.warnings.append(
-                f"[{label}] Harness ref mismatch — flow: {flow_ref}, workflow: {wf_ref}"
+        if wf_ref != global_ref:
+            r.errors.append(
+                f"[{label}] Harness ref is {wf_ref}, "
+                f"expected {global_ref} (from agent-flow.yaml harness_ref)"
             )
-
-    # Report mixed versions
-    if len(refs_seen) > 1:
-        versions = ", ".join(
-            f"{ref} ({len(agents)})" for ref, agents in refs_seen.items()
-        )
-        r.info.append(f"Mixed harness versions in use: {versions}")
 
     return r
 

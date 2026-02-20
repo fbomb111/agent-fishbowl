@@ -1,5 +1,5 @@
 <!-- AUTO-GENERATED — Do not edit. Edit config/agent-flow.yaml instead. -->
-<!-- Last generated: 2026-02-20 16:29 UTC -->
+<!-- Last generated: 2026-02-20 17:07 UTC -->
 <!-- Regenerate: python scripts/validate-flow.py --mermaid -o docs/agent-flow.md -->
 
 # Agent Flow Graph
@@ -67,6 +67,7 @@ flowchart TD
 
     subgraph infra_wf[Infrastructure]
         DEPLOY_WF[Deploy]:::infraStyle
+        QA_TRIAGE_WF[Qa Triage]:::infraStyle
         INGEST_WF[Ingest]:::infraStyle
         CI_WF[Ci]:::infraStyle
     end
@@ -85,7 +86,7 @@ flowchart TD
     REVIEWER -->|"changes requested"| ENGINEER
     REVIEWER -->|"changes requested"| INFRA_ENGINEER
     REVIEWER -.->|"batch≥5"| PRODUCT_OWNER
-    REVIEWER -.->|"untriaged source/tech-lead"| TECH_LEAD_FULL_SCAN
+    REVIEWER -.->|"untriaged source/tech-lead"| TECH_LEAD
     STRATEGIC -.->|"always"| PRODUCT_OWNER
     SITE_RELIABILITY -.->|"agent decision *"| INGEST_WF
     TECH_LEAD_FULL_SCAN -.->|"always"| PRODUCT_OWNER
@@ -152,7 +153,7 @@ flowchart TD
 | `agent-product-owner-complete` | PO finished triaging, unassigned work exists (payload: chain_depth) | active |
 | `agent-reviewer-feedback` | Reviewer requested changes on a PR (payload: chain_depth) | active |
 | `azure-alert` | Azure Monitor alert fired via alert bridge function | external |
-| `deploy-complete` | Deployment finished, QA should verify | stub |
+| `deploy-complete` | Deployment finished, triggers QA triage (deploy.yml → qa-triage.yml) | external |
 | `dispute-detected` | Agent disagreement loop detected | stub |
 
 ## Agent Schedules
@@ -169,7 +170,7 @@ flowchart TD
 | marketing-strategist | `0 8 * * 1` | Mon | Manual |
 | product-analyst | `0 14 * * *` | daily | Manual |
 | product-owner | `0 6,18 * * *` | daily | `agent-product-manager-feedback`, Manual |
-| qa-analyst | `0 16 */2 * *` | every 2d | `deploy-complete`, Manual |
+| qa-analyst | `0 16 * * *` | daily | Manual |
 | reviewer | `0 */12 * * *` | daily | PR opened/synchronize, Manual |
 | site-reliability | `30 */4 * * *` | daily | `azure-alert`, Manual |
 | strategic | `0 6 * * *` | daily | Manual |

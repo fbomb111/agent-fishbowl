@@ -310,6 +310,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Harness ref must match harness_ref in config/agent-flow.yaml
       - name: Run {Display Name} agent
         uses: YourMoveLabs/agent-harness@v1.2.0
         with:
@@ -360,6 +361,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Harness ref must match harness_ref in config/agent-flow.yaml
       - name: Run {Display Name} — {Job Name}
         uses: YourMoveLabs/agent-harness@v1.2.0
         with:
@@ -594,7 +596,10 @@ After pushing harness changes, create and push a new tag:
 git tag -a vX.Y.Z -m "vX.Y.Z: Add {Display Name} agent"
 git push origin main --tags
 ```
-Then update reusable-agent.yml in agent-fishbowl if the tag version changed.
+Then bump all fishbowl workflows to the new tag:
+```
+scripts/bump-harness.sh vX.Y.Z
+```
 
 ### Phase 5: Commit (Don't Push)
 
@@ -621,9 +626,10 @@ When processing multiple agents from a single document:
 
 ## Notes
 
-- The harness tag (referenced in workflow YAML `uses: YourMoveLabs/agent-harness@vX.Y.Z`) must be updated after pushing harness changes
-- Current harness version: **v1.2.0**
-- The reusable workflow (`reusable-agent.yml`) pins the harness version — update it there when bumping
+- **Harness version authority**: `config/agent-flow.yaml` → top-level `harness_ref` field is the single source of truth
+- When bumping the harness: run `scripts/bump-harness.sh <new-version>` — it updates all workflow files, the config, and regenerates the diagram. CI validates consistency.
+- When creating a **reusable workflow caller**, no harness ref appears in the file — it's inherited from `reusable-agent.yml`
+- When creating a **custom workflow** (with post-steps), copy the ref from `config/agent-flow.yaml` `harness_ref` into the `uses:` line
 - Agents with `tool_category: code-writer` don't need the sandbox compatibility section in their prompt
 - Hyphens in role slugs become underscores in env var names: `product-analyst` → `PRODUCT_ANALYST`
 - Robohash URL format: `https://robohash.org/fishbowl-{role}?set=set1&size=256x256`
