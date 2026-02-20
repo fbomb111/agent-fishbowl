@@ -254,6 +254,15 @@ jobs:
     secrets: inherit
 ```
 
+> **WARNING**: When using the reusable workflow (`reusable-agent.yml`), do NOT add a
+> workflow-level `concurrency:` block. The reusable workflow already defines
+> `concurrency: group: agent-{role}` at the job level. Having both creates a deadlock
+> where the workflow-level lock prevents the inner job from acquiring the same group,
+> causing instant failure with no runner assigned.
+>
+> Only use workflow-level `concurrency:` when the agent defines its own job (the
+> "Agent with post-dispatch steps" and "Job-specific agent" templates below).
+
 **Agent with orchestration script:**
 ```yaml
 name: "Agent: {Display Name}"
