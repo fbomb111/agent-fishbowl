@@ -97,6 +97,32 @@ def _is_interesting_label(label_name: str) -> bool:
     return any(label_name.startswith(p) for p in _INTERESTING_LABEL_PREFIXES)
 
 
+def _deduplicate_label_events(
+    events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Remove duplicate label events that GitHub fires for a single action.
+
+    GitHub often creates multiple IssuesEvent/labeled entries with consecutive
+    IDs for one label action. We keep only the first per unique combination
+    of (actor, description, subject_number, timestamp).
+    """
+    seen_labels: set[tuple[str, str, int | None, str]] = set()
+    result: list[dict[str, Any]] = []
+    for evt in events:
+        if evt["type"] == "issue_labeled":
+            key = (
+                evt.get("actor", ""),
+                evt.get("description", ""),
+                evt.get("subject_number"),
+                evt.get("timestamp", ""),
+            )
+            if key in seen_labels:
+                continue
+            seen_labels.add(key)
+        result.append(evt)
+    return result
+
+
 def parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Convert GitHub API events into ActivityEvent dicts."""
     parsed: list[dict[str, Any]] = []
@@ -294,4 +320,4 @@ def parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     )
                 )
 
-    return parsed
+    return _deduplicate_label_events(parsed)

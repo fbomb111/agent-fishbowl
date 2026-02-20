@@ -88,3 +88,61 @@ def test_parse_push_event_multiple_commits():
     # Should show last commit's first line + count
     assert "Fix the thing" in parsed[0]["description"]
     assert "+2 more" in parsed[0]["description"]
+
+
+def test_deduplicates_label_events():
+    """GitHub fires multiple IssuesEvent/labeled for a single label action.
+
+    parse_events should keep only one per unique (actor, description, issue, timestamp).
+    """
+    # Simulate 4 duplicate label events with consecutive IDs (same label action)
+    events = [
+        _make_event(
+            "IssuesEvent",
+            "fishbowl-po[bot]",
+            {
+                "action": "labeled",
+                "label": {"name": "source/qa-analyst"},
+                "issue": {
+                    "number": 179,
+                    "title": "Some issue",
+                    "html_url": "https://github.com/test/repo/issues/179",
+                },
+            },
+            event_id=str(i),
+        )
+        for i in range(4)
+    ]
+    parsed = parse_events(events)
+    labeled = [e for e in parsed if e["type"] == "issue_labeled"]
+    assert len(labeled) == 1
+    assert "source/qa-analyst" in labeled[0]["description"]
+
+
+def test_dedup_keeps_different_labels():
+    """Dedup should not collapse events for different labels on the same issue."""
+    base_payload = {
+        "action": "labeled",
+        "issue": {
+            "number": 42,
+            "title": "Test",
+            "html_url": "https://github.com/test/repo/issues/42",
+        },
+    }
+    events = [
+        _make_event(
+            "IssuesEvent",
+            "fishbowl-po[bot]",
+            {**base_payload, "label": {"name": "priority/high"}},
+            event_id="1",
+        ),
+        _make_event(
+            "IssuesEvent",
+            "fishbowl-po[bot]",
+            {**base_payload, "label": {"name": "source/tech-lead"}},
+            event_id="2",
+        ),
+    ]
+    parsed = parse_events(events)
+    labeled = [e for e in parsed if e["type"] == "issue_labeled"]
+    assert len(labeled) == 2

@@ -51,19 +51,9 @@ def _group_events_into_threads(
             standalone.append({"type": "standalone", "event": evt})
 
     # Sort events within each thread chronologically (oldest first)
-    # and deduplicate label events (GitHub fires multiple events for same label)
     for thread in threads.values():
         thread["events"].sort(key=lambda e: e["timestamp"])
-        seen_labels: set[str] = set()
-        deduped: list[dict[str, Any]] = []
-        for evt in thread["events"]:
-            if evt["type"] == "issue_labeled":
-                if evt["description"] in seen_labels:
-                    continue
-                seen_labels.add(evt["description"])
-            deduped.append(evt)
-        thread["events"] = deduped
-        # Update latest_timestamp to actual latest event after sort/dedup
+        # Update latest_timestamp to actual latest event after sort
         if thread["events"]:
             thread["latest_timestamp"] = thread["events"][-1]["timestamp"]
 
