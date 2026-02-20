@@ -1,6 +1,7 @@
 """Shared HTTP client utilities — reusable httpx client."""
 
 import logging
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -67,3 +68,71 @@ async def github_api_get(
             "GitHub API error for %s%s", url, f" ({context})" if context else ""
         )
         return None
+
+
+async def fetch_merged_prs(repo: str, since: str) -> list[dict[str, Any]]:
+    """Fetch merged PRs since a date using the Pulls REST API.
+
+    Uses /repos/{owner}/{repo}/pulls?state=closed instead of the Search API
+    is:merged qualifier, which can return 0 results due to GitHub indexing issues.
+
+    Args:
+        repo: Owner/repo string (e.g. "YourMoveLabs/agent-fishbowl")
+        since: ISO date string (e.g. "2026-02-13") — PRs merged on or after
+    """
+    client = get_shared_client()
+    headers = github_headers()
+    url = f"https://api.github.com/repos/{repo}/pulls"
+    merged: list[dict[str, Any]] = []
+    page = 1
+
+    if "T" not in since:
+        since_dt = datetime.fromisoformat(since + "T00:00:00+00:00")
+    else:
+        since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+
+    while True:
+        params = {
+            "state": "closed",
+            "sort": "updated",
+            "direction": "desc",
+            "per_page": "100",
+            "page": str(page),
+        }
+        try:
+            resp = await client.get(url, headers=headers, params=params)
+            if resp.status_code != 200:
+                logger.warning(
+                    "Pulls API returned %d (page %d)", resp.status_code, page
+                )
+                break
+            items = resp.json()
+            if not items:
+                break
+
+            stop_paging = False
+            for pr in items:
+                merged_at = pr.get("merged_at")
+                if not merged_at:
+                    continue
+                pr_merged_dt = datetime.fromisoformat(merged_at.replace("Z", "+00:00"))
+                if pr_merged_dt >= since_dt:
+                    merged.append(pr)
+
+            # Stop if the oldest item on this page was updated before our window
+            oldest_updated = items[-1].get("updated_at", "")
+            if oldest_updated:
+                oldest_dt = datetime.fromisoformat(
+                    oldest_updated.replace("Z", "+00:00")
+                )
+                if oldest_dt < since_dt:
+                    stop_paging = True
+
+            if stop_paging or len(items) < 100:
+                break
+            page += 1
+        except Exception:
+            logger.exception("Pulls API error (page %d)", page)
+            break
+
+    return merged

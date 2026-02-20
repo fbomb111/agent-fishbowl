@@ -15,7 +15,12 @@ import httpx
 from api.config import get_settings
 from api.services.cache import TTLCache
 from api.services.github_events import ACTOR_MAP
-from api.services.http_client import get_shared_client, github_api_get, github_headers
+from api.services.http_client import (
+    fetch_merged_prs,
+    get_shared_client,
+    github_api_get,
+    github_headers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -95,50 +100,58 @@ async def _fetch_windowed_counts(repo: str, now: datetime) -> dict[str, dict[str
         "30d": (now - timedelta(days=30)).strftime("%Y-%m-%d"),
     }
 
-    # Build all search queries — 6 searches for issues/PRs + 3 commit counts
-    tasks = []
-    for window in ("24h", "7d", "30d"):
-        tasks.append(
-            _search_count(
-                f"repo:{repo} is:issue is:closed closed:>={date_cutoffs[window]}"
-            )
-        )
-        tasks.append(
-            _search_count(
-                f"repo:{repo} is:pr is:merged merged:>={date_cutoffs[window]}"
-            )
-        )
-        tasks.append(_count_commits(repo, cutoffs[window]))
+    # Issue counts via Search API (is:closed works reliably)
+    # Merged PR counts via Pulls REST API (is:merged has indexing issues — #187)
+    # Fetch merged PRs for the widest window (30d) and filter client-side
+    issue_tasks = [
+        _search_count(f"repo:{repo} is:issue is:closed closed:>={date_cutoffs[window]}")
+        for window in ("24h", "7d", "30d")
+    ]
+    commit_tasks = [
+        _count_commits(repo, cutoffs[window]) for window in ("24h", "7d", "30d")
+    ]
 
-    results = await asyncio.gather(*tasks)
+    all_merged_prs, *rest = await asyncio.gather(
+        fetch_merged_prs(repo, date_cutoffs["30d"]),
+        *issue_tasks,
+        *commit_tasks,
+    )
+
+    issues_24h, issues_7d, issues_30d = rest[0], rest[1], rest[2]
+    commits_24h, commits_7d, commits_30d = rest[3], rest[4], rest[5]
+
+    # Count merged PRs per window from the single fetch
+    pr_counts: dict[str, int] = {"24h": 0, "7d": 0, "30d": 0}
+    for pr in all_merged_prs:
+        merged_at = pr.get("merged_at", "")
+        if not merged_at:
+            continue
+        for window in ("24h", "7d", "30d"):
+            if merged_at >= cutoffs[window]:
+                pr_counts[window] += 1
 
     return {
         "issues_closed": {
-            "24h": results[0],
-            "7d": results[3],
-            "30d": results[6],
+            "24h": issues_24h,
+            "7d": issues_7d,
+            "30d": issues_30d,
         },
-        "prs_merged": {
-            "24h": results[1],
-            "7d": results[4],
-            "30d": results[7],
-        },
+        "prs_merged": pr_counts,
         "commits": {
-            "24h": results[2],
-            "7d": results[5],
-            "30d": results[8],
+            "24h": commits_24h,
+            "7d": commits_7d,
+            "30d": commits_30d,
         },
     }
 
 
 async def _fetch_agent_stats(repo: str, since_str: str) -> dict[str, dict[str, int]]:
-    """Fetch per-agent activity stats for the last 7 days using the Search API."""
+    """Fetch per-agent activity stats for the last 7 days."""
     issues_query = f"repo:{repo} is:issue is:closed closed:>={since_str}"
-    prs_query = f"repo:{repo} is:pr is:merged merged:>={since_str}"
 
     issues_items, prs_items = await asyncio.gather(
         _search_items(issues_query),
-        _search_items(prs_query),
+        fetch_merged_prs(repo, since_str),
     )
 
     agent_stats: dict[str, dict[str, int]] = {}
