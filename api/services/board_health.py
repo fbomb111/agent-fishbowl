@@ -10,7 +10,7 @@ from typing import Any
 
 from api.config import get_settings
 from api.services.cache import TTLCache
-from api.services.http_client import github_api_get, get_shared_client, github_headers
+from api.services.http_client import get_shared_client, github_api_get, github_headers
 
 logger = logging.getLogger(__name__)
 
