@@ -32,3 +32,16 @@ if [ -n "$STAGED_PY" ]; then
         exit 1
     fi
 fi
+
+# --- Frontend tests (vitest) ---
+STAGED_TS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx)$' || true)
+if [ -n "$STAGED_TS" ]; then
+    if [ -d "$PROJECT_ROOT/frontend" ] && [ -f "$PROJECT_ROOT/frontend/node_modules/.bin/vitest" ]; then
+        echo "pre-commit: running frontend tests..."
+        if ! (cd "$PROJECT_ROOT/frontend" && npx vitest run --reporter=verbose); then
+            echo ""
+            echo "Pre-commit: vitest failed. Fix frontend test failures before committing."
+            exit 1
+        fi
+    fi
+fi
