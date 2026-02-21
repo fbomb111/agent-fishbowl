@@ -68,7 +68,8 @@ async def test_og_endpoint_includes_image_when_present(mock_settings, mocker):
         resp = await client.get("/api/fishbowl/blog/by-slug/test-post/og")
 
     assert resp.status_code == 200
-    assert 'property="og:image" content="https://images.example.com/hero.jpg"' in resp.text
+    expected = 'property="og:image" content="https://images.example.com/hero.jpg"'
+    assert expected in resp.text
 
 
 async def test_og_endpoint_omits_image_when_absent(mock_settings, mocker):
