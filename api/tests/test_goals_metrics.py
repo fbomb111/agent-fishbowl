@@ -217,6 +217,60 @@ class TestFetchWindowedCounts:
         assert result["prs_merged"] == {"24h": 0, "7d": 0, "30d": 0}
         assert result["commits"] == {"24h": 3, "7d": 8, "30d": 20}
 
+    @pytest.mark.asyncio
+    async def test_pr_fetch_failure_returns_none_values(self):
+        """When fetch_merged_prs returns None, prs_merged has None values (#326)."""
+        now = datetime.now(timezone.utc)
+
+        with (
+            patch(
+                "api.services.goals_metrics_windows._search_count",
+                new_callable=AsyncMock,
+                side_effect=[3, 10, 25],
+            ),
+            patch(
+                "api.services.goals_metrics_windows._count_commits",
+                new_callable=AsyncMock,
+                side_effect=[3, 8, 25],
+            ),
+            patch(
+                "api.services.goals_metrics_windows.fetch_merged_prs",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+        ):
+            result = await _fetch_windowed_counts("test/repo", now)
+
+        assert result["prs_merged"] == {"24h": None, "7d": None, "30d": None}
+        assert result["commits"]["24h"] == 3
+
+    @pytest.mark.asyncio
+    async def test_commit_fetch_failure_returns_none_values(self):
+        """When all commit counts fail, commits has None values (#326)."""
+        now = datetime.now(timezone.utc)
+
+        with (
+            patch(
+                "api.services.goals_metrics_windows._search_count",
+                new_callable=AsyncMock,
+                side_effect=[3, 10, 25],
+            ),
+            patch(
+                "api.services.goals_metrics_windows._count_commits",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "api.services.goals_metrics_windows.fetch_merged_prs",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            result = await _fetch_windowed_counts("test/repo", now)
+
+        assert result["commits"] == {"24h": None, "7d": None, "30d": None}
+        assert result["prs_merged"] == {"24h": 0, "7d": 0, "30d": 0}
+
 
 class TestFetchReviewCounts:
     """Tests for _fetch_review_counts()."""
@@ -806,18 +860,165 @@ class TestGetMetrics:
         assert result["by_agent"] == agent_stats
 
     @pytest.mark.asyncio
-    async def test_http_error_returns_empty_metrics(self, mock_settings):
-        """HTTP errors produce empty metrics (graceful degradation)."""
+    async def test_exception_returns_empty_metrics(self, mock_settings):
+        """Exceptions produce empty metrics (graceful degradation)."""
         with patch(
             "api.services.goals_metrics._search_count",
             new_callable=AsyncMock,
-            side_effect=httpx.HTTPError("connection failed"),
+            side_effect=Exception("connection failed"),
         ):
             cache = TTLCache(ttl=300, max_size=10)
             result = await get_metrics(cache)
 
         assert result["open_issues"] == 0
         assert result["open_prs"] == 0
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_stale_cache(self, mock_settings):
+        """Exceptions return stale cached data when available (#326)."""
+        stale_metrics = {
+            "open_issues": 5,
+            "open_prs": 2,
+            "prs_merged": {"24h": 3, "7d": 10, "30d": 25},
+            "commits": {"24h": 5, "7d": 20, "30d": 50},
+            "issues_closed": {"24h": 1, "7d": 5, "30d": 10},
+            "by_agent": {"engineer": {"prs_merged": 8}},
+        }
+        cache = TTLCache(ttl=0, max_size=10)
+        cache._store["metrics"] = (stale_metrics, 0)  # expired
+
+        with patch(
+            "api.services.goals_metrics._search_count",
+            new_callable=AsyncMock,
+            side_effect=Exception("connection failed"),
+        ):
+            result = await get_metrics(cache)
+
+        assert result == stale_metrics
+
+    @pytest.mark.asyncio
+    async def test_partial_failure_preserves_stale_pr_data(self, mock_settings):
+        """When PR fetch fails, stale PR data is used (#326)."""
+        stale_metrics = {
+            "open_issues": 5,
+            "open_prs": 2,
+            "prs_merged": {"24h": 3, "7d": 10, "30d": 25},
+            "commits": {"24h": 5, "7d": 20, "30d": 50},
+            "issues_closed": {"24h": 1, "7d": 5, "30d": 10},
+            "by_agent": {},
+        }
+        cache = TTLCache(ttl=0, max_size=10)
+        cache._store["metrics"] = (stale_metrics, 0)  # expired
+
+        # PR fetch failed (None values), commits succeeded
+        windowed = {
+            "issues_closed": {"24h": 2, "7d": 6, "30d": 12},
+            "prs_merged": {"24h": None, "7d": None, "30d": None},
+            "commits": {"24h": 8, "7d": 30, "30d": 60},
+        }
+
+        with (
+            patch(
+                "api.services.goals_metrics._search_count",
+                new_callable=AsyncMock,
+                side_effect=[7, 3],
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_windowed_counts",
+                new_callable=AsyncMock,
+                return_value=windowed,
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_agent_stats",
+                new_callable=AsyncMock,
+                return_value={},
+            ),
+        ):
+            result = await get_metrics(cache)
+
+        # PR data from stale cache
+        assert result["prs_merged"] == {"24h": 3, "7d": 10, "30d": 25}
+        # Commits from fresh data
+        assert result["commits"] == {"24h": 8, "7d": 30, "30d": 60}
+        # Issues from fresh data
+        assert result["issues_closed"] == {"24h": 2, "7d": 6, "30d": 12}
+
+    @pytest.mark.asyncio
+    async def test_partial_failure_preserves_stale_commit_data(self, mock_settings):
+        """When commit fetch fails, stale commit data is used (#326)."""
+        stale_metrics = {
+            "open_issues": 5,
+            "open_prs": 2,
+            "prs_merged": {"24h": 3, "7d": 10, "30d": 25},
+            "commits": {"24h": 5, "7d": 20, "30d": 50},
+            "issues_closed": {"24h": 1, "7d": 5, "30d": 10},
+            "by_agent": {},
+        }
+        cache = TTLCache(ttl=0, max_size=10)
+        cache._store["metrics"] = (stale_metrics, 0)  # expired
+
+        # Commits failed (None values), PRs succeeded
+        windowed = {
+            "issues_closed": {"24h": 2, "7d": 6, "30d": 12},
+            "prs_merged": {"24h": 4, "7d": 15, "30d": 30},
+            "commits": {"24h": None, "7d": None, "30d": None},
+        }
+
+        with (
+            patch(
+                "api.services.goals_metrics._search_count",
+                new_callable=AsyncMock,
+                side_effect=[7, 3],
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_windowed_counts",
+                new_callable=AsyncMock,
+                return_value=windowed,
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_agent_stats",
+                new_callable=AsyncMock,
+                return_value={},
+            ),
+        ):
+            result = await get_metrics(cache)
+
+        # Commits from stale cache
+        assert result["commits"] == {"24h": 5, "7d": 20, "30d": 50}
+        # PRs from fresh data
+        assert result["prs_merged"] == {"24h": 4, "7d": 15, "30d": 30}
+
+    @pytest.mark.asyncio
+    async def test_partial_failure_no_stale_uses_zeros(self, mock_settings):
+        """When fetch fails and no stale cache exists, zeros are used (#326)."""
+        windowed = {
+            "issues_closed": {"24h": 2, "7d": 6, "30d": 12},
+            "prs_merged": {"24h": None, "7d": None, "30d": None},
+            "commits": {"24h": None, "7d": None, "30d": None},
+        }
+
+        with (
+            patch(
+                "api.services.goals_metrics._search_count",
+                new_callable=AsyncMock,
+                side_effect=[7, 3],
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_windowed_counts",
+                new_callable=AsyncMock,
+                return_value=windowed,
+            ),
+            patch(
+                "api.services.goals_metrics._fetch_agent_stats",
+                new_callable=AsyncMock,
+                return_value={},
+            ),
+        ):
+            cache = TTLCache(ttl=300, max_size=10)
+            result = await get_metrics(cache)
+
+        assert result["prs_merged"] == {"24h": 0, "7d": 0, "30d": 0}
+        assert result["commits"] == {"24h": 0, "7d": 0, "30d": 0}
 
     @pytest.mark.asyncio
     async def test_result_is_cached(self, mock_settings):

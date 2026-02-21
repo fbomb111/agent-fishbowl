@@ -14,8 +14,6 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import httpx
-
 from api.config import get_settings
 from api.services.cache import TTLCache
 from api.services.github_events import agent_role as _agent_role  # noqa: F401
@@ -45,7 +43,12 @@ logger = logging.getLogger(__name__)
 
 
 async def get_metrics(cache: TTLCache) -> dict[str, Any]:
-    """Compute agent metrics with trend windows (24h / 7d / 30d)."""
+    """Compute agent metrics with trend windows (24h / 7d / 30d).
+
+    On partial API failures, substitutes stale cached values for the
+    failed components instead of serving zeros (#326).  Mirrors the
+    pattern used by the stats endpoint (#302, #305).
+    """
     cached = cache.get("metrics")
     if cached is not None:
         return cached
@@ -80,13 +83,36 @@ async def get_metrics(cache: TTLCache) -> dict[str, Any]:
         metrics["open_issues"] = open_issues if open_issues is not None else 0
         metrics["open_prs"] = open_prs if open_prs is not None else 0
         metrics["issues_closed"] = windowed["issues_closed"]
-        metrics["prs_merged"] = windowed["prs_merged"]
-        metrics["commits"] = windowed["commits"]
         metrics["by_agent"] = agent_stats
 
-    except (httpx.HTTPError, httpx.TimeoutException):
+        # Detect partial failures: _fetch_windowed_counts returns None
+        # values when the underlying API call failed (#326).  Substitute
+        # stale cached values for failed components instead of zeros.
+        prs_failed = any(v is None for v in windowed["prs_merged"].values())
+        commits_failed = any(v is None for v in windowed["commits"].values())
+
+        if prs_failed or commits_failed:
+            stale = cache.get_stale("metrics")
+            if stale is not None:
+                if prs_failed:
+                    metrics["prs_merged"] = stale.get("prs_merged", {**empty_window})
+                else:
+                    metrics["prs_merged"] = windowed["prs_merged"]
+                if commits_failed:
+                    metrics["commits"] = stale.get("commits", {**empty_window})
+                else:
+                    metrics["commits"] = windowed["commits"]
+            else:
+                # No stale data — use zeros rather than None
+                metrics["prs_merged"] = {**empty_window}
+                metrics["commits"] = {**empty_window}
+        else:
+            metrics["prs_merged"] = windowed["prs_merged"]
+            metrics["commits"] = windowed["commits"]
+
+    except Exception:
         logger.exception("metrics fetch failed")
-        stale = cache.get("metrics")
+        stale = cache.get_stale("metrics")
         if stale is not None:
             return stale
 
