@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from api.routers.blog import sanitize_blog_html
+from api.services.blog_sanitizer import sanitize_blog_html
 
 
 def _make_dt(year: int, month: int, day: int) -> datetime:
