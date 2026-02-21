@@ -2,12 +2,11 @@ name: Agent - PM Strategic Review
 
 on:
   schedule:
-    - cron: "0 6 * * *"   # Daily 06:00 UTC
+    - cron: "0 5 * * *"   # Daily 05:00 UTC (PO picks up output at 06:00)
   workflow_dispatch: {}
 
 permissions:
   contents: read
-  actions: write          # gh workflow run agent-product-owner.yml
 
 concurrency:
   group: agent-strategic
@@ -25,11 +24,5 @@ jobs:
         uses: YourMoveLabs/agent-harness@fcb5e86f2cce015c7df88ae190b5030b3522fce1  # v1.6.1
         with:
           entry-point: scripts/run-strategic.sh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Dispatch PO to process roadmap changes
-        if: success()
-        run: gh workflow run agent-product-owner.yml
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,5 +1,5 @@
 <!-- AUTO-GENERATED — Do not edit. Edit config/agent-flow.yaml instead. -->
-<!-- Last generated: 2026-02-21 18:55 UTC -->
+<!-- Last generated: 2026-02-21 19:18 UTC -->
 <!-- Regenerate: python scripts/validate-flow.py --mermaid -o docs/agent-flow.md -->
 
 # Agent Flow Graph
@@ -82,29 +82,26 @@ flowchart TD
     AZURE_ALERT{{Azure Alert}}:::external
 
     TRIAGE -.->|"batch≥5"| PRODUCT_OWNER
-    PRODUCT_OWNER -.->|"unassigned>0 *"| ENGINEER
+    PRODUCT_OWNER -.->|"unassigned>0 *"| ISSUE_ROUTER_WF
     PRODUCT_OWNER -.->|"agent decision *"| USER_EXPERIENCE
     ENGINEER -.->|"idle, PM>2h"| STRATEGIC
     REVIEWER -->|"changes requested"| ENGINEER
-    REVIEWER -->|"changes requested"| OPS_ENGINEER
     REVIEWER -.->|"batch≥5"| PRODUCT_OWNER
     REVIEWER -.->|"untriaged source/tech-lead"| TECH_LEAD
-    STRATEGIC -.->|"always"| PRODUCT_OWNER
     SITE_RELIABILITY -.->|"agent decision *"| INGEST_WF
-    TECH_LEAD_FULL_SCAN -.->|"always"| PRODUCT_OWNER
-    TECH_LEAD_ARCHITECTURE_REVIEW -.->|"always"| PRODUCT_OWNER
-    TECH_LEAD_TECH_DEBT_SCAN -.->|"always"| PRODUCT_OWNER
-    TECH_LEAD_SECURITY_SCAN -.->|"always"| PRODUCT_OWNER
-    TECH_LEAD_QA_TOOLING_REVIEW -.->|"always"| PRODUCT_OWNER
-    TECH_LEAD_INFRASTRUCTURE_REVIEW -.->|"always"| PRODUCT_OWNER
-    TECH_LEAD_DOC_REVIEW -.->|"always"| PRODUCT_OWNER
-    TECH_LEAD_TEST_REVIEW -.->|"always"| PRODUCT_OWNER
-    TECH_LEAD_PROJECT_STRUCTURE_REVIEW -.->|"always"| PRODUCT_OWNER
-    TECH_LEAD_PIPELINE_QUALITY_REVIEW -.->|"always"| PRODUCT_OWNER
+    TECH_LEAD_FULL_SCAN -->|"intake_exists"| PRODUCT_OWNER
+    TECH_LEAD_ARCHITECTURE_REVIEW -->|"intake_exists"| PRODUCT_OWNER
+    TECH_LEAD_TECH_DEBT_SCAN -->|"intake_exists"| PRODUCT_OWNER
+    TECH_LEAD_SECURITY_SCAN -->|"intake_exists"| PRODUCT_OWNER
+    TECH_LEAD_QA_TOOLING_REVIEW -->|"intake_exists"| PRODUCT_OWNER
+    TECH_LEAD_INFRASTRUCTURE_REVIEW -->|"intake_exists"| PRODUCT_OWNER
+    TECH_LEAD_DOC_REVIEW -->|"intake_exists"| PRODUCT_OWNER
+    TECH_LEAD_TEST_REVIEW -->|"intake_exists"| PRODUCT_OWNER
+    TECH_LEAD_PROJECT_STRUCTURE_REVIEW -->|"intake_exists"| PRODUCT_OWNER
+    TECH_LEAD_PIPELINE_QUALITY_REVIEW -->|"intake_exists"| PRODUCT_OWNER
 
     ISSUE_OPENED -.-> TRIAGE
     PR_MERGED -.-> ENGINEER
-    CHECK_SUITE -.-> ENGINEER
     AZURE_ALERT -.-> SITE_RELIABILITY
 
     classDef external fill:#f9f,stroke:#333,stroke-width:1px
@@ -147,10 +144,14 @@ flowchart TD
 
 | Event | Description | Status |
 |-------|-------------|--------|
+| `agent-po-engineer-work` | Router: PO complete, unassigned engineer-routed issues exist (payload: chain_depth) | external |
+| `agent-po-ops-work` | Router: PO complete, unassigned ops-routed issues exist (payload: chain_depth) | external |
 | `agent-product-manager-feedback` | PM flagged misalignment, PO should re-scope | stub |
-| `agent-product-owner-complete` | PO finished triaging, unassigned work exists (payload: chain_depth) | active |
+| `agent-product-owner-complete` | PO finished triaging — routed through issue-router to agent-po-engineer-work or agent-po-ops-work (payload: chain_depth) | active |
 | `agent-reviewer-feedback` | Reviewer requested changes on a PR (payload: chain_depth) | active |
+| `agent-tech-lead-complete` | Tech Lead scan completed with unprocessed intake — PO should triage | active |
 | `azure-alert` | Azure Monitor alert fired via alert bridge function | external |
+| `ci-check-failed` | Router: CI check suite failed, engineer should investigate (payload: head_sha, head_branch) | external |
 | `deploy-complete` | Deployment finished, triggers QA triage (deploy.yml → qa-triage.yml) | external |
 | `dispute-detected` | Agent disagreement loop detected | stub |
 | `issue-labeled-engineer` | Router: role/engineer label applied | external |
@@ -165,20 +166,20 @@ flowchart TD
 |-------|----------|-----|----------------|
 | content-creator | `0 10 * * *` | daily | Manual |
 | customer-ops | `0 */4 * * *` | daily | Manual |
-| engineer | --- |  | `issue-labeled-engineer`, `agent-product-owner-complete`, `agent-reviewer-feedback`, PR closed, Check suite, Manual |
+| engineer | --- |  | `issue-labeled-engineer`, `agent-po-engineer-work`, `agent-reviewer-feedback`, `ci-check-failed`, PR closed, Manual |
 | escalation-lead | `0 18 * * 3` | Wed | `dispute-detected`, Manual |
 | financial-analyst | `0 12 * * *` | daily | Manual |
 | human-ops | `0 15 * * 5` | Fri | Manual |
 | marketing-strategist | `0 8 * * 1` | Mon | Manual |
-| ops-engineer | --- |  | `issue-labeled-ops`, `issue-unlabeled-ops`, `agent-product-owner-complete`, Manual |
+| ops-engineer | --- |  | `issue-labeled-ops`, `issue-unlabeled-ops`, `agent-po-ops-work`, Manual |
 | product-analyst/market-intelligence | `0 3 * * 2,4` | Tue/Thu | Manual |
 | product-analyst/product-discovery | `0 3 * * 1,3,5` | Mon/Wed/Fri | Manual |
 | product-analyst/revenue-operations | --- |  | Manual |
-| product-owner | `0 6,18 * * *` | daily | `agent-product-manager-feedback`, Manual |
+| product-owner | `0 6,18 * * *` | daily | `agent-product-manager-feedback`, `agent-tech-lead-complete`, Manual |
 | qa-analyst | `0 16 * * *` | daily | Manual |
 | reviewer | `0 */12 * * *` | daily | `pr-needs-review`, Manual |
 | site-reliability | `30 */4 * * *` | daily | `azure-alert`, Manual |
-| strategic | `0 6 * * *` | daily | Manual |
+| strategic | `0 5 * * *` | daily | Manual |
 | tech-lead/architecture-review | `0 7 * * *` | daily | Manual |
 | tech-lead/doc-review | `0 16 * * *` | daily | Manual |
 | tech-lead/full-scan | `0 9 * * *` | daily | Manual |

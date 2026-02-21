@@ -6,8 +6,7 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: read
-  actions: write
+  contents: write         # gh api dispatches (repository_dispatch)
 
 concurrency:
   group: agent-tech-lead-security
@@ -29,8 +28,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Dispatch PO to process new issues
+      - name: Dispatch PO if intake exists
         if: success()
-        run: gh workflow run agent-product-owner.yml
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: ./.github/actions/dispatch-po-if-intake
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}

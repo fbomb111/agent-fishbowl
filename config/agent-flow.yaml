@@ -22,7 +22,7 @@ harness_ref: "@v1.6.1"
 
 events:
   agent-product-owner-complete:
-    description: "PO finished triaging, unassigned work exists"
+    description: "PO finished triaging — routed through issue-router to agent-po-engineer-work or agent-po-ops-work"
     payload: [chain_depth]
   agent-reviewer-feedback:
     description: "Reviewer requested changes on a PR"
@@ -54,6 +54,21 @@ events:
     status: external  # sent by issue-router.yml
   issue-labeled-human-escalation:
     description: "Router: harness/request label applied"
+    status: external  # sent by issue-router.yml
+  ci-check-failed:
+    description: "Router: CI check suite failed, engineer should investigate"
+    payload: [head_sha, head_branch]
+    status: external  # sent by issue-router.yml
+  agent-tech-lead-complete:
+    description: "Tech Lead scan completed with unprocessed intake — PO should triage"
+    payload: []
+  agent-po-engineer-work:
+    description: "Router: PO complete, unassigned engineer-routed issues exist"
+    payload: [chain_depth]
+    status: external  # sent by issue-router.yml
+  agent-po-ops-work:
+    description: "Router: PO complete, unassigned ops-routed issues exist"
+    payload: [chain_depth]
     status: external  # sent by issue-router.yml
 
 # ─── Agent Nodes ──────────────────────────────────────────────────
@@ -115,15 +130,17 @@ agents:
     triggers:
       - type: repository_dispatch
         event: agent-product-manager-feedback
+      - type: repository_dispatch
+        event: agent-tech-lead-complete
       - type: schedule
         cron: "0 6,18 * * *"
       - type: workflow_dispatch
     dispatches:
-      - target: engineer
+      - target: issue-router
         method: repository_dispatch
         event: agent-product-owner-complete
         location: in_agent
-        note: "PO prompt dispatches via scripts/dispatch-agent.sh inside Claude session"
+        note: "PO dispatches via dispatch-agent.sh; issue-router routes to agent-po-engineer-work or agent-po-ops-work"
         condition:
           type: unassigned_issues
           min: 1
@@ -154,14 +171,14 @@ agents:
       - type: repository_dispatch
         event: issue-labeled-engineer
       - type: repository_dispatch
-        event: agent-product-owner-complete
+        event: agent-po-engineer-work
       - type: repository_dispatch
         event: agent-reviewer-feedback
+      - type: repository_dispatch
+        event: ci-check-failed
       - type: pull_request
         actions: [closed]
         branches: [main]
-      - type: check_suite
-        actions: [completed]
       - type: workflow_dispatch
     dispatches:
       - target: strategic
@@ -190,7 +207,7 @@ agents:
       - type: repository_dispatch
         event: issue-unlabeled-ops
       - type: repository_dispatch
-        event: agent-product-owner-complete
+        event: agent-po-ops-work
       - type: workflow_dispatch
     dispatches: []
 
@@ -215,7 +232,7 @@ agents:
         cron: "0 */12 * * *"
       - type: workflow_dispatch
     dispatches:
-      - target: [engineer, ops-engineer]
+      - target: engineer
         method: repository_dispatch
         event: agent-reviewer-feedback
         location: post_step
@@ -252,23 +269,16 @@ agents:
     timeout: 30
     permissions:
       contents: read
-      actions: write
     concurrency:
       group: agent-strategic
       cancel_in_progress: false
     triggers:
       - type: schedule
-        cron: "0 6 * * *"
+        cron: "0 5 * * *"
       - type: workflow_dispatch
-    dispatches:
-      - target: product-owner
-        method: workflow_run
-        location: post_step
-        condition:
-          type: unconditional
+    dispatches: []
     pre_steps: []
-    post_steps:
-      - name: "Dispatch PO to process roadmap changes"
+    post_steps: []
 
   tech-lead:
     description: "Tech Lead runs as multiple scheduled jobs, each a separate workflow"
@@ -280,8 +290,7 @@ agents:
         workflow: agent-scans.yml
         timeout: 45
         permissions:
-          contents: read
-          actions: write
+          contents: write
         concurrency:
           group: agent-scans
           cancel_in_progress: false
@@ -291,19 +300,19 @@ agents:
           - type: workflow_dispatch
         dispatches:
           - target: product-owner
-            method: workflow_run
+            method: repository_dispatch
+            event: agent-tech-lead-complete
             location: post_step
             condition:
-              type: unconditional
+              type: intake_exists
         pre_steps: []
         post_steps:
-          - name: "Dispatch PO to process new issues"
+          - name: "Dispatch PO if intake exists"
       architecture-review:
         workflow: agent-tech-lead-architecture.yml
         timeout: 45
         permissions:
-          contents: read
-          actions: write
+          contents: write
         concurrency:
           group: agent-tech-lead-architecture
           cancel_in_progress: false
@@ -313,19 +322,19 @@ agents:
           - type: workflow_dispatch
         dispatches:
           - target: product-owner
-            method: workflow_run
+            method: repository_dispatch
+            event: agent-tech-lead-complete
             location: post_step
             condition:
-              type: unconditional
+              type: intake_exists
         pre_steps: []
         post_steps:
-          - name: "Dispatch PO to process new issues"
+          - name: "Dispatch PO if intake exists"
       tech-debt-scan:
         workflow: agent-tech-lead-debt.yml
         timeout: 45
         permissions:
-          contents: read
-          actions: write
+          contents: write
         concurrency:
           group: agent-tech-lead-debt
           cancel_in_progress: false
@@ -335,13 +344,14 @@ agents:
           - type: workflow_dispatch
         dispatches:
           - target: product-owner
-            method: workflow_run
+            method: repository_dispatch
+            event: agent-tech-lead-complete
             location: post_step
             condition:
-              type: unconditional
+              type: intake_exists
         pre_steps: []
         post_steps:
-          - name: "Dispatch PO to process new issues"
+          - name: "Dispatch PO if intake exists"
       harness-request-review:
         workflow: agent-tech-lead-harness-review.yml
         timeout: 20
@@ -365,8 +375,7 @@ agents:
         workflow: agent-tech-lead-security.yml
         timeout: 45
         permissions:
-          contents: read
-          actions: write
+          contents: write
         concurrency:
           group: agent-tech-lead-security
           cancel_in_progress: false
@@ -376,19 +385,19 @@ agents:
           - type: workflow_dispatch
         dispatches:
           - target: product-owner
-            method: workflow_run
+            method: repository_dispatch
+            event: agent-tech-lead-complete
             location: post_step
             condition:
-              type: unconditional
+              type: intake_exists
         pre_steps: []
         post_steps:
-          - name: "Dispatch PO to process new issues"
+          - name: "Dispatch PO if intake exists"
       qa-tooling-review:
         workflow: agent-tech-lead-qa-tooling.yml
         timeout: 45
         permissions:
-          contents: read
-          actions: write
+          contents: write
         concurrency:
           group: agent-tech-lead-qa-tooling
           cancel_in_progress: false
@@ -398,19 +407,19 @@ agents:
           - type: workflow_dispatch
         dispatches:
           - target: product-owner
-            method: workflow_run
+            method: repository_dispatch
+            event: agent-tech-lead-complete
             location: post_step
             condition:
-              type: unconditional
+              type: intake_exists
         pre_steps: []
         post_steps:
-          - name: "Dispatch PO to process new issues"
+          - name: "Dispatch PO if intake exists"
       infrastructure-review:
         workflow: agent-tech-lead-infrastructure.yml
         timeout: 45
         permissions:
-          contents: read
-          actions: write
+          contents: write
         concurrency:
           group: agent-tech-lead-infrastructure
           cancel_in_progress: false
@@ -420,19 +429,19 @@ agents:
           - type: workflow_dispatch
         dispatches:
           - target: product-owner
-            method: workflow_run
+            method: repository_dispatch
+            event: agent-tech-lead-complete
             location: post_step
             condition:
-              type: unconditional
+              type: intake_exists
         pre_steps: []
         post_steps:
-          - name: "Dispatch PO to process new issues"
+          - name: "Dispatch PO if intake exists"
       doc-review:
         workflow: agent-tech-lead-doc-review.yml
         timeout: 45
         permissions:
-          contents: read
-          actions: write
+          contents: write
         concurrency:
           group: agent-tech-lead-doc-review
           cancel_in_progress: false
@@ -442,19 +451,19 @@ agents:
           - type: workflow_dispatch
         dispatches:
           - target: product-owner
-            method: workflow_run
+            method: repository_dispatch
+            event: agent-tech-lead-complete
             location: post_step
             condition:
-              type: unconditional
+              type: intake_exists
         pre_steps: []
         post_steps:
-          - name: "Dispatch PO to process new issues"
+          - name: "Dispatch PO if intake exists"
       test-review:
         workflow: agent-tech-lead-test-review.yml
         timeout: 45
         permissions:
-          contents: read
-          actions: write
+          contents: write
         concurrency:
           group: agent-tech-lead-test-review
           cancel_in_progress: false
@@ -464,19 +473,19 @@ agents:
           - type: workflow_dispatch
         dispatches:
           - target: product-owner
-            method: workflow_run
+            method: repository_dispatch
+            event: agent-tech-lead-complete
             location: post_step
             condition:
-              type: unconditional
+              type: intake_exists
         pre_steps: []
         post_steps:
-          - name: "Dispatch PO to process new issues"
+          - name: "Dispatch PO if intake exists"
       project-structure-review:
         workflow: agent-tech-lead-structure-review.yml
         timeout: 45
         permissions:
-          contents: read
-          actions: write
+          contents: write
         concurrency:
           group: agent-tech-lead-structure-review
           cancel_in_progress: false
@@ -486,19 +495,19 @@ agents:
           - type: workflow_dispatch
         dispatches:
           - target: product-owner
-            method: workflow_run
+            method: repository_dispatch
+            event: agent-tech-lead-complete
             location: post_step
             condition:
-              type: unconditional
+              type: intake_exists
         pre_steps: []
         post_steps:
-          - name: "Dispatch PO to process new issues"
+          - name: "Dispatch PO if intake exists"
       pipeline-quality-review:
         workflow: agent-tech-lead-pipeline-quality.yml
         timeout: 45
         permissions:
-          contents: read
-          actions: write
+          contents: write
         concurrency:
           group: agent-tech-lead-pipeline-quality
           cancel_in_progress: false
@@ -508,13 +517,14 @@ agents:
           - type: workflow_dispatch
         dispatches:
           - target: product-owner
-            method: workflow_run
+            method: repository_dispatch
+            event: agent-tech-lead-complete
             location: post_step
             condition:
-              type: unconditional
+              type: intake_exists
         pre_steps: []
         post_steps:
-          - name: "Dispatch PO to process new issues"
+          - name: "Dispatch PO if intake exists"
 
   product-analyst:
     description: "Product Analyst runs as three jobs with distinct cadences"
@@ -721,7 +731,7 @@ agents:
 infrastructure:
   deploy:
     workflow: deploy.yml
-    note: "Dispatches deploy-complete after successful API + frontend deploy"
+    note: "Paths-filtered (api/**, frontend/**) + workflow_dispatch. Dispatches deploy-complete after successful deploy."
   pr-manager:
     workflow: pr-manager.yml
     note: "PR risk assessment + auto-approve. Dispatches pr-needs-review for flagged PRs."
@@ -733,10 +743,10 @@ infrastructure:
     note: "SRE dispatch target — retriggered when articles are stale"
   ci:
     workflow: ci.yml
-    note: "Produces check_suite events that engineer reacts to"
+    note: "PR-only trigger (no push:main). check_suite failures routed to engineer via issue-router."
   issue-router:
     workflow: issue-router.yml
-    note: "Routes issues/labeled and issues/unlabeled to correct agent via repository_dispatch"
+    note: "Central event router: label events → agent dispatches, check_suite failures → ci-check-failed, agent-product-owner-complete → agent-po-engineer-work / agent-po-ops-work"
 
 # ─── Safety Constraints ──────────────────────────────────────────
 # Validated by scripts/validate-flow.py

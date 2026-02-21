@@ -3,6 +3,10 @@ name: Deploy
 on:
   push:
     branches: [main]
+    paths:
+      - "api/**"
+      - "frontend/**"
+  workflow_dispatch: {}    # manual deploy escape hatch
 
 permissions:
   contents: write         # repository_dispatch for deploy-complete

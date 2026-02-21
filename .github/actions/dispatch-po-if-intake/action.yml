@@ -1,0 +1,32 @@
+name: Dispatch PO if intake exists
+description: >
+  Check for unprocessed intake issues (source/* without priority/*).
+  If any exist, dispatch agent-tech-lead-complete via repository_dispatch
+  so the PO's pre-flight guard activates.
+
+inputs:
+  github-token:
+    description: GitHub token for API calls
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Dispatch PO if unprocessed intake exists
+      shell: bash
+      run: |
+        INTAKE=$(gh issue list --state open --json labels \
+          --jq '[.[] | select(
+            (.labels | map(.name) | any(test("^source/"))) and
+            (.labels | map(.name) | any(test("^priority/")) | not)
+          )] | length')
+
+        if [ "$INTAKE" -gt 0 ]; then
+          echo "$INTAKE unprocessed intake items — dispatching PO"
+          gh api "repos/$GITHUB_REPOSITORY/dispatches" \
+            --input - <<< '{"event_type":"agent-tech-lead-complete","client_payload":{}}'
+        else
+          echo "No unprocessed intake — skipping PO dispatch"
+        fi
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}

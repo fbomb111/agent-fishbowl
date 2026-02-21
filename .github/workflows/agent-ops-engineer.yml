@@ -2,7 +2,7 @@ name: Agent - Operations Engineer
 
 on:
   repository_dispatch:
-    types: [agent-product-owner-complete, issue-labeled-ops, issue-unlabeled-ops]
+    types: [agent-po-ops-work, issue-labeled-ops, issue-unlabeled-ops]
   workflow_dispatch: {}
 
 permissions:

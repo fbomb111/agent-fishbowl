@@ -2,7 +2,7 @@ name: Agent - Product Owner
 
 on:
   repository_dispatch:
-    types: [agent-product-manager-feedback]
+    types: [agent-product-manager-feedback, agent-tech-lead-complete]
   schedule:
     - cron: "0 6,18 * * *"   # Every 12 hours (sweep runs)
   workflow_dispatch: {}        # Manual or batch-threshold dispatch

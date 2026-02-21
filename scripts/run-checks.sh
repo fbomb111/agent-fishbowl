@@ -56,36 +56,43 @@ else
     fi
 fi
 
-# --- TypeScript (tsc + eslint) ---
-echo ""
-echo "▸ tsc --noEmit (TypeScript typecheck)"
-if ! (cd "$PROJECT_ROOT/frontend" && npx tsc --noEmit); then
-    FAILED=1
-    echo "  FAIL: TypeScript type errors found"
-    echo "  FIX: Read the error messages above, fix type issues in the reported files."
+# --- TypeScript (tsc + eslint + vitest) ---
+if [ ! -d "$PROJECT_ROOT/frontend/node_modules" ]; then
+    echo ""
+    echo "▸ tsc / eslint / vitest"
+    echo "  SKIP: frontend/node_modules not found"
+    echo "  FIX: Run 'cd frontend && npm install' to enable frontend checks."
 else
-    echo "  PASS"
-fi
+    echo ""
+    echo "▸ tsc --noEmit (TypeScript typecheck)"
+    if ! (cd "$PROJECT_ROOT/frontend" && npx tsc --noEmit); then
+        FAILED=1
+        echo "  FAIL: TypeScript type errors found"
+        echo "  FIX: Read the error messages above, fix type issues in the reported files."
+    else
+        echo "  PASS"
+    fi
 
-echo ""
-echo "▸ eslint (TypeScript lint)"
-if ! (cd "$PROJECT_ROOT/frontend" && npx eslint .); then
-    FAILED=1
-    echo "  FAIL: eslint found issues"
-    echo "  FIX: Run 'cd frontend && npx eslint --fix .' to auto-fix."
-else
-    echo "  PASS"
-fi
+    echo ""
+    echo "▸ eslint (TypeScript lint)"
+    if ! (cd "$PROJECT_ROOT/frontend" && npx eslint .); then
+        FAILED=1
+        echo "  FAIL: eslint found issues"
+        echo "  FIX: Run 'cd frontend && npx eslint --fix .' to auto-fix."
+    else
+        echo "  PASS"
+    fi
 
-# --- Frontend tests (vitest) ---
-echo ""
-echo "▸ vitest (Frontend tests)"
-if (cd "$PROJECT_ROOT/frontend" && npx vitest run --reporter=verbose 2>/dev/null); then
-    echo "  PASS"
-else
-    FAILED=1
-    echo "  FAIL: Frontend tests failed"
-    echo "  FIX: Read failures above, fix the code, run 'cd frontend && npx vitest run' again."
+    # --- Frontend tests (vitest) ---
+    echo ""
+    echo "▸ vitest (Frontend tests)"
+    if (cd "$PROJECT_ROOT/frontend" && npx vitest run --reporter=verbose 2>/dev/null); then
+        echo "  PASS"
+    else
+        FAILED=1
+        echo "  FAIL: Frontend tests failed"
+        echo "  FIX: Read failures above, fix the code, run 'cd frontend && npx vitest run' again."
+    fi
 fi
 
 # --- Convention checks ---
