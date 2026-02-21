@@ -10,7 +10,7 @@ from typing import Any
 
 from api.config import get_settings
 from api.services.cache import TTLCache
-from api.services.http_client import get_shared_client, github_headers
+from api.services.http_client import get_shared_client, github_api_get, github_headers
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,7 @@ query($owner: String!, $number: Int!, $cursor: String) {
           content {
             ... on Issue {
               state
+              number
             }
             ... on DraftIssue {
               title
@@ -110,7 +111,46 @@ async def _fetch_project_items(
     return all_items
 
 
-def _compute_board_health(items: list[dict[str, Any]]) -> dict[str, Any]:
+async def _fetch_open_issue_numbers(repo: str) -> set[int] | None:
+    """Fetch all open issue numbers via the GitHub REST API.
+
+    Pages through results to collect every open issue number.
+    Returns None on API error so callers can skip the untracked check.
+    """
+    url = f"https://api.github.com/repos/{repo}/issues"
+    all_numbers: set[int] = set()
+    page = 1
+
+    while True:
+        params = {
+            "state": "open",
+            "per_page": "100",
+            "page": str(page),
+        }
+        data = await github_api_get(url, params, context=f"open issues page {page}")
+        if data is None:
+            return None if not all_numbers else all_numbers
+
+        items: list[dict[str, Any]] = data if isinstance(data, list) else []
+        if not items:
+            break
+
+        for item in items:
+            # The issues endpoint also returns PRs; filter them out
+            if "pull_request" not in item:
+                all_numbers.add(item["number"])
+
+        if len(items) < 100:
+            break
+        page += 1
+
+    return all_numbers
+
+
+def _compute_board_health(
+    items: list[dict[str, Any]],
+    untracked_count: int | None = None,
+) -> dict[str, Any]:
     """Compute board health metrics from project items."""
     status_counts: dict[str, int] = {}
     total = len(items)
@@ -127,11 +167,17 @@ def _compute_board_health(items: list[dict[str, Any]]) -> dict[str, Any]:
         if item.get("type") == "DRAFT_ISSUE":
             draft_count += 1
 
-    return {
+    result: dict[str, Any] = {
         "total_items": total,
         "by_status": status_counts,
         "draft_items": draft_count,
+        "untracked_issues": untracked_count if untracked_count is not None else 0,
     }
+    return result
+
+
+def _empty_result() -> dict[str, Any]:
+    return {"total_items": 0, "by_status": {}, "draft_items": 0, "untracked_issues": 0}
 
 
 async def get_board_health() -> dict[str, Any]:
@@ -143,7 +189,7 @@ async def get_board_health() -> dict[str, Any]:
     settings = get_settings()
     repo = settings.github_repo
     if not repo:
-        return {"total_items": 0, "by_status": {}, "draft_items": 0}
+        return _empty_result()
 
     owner = repo.split("/")[0]
     project_number = 1  # From CLAUDE.md: PROJECT_NUMBER: 1
@@ -154,8 +200,19 @@ async def get_board_health() -> dict[str, Any]:
         stale = _cache.get_stale("board_health")
         if stale is not None:
             return stale
-        return {"total_items": 0, "by_status": {}, "draft_items": 0}
+        return _empty_result()
 
-    result = _compute_board_health(items)
+    # Compute untracked issues: open issues not present on the board
+    untracked_count = 0
+    open_issue_numbers = await _fetch_open_issue_numbers(repo)
+    if open_issue_numbers is not None:
+        board_issue_numbers: set[int] = set()
+        for item in items:
+            content = item.get("content")
+            if content and "number" in content:
+                board_issue_numbers.add(content["number"])
+        untracked_count = len(open_issue_numbers - board_issue_numbers)
+
+    result = _compute_board_health(items, untracked_count)
     _cache.set("board_health", result)
     return result

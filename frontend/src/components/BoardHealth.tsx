@@ -83,6 +83,11 @@ export function BoardHealth() {
           {data.draft_items} draft {data.draft_items === 1 ? "item" : "items"} (not yet converted to issues)
         </p>
       )}
+      {data.untracked_issues > 0 && (
+        <p className="mt-3 text-xs text-amber-500 dark:text-amber-400">
+          {data.untracked_issues} untracked {data.untracked_issues === 1 ? "issue" : "issues"} (not on board)
+        </p>
+      )}
     </div>
   );
 }
