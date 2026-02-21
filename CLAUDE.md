@@ -36,15 +36,24 @@ Agents are deployed as GitHub Actions workflows running on the self-hosted runne
 
 | Workflow | Agents | Triggers | Protection |
 |----------|--------|----------|------------|
-| `agent-triage.yml` | Triage | `issues.opened` + manual | agent-created filter |
-| `agent-product-owner.yml` | PO | Triage/reviewer/PM dispatch + daily 06:00 | Concurrency group |
-| `agent-engineer.yml` | Engineer | PO/reviewer dispatch + PR merged + CI failure | chain_depth ≤ 3, concurrency |
+| `agent-triage.yml` | Triage | `issues.opened` + daily + manual | agent-created filter |
+| `agent-product-owner.yml` | PO | PM/reviewer dispatch + 2x daily | Concurrency group |
+| `agent-engineer.yml` | Engineer | PO/reviewer dispatch + PR merged + CI | chain_depth ≤ 5, concurrency |
 | `agent-ops-engineer.yml` | Ops Engineer | PO dispatch + issue labeled | concurrency (reusable) |
-| `agent-reviewer.yml` | Reviewer | `pull_request` (opened/sync) + 12h fallback | Max 3 rounds/PR, fork guard |
-| `agent-site-reliability.yml` | SRE | `repository_dispatch` (azure-alert) + 4h schedule | Concurrency group |
+| `agent-reviewer.yml` | Reviewer | PR dispatch + 12h sweep | Max 3 rounds/PR, concurrency |
 | `agent-strategic.yml` | PM | Daily 06:00 + manual | Concurrency group |
-| `agent-scans.yml` | Tech Lead + UX | Every 3 days | Concurrency group |
-| `agent-content-creator.yml` | Content Creator | Daily 10am UTC + `workflow_dispatch` | Concurrency group |
+| `agent-scans.yml` | Tech Lead | Daily full scan | Concurrency group |
+| `agent-tech-lead-*.yml` | Tech Lead | Daily specialized scans (11 jobs) | Per-job concurrency |
+| `agent-site-reliability.yml` | SRE | `repository_dispatch` (azure-alert) + 4h schedule | Concurrency group |
+| `agent-content-creator.yml` | Content Creator | Daily 10am UTC + manual | Concurrency group |
+| `agent-user-experience.yml` | UX | PO dispatch + manual | concurrency (reusable) |
+| `agent-product-analyst.yml` | Product Analyst | Daily + manual | concurrency (reusable) |
+| `agent-financial-analyst.yml` | Financial Analyst | Daily + manual | concurrency (reusable) |
+| `agent-marketing-strategist.yml` | Marketing Strategist | Weekly + manual | concurrency (reusable) |
+| `agent-qa-analyst.yml` | QA Analyst | Daily + manual | Concurrency group |
+| `agent-customer-ops.yml` | Customer Ops | Every 4h + manual | concurrency (reusable) |
+| `agent-human-ops.yml` | Human Ops | Weekly + manual | concurrency (reusable) |
+| `agent-escalation-lead.yml` | Escalation Lead | Weekly + disputes | concurrency (reusable) |
 
 **Event Chain:**
 ```
@@ -57,7 +66,7 @@ PM reviews daily → adjusts roadmap → dispatches PO
 
 **Safety Controls:**
 - Concurrency groups prevent parallel runs of the same agent
-- Chain depth limit (max 3) prevents runaway dispatch cascading
+- Chain depth limit (max 5) prevents runaway dispatch cascading
 - Review round limit (max 3 per PR) prevents reviewer loops
 - Fork guard on reviewer (security: self-hosted runner)
 - Auto-rollback on deploy failure (Container App revision rollback)
@@ -108,27 +117,65 @@ Container App metrics → Alert Rule fires → Action Group webhook
 
 ```
 api/                    FastAPI backend
-  main.py               App entry point
+  main.py               App entry point + health check endpoint
   config.py             Settings (env vars)
   routers/              API route handlers
-    articles.py         GET /api/articles
-    activity.py         GET /api/activity
+    articles.py         Articles CRUD + ingest trigger
+    activity.py         Activity feed, agent status, usage stats
+    blog.py             Blog post management (list, get, create, update, delete)
+    feedback.py         User feedback submission
+    goals.py            Goals dashboard data
+    stats.py            Team statistics
   services/             Business logic
+    blob_storage.py     Azure Blob Storage client
+    cache.py            In-memory cache with TTL
+    feedback.py         Feedback persistence
+    github_activity.py  GitHub activity feed
+    github_events.py    GitHub event parsing
+    github_status.py    Agent status from GitHub
+    goals.py            Goals data aggregation
+    goals_metrics.py    Goals metrics computation
+    goals_parser.py     Goals markdown parser
+    goals_roadmap.py    Roadmap status for goals
+    http_client.py      Shared HTTP client
+    llm.py              LLM integration (article analysis)
+    stats.py            Team statistics aggregation
+    usage_storage.py    Usage tracking storage
+    ingestion/          Article ingestion pipeline
+      orchestrator.py   Ingestion orchestration
+      rss.py            RSS feed fetching
+      scraper.py        Web page scraping
+      analyzer.py       Content analysis
+      dedup.py          Duplicate detection
   models/               Pydantic models
     article.py          Article data models
+    blog.py             Blog post models
+    feedback.py         Feedback models
 frontend/               Next.js frontend
   src/app/              Pages (App Router)
-    page.tsx            News feed (home)
-    fishbowl/page.tsx   Activity feed
+    page.tsx            Home — article feed
+    activity/page.tsx   Activity feed (agent GitHub activity)
+    blog/page.tsx       Blog listing
+    blog/[slug]/page.tsx Blog post viewer
+    feedback/page.tsx   Feedback form
+    goals/page.tsx      Goals dashboard
+    team/page.tsx       Team page
   src/components/       React components
-  src/lib/api.ts        API client
+  src/lib/              Shared utilities
+    api.ts              API client
+    agents.ts           Agent metadata
+    constants.ts        App constants
+    formatTokens.ts     Token formatting
+    navigation.ts       Navigation helpers
+    timeUtils.ts        Time formatting
 config/                 Configuration
   agent-flow.yaml       Agent flow graph — SINGLE SOURCE OF TRUTH (v2 schema)
   sources.yaml          RSS feed sources
   goals.md              Strategic goals and trade-off guidance (human-maintained, PM reads)
   objectives.md         Time-bounded objectives with signals (human-maintained, PM evaluates)
   conventions.md        Technical standards (Tech Lead maintains)
-  ux-standards.md       UX checklist (UX agent reads — Phase 2)
+  content-strategy.md   Content strategy (Content Creator reads)
+  ux-standards.md       UX checklist (UX agent reads)
 functions/              Azure Function (alert bridge)
   alert_bridge/         HTTP trigger: Azure Monitor → GitHub dispatch
   host.json             Functions runtime config
@@ -139,7 +186,15 @@ scripts/                Project-specific scripts
   validate-flow.py      Validate flow graph + generate diagram (CI enforced)
   health-check.sh       Full system health check (API, ingestion, deploys, GitHub)
   run-checks.sh         All quality checks (ruff + tsc + eslint + conventions)
+  pre-commit.sh         Auto-fix + check + commit
   create-branch.sh      Create branch from issue number
+  worktree-manager.sh   Manage git worktrees for concurrent sessions
+  bump-harness.sh       Bump harness version across workflows
+  git-cleanup.sh        Clean up merged branches
+  capture-screenshots.sh  Capture page screenshots
+  pr-risk-assess.sh     PR risk assessment
+  qa-api-consistency.sh API consistency checks
+  qa-api-vs-github.sh   API vs GitHub data comparison
   playbooks/            SRE automated remediation playbooks
     restart-api.sh      Auto-restart Container App revision
     rollback-api.sh     Roll back to previous Container App revision
@@ -148,21 +203,37 @@ scripts/                Project-specific scripts
   ingest.py             Article ingestion
 .claude/commands/       Claude Code skills (AI-guided workflows)
   pick-issue.md         Find + claim highest-priority issue
-  open-pr.md            Create draft PR with proper format
+  open-pr.md            Create PR with proper format
+  add-agent.md          Add agent to fishbowl team
 .github/workflows/      CI + agent deployment (thin stubs → harness)
   ci.yml                CI: lint, typecheck, flow validation + diagram freshness
+  deploy.yml            Deploy API + frontend to Azure
+  ingest.yml            Article ingestion pipeline
+  release.yml           Release management
   reusable-agent.yml    Shared agent runner (role or entry-point)
-  agent-product-owner.yml PO (event-driven: dispatch + 2x daily)
-  agent-engineer.yml    Engineer (event-driven: dispatch + PR merge + CI)
-  agent-ops-engineer.yml    Ops Engineer (event-driven: dispatch + unblock)
-  agent-reviewer.yml    Reviewer (event-driven: PR opened/sync + 12h)
-  agent-triage.yml      Triage (event-driven: issues.opened + daily)
-  agent-strategic.yml   PM review (daily schedule)
-  agent-scans.yml       Tech Lead: Full Scan (Wed)
-  agent-tech-lead-*.yml Tech Lead jobs (architecture Mon, debt Tue, security Thu, infra Fri, harness daily)
-  agent-site-reliability.yml  SRE (every 4h + azure alerts)
-  agent-content-creator.yml   Content Creator (daily)
-  agent-*.yml           Other agents: see config/agent-flow.yaml for full list
+  pr-manager.yml        PR risk assessment + auto-approve
+  qa-triage.yml         Post-deploy QA triage
+  project-auto-add.yml  Auto-add issues to GitHub Project
+  human-escalation.yml  Human escalation workflow
+  maintenance.yml       Maintenance tasks
+  agent-triage.yml      Triage (issues.opened + daily)
+  agent-product-owner.yml PO (dispatch + 2x daily)
+  agent-engineer.yml    Engineer (dispatch + PR merge + CI)
+  agent-ops-engineer.yml Ops Engineer (dispatch + issue labeled)
+  agent-reviewer.yml    Reviewer (PR dispatch + 12h sweep)
+  agent-strategic.yml   PM (daily schedule)
+  agent-scans.yml       Tech Lead: full scan (daily)
+  agent-tech-lead-*.yml Tech Lead specialized jobs (11 workflows)
+  agent-site-reliability.yml SRE (every 4h + azure alerts)
+  agent-content-creator.yml  Content Creator (daily)
+  agent-user-experience.yml  UX (on-demand via PO dispatch)
+  agent-product-analyst.yml  Product Analyst (daily)
+  agent-financial-analyst.yml Financial Analyst (daily)
+  agent-marketing-strategist.yml Marketing Strategist (weekly)
+  agent-qa-analyst.yml  QA Analyst (daily)
+  agent-customer-ops.yml Customer Ops (every 4h)
+  agent-human-ops.yml   Human Ops (weekly)
+  agent-escalation-lead.yml Escalation Lead (weekly + disputes)
 ```
 
 ### Harness Repo (YourMoveLabs/agent-harness)
@@ -252,16 +323,23 @@ Scopes: `api`, `frontend`, `ci`, `config`
 
 | Role | Identity | Cadence | One-liner |
 |------|----------|---------|-----------|
-| **PO** | `fishbowl-po[bot]` | Event-driven + daily | Central intake funnel — triages all inputs into a prioritized backlog |
+| **PO** | `fishbowl-po[bot]` | Event-driven + 2x daily | Central intake funnel — triages all inputs into a prioritized backlog |
 | **Engineer** | `fishbowl-engineer[bot]` | Event-driven (dispatch + PR merge) | Picks issues, implements application code, opens PRs |
 | **Ops Engineer** | `fishbowl-ops-engineer[bot]` | Event-driven (dispatch + unblock) | Azure resource management via `az` CLI — scaling, env vars, ACR, health checks |
 | **Reviewer** | `fishbowl-reviewer[bot]` | Event-driven + 12h | Reviews PRs, approves+merges or requests changes |
-| **Tech Lead** | `fishbowl-techlead[bot]` | Every 3 days | Sets technical standards, identifies architecture needs |
+| **Tech Lead** | `fishbowl-techlead[bot]` | Daily (11 specialized jobs) | Sets technical standards, identifies architecture/debt/security needs |
 | **PM** | `fishbowl-pm[bot]` | Daily | Strategic goals and GitHub Project roadmap management |
-| **Triage** | `fishbowl-triage[bot]` | Event-driven (issues.opened) | Validates human-created issues |
-| **UX** | `fishbowl-ux[bot]` | Every 3 days | Reviews product UX, creates improvement issues |
+| **Triage** | `fishbowl-triage[bot]` | Event-driven (issues.opened) + daily | Validates human-created issues |
+| **UX** | `fishbowl-ux[bot]` | On-demand (PO dispatch) | Reviews product UX, creates improvement issues |
 | **SRE** | `fishbowl-sre[bot]` | Every 4h + alerts | Monitors system health, files issues for problems |
 | **Content Creator** | `fishbowl-content-creator[bot]` | Daily 10am UTC | Generates one blog post per day via Captain AI headless API |
+| **Product Analyst** | `fishbowl-product-analyst[bot]` | Daily | Analyzes product metrics and usage patterns |
+| **Financial Analyst** | `fishbowl-financial-analyst[bot]` | Daily | Tracks costs, revenue signals, and financial health |
+| **Marketing Strategist** | `fishbowl-marketing-strategist[bot]` | Weekly | Marketing strategy and growth analysis |
+| **QA Analyst** | `fishbowl-qa-analyst[bot]` | Daily | Deep QA sweeps, post-deploy verification |
+| **Customer Ops** | `fishbowl-customer-ops[bot]` | Every 4h | Customer feedback monitoring and response |
+| **Human Ops** | `fishbowl-human-ops[bot]` | Weekly | Human escalation coordination |
+| **Escalation Lead** | `fishbowl-escalation-lead[bot]` | Weekly + disputes | Resolves agent disagreements and stuck situations |
 
 ### Information Flow
 
@@ -270,9 +348,10 @@ All roads lead to the PO. No agent bypasses the PO to create work for the engine
 ```
 PM (strategy) → manages GitHub Project roadmap → PO (tactical) reads project items + source/* intake → backlog
 PM reviews PO's source/roadmap issues → pm/misaligned if off-target → PO re-scopes
-Tech Lead, UX, Triage → create source/* intake issues → PO triages → backlog
+Tech Lead, UX, QA, Product Analyst, Triage → create source/* intake issues → PO triages → backlog
 SRE → monitors health, creates source/sre issues for failures → PO triages → backlog
 Engineer claims issues → opens PR → Reviewer merges (or backlogs via source/reviewer-backlog → PO)
+Escalation Lead → resolves agent disputes and stuck situations
 ```
 
 ## Agent Coordination Rules
