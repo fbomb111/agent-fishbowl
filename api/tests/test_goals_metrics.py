@@ -178,7 +178,7 @@ class TestFetchWindowedCounts:
                 side_effect=[3, 8, 25],  # commits: 24h, 7d, 30d
             ),
             patch(
-                "api.services.goals_metrics_agents.fetch_merged_prs",
+                "api.services.goals_metrics_windows.fetch_merged_prs",
                 new_callable=AsyncMock,
                 return_value=merged_prs,
             ),
