@@ -141,7 +141,6 @@ if [[ "$INGEST_COUNT" -gt 0 ]]; then
         fi
 
         # Add ingestion check with extra metadata
-        local entry
         entry=$(jq -n \
             --arg content_type "ingestion_pipeline" \
             --arg latest_date "$LATEST_INGEST" \

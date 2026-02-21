@@ -50,7 +50,7 @@ done
 CHECKED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # --- Fetch articles ---
-ARTICLES=$(curl -sf --connect-timeout 10 --max-time 15 "${API_PREFIX}/articles" 2>/dev/null || echo '{"articles":[]}')
+ARTICLES=$(curl -s --connect-timeout 10 --max-time 15 "${API_PREFIX}/articles" 2>/dev/null || echo '{"articles":[]}')
 
 # Apply limit if specified
 if [[ -n "$MAX_ARTICLES" ]]; then
@@ -82,7 +82,7 @@ for i in $(seq 0 $((ARTICLE_COUNT - 1))); do
     fi
 
     # Perform HEAD request with timeout
-    HTTP_CODE=$(curl -sf --head --max-time "$TIMEOUT" --connect-timeout "$TIMEOUT" \
+    HTTP_CODE=$(curl -s --head --max-time "$TIMEOUT" --connect-timeout "$TIMEOUT" \
         -w '%{http_code}' -o /dev/null "$SOURCE_URL" 2>/dev/null || echo "0")
 
     # Accept 2xx or 3xx as success
