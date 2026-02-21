@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from api.config import get_settings
-from api.middleware import RequestIDMiddleware
+from api.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from api.routers import activity, articles, blog, board_health, feedback, goals, stats
 from api.services.blob_storage import check_storage_connectivity
 
@@ -44,13 +44,16 @@ app = FastAPI(
 # Request ID (runs first — outermost middleware)
 app.add_middleware(RequestIDMiddleware)
 
+# Security headers
+app.add_middleware(SecurityHeadersMiddleware)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Ingest-Key", "X-Request-ID"],
 )
 
 # Routers
