@@ -33,6 +33,8 @@ async def _clear_index() -> None:
 
 
 async def main() -> int:
+    from datetime import datetime, timezone
+
     force = "--force" in sys.argv
 
     if force:
@@ -49,9 +51,27 @@ async def main() -> int:
     print(f"  Scraped:  {stats.scraped}")
     print(f"  Skipped:  {stats.skipped}")
     print(f"  Dupes:    {stats.duplicates_removed}")
+    print(f"  Filtered: {stats.filtered}")
     print(f"  Failed:   {stats.failed}")
 
-    return 1 if stats.failed > 0 and stats.new == 0 else 0
+    # Check article freshness
+    from api.services.blob_storage import get_article_index
+
+    index = await get_article_index()
+    if index.articles:
+        newest = max(index.articles, key=lambda a: a.published_at)
+        hours_old = (datetime.now(timezone.utc) - newest.published_at).total_seconds() / 3600
+        print(f"\nNewest article: {newest.published_at.isoformat()} ({hours_old:.1f}h ago)")
+
+        if hours_old > 48:
+            print(f"ERROR: Articles critically stale (>{hours_old:.1f}h old)")
+            return 1
+
+    # Fail if there were failures and no new articles
+    if stats.failed > 0 and stats.new == 0:
+        return 1
+
+    return 0
 
 
 if __name__ == "__main__":

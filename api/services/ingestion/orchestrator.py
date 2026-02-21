@@ -103,6 +103,29 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
         logger.info("Capping to %d new articles (had %d)", max_new, len(new_parsed))
         new_parsed = new_parsed[:max_new]
 
+    # 4b. Log publication date range of articles to be processed
+    if new_parsed:
+        pub_dates = [a["published_at"] for a in new_parsed]
+        newest_pub = max(pub_dates)
+        oldest_pub = min(pub_dates)
+        hours_since_newest = (
+            datetime.now(timezone.utc) - newest_pub
+        ).total_seconds() / 3600
+
+        logger.info(
+            "Processing %d articles: newest from %s (%.1fh ago), oldest from %s",
+            len(new_parsed),
+            newest_pub.isoformat(),
+            hours_since_newest,
+            oldest_pub.isoformat(),
+        )
+
+        if hours_since_newest > 24:
+            logger.warning(
+                "Processing articles with stale publication dates: newest is %.1fh old",
+                hours_since_newest,
+            )
+
     # 5. Scrape, analyze, and write each new article
     new_count = 0
     scraped_count = 0
@@ -195,6 +218,27 @@ async def run_ingestion(max_new: int = MAX_NEW_ARTICLES_PER_RUN) -> IngestionSta
     if new_count > 0:
         await write_article_index(index_articles)
         logger.info("Index updated with %d new articles", new_count)
+
+    # 7. Check article freshness and warn if stale
+    if index_articles:
+        newest = max(index_articles, key=lambda a: a.published_at)
+        hours_old = (
+            datetime.now(timezone.utc) - newest.published_at
+        ).total_seconds() / 3600
+
+        logger.info(
+            "Newest article in index: '%s' (published %s, %.1f hours ago)",
+            newest.title[:60],
+            newest.published_at.isoformat(),
+            hours_old,
+        )
+
+        if hours_old > 24:
+            logger.warning(
+                "STALE CONTENT WARNING: Newest article is %.1f hours old "
+                "(>24h threshold). RSS feeds may not be publishing recent content.",
+                hours_old,
+            )
 
     stats = IngestionStats(
         sources=source_count,
