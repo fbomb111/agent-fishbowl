@@ -118,9 +118,7 @@ async def get_roadmap_snapshot(cache: TTLCache) -> dict[str, Any]:
             logger.error("GraphQL roadmap errors: %s", errors)
             return empty
 
-        project = (
-            data.get("data", {}).get("organization", {}).get("projectV2")
-        )
+        project = data.get("data", {}).get("organization", {}).get("projectV2")
         if project is None:
             logger.warning(
                 "GraphQL returned no projectV2 data"

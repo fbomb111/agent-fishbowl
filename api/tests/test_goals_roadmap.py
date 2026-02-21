@@ -226,9 +226,7 @@ class TestGetRoadmapSnapshot:
     @pytest.mark.asyncio
     async def test_no_project_data_returns_empty(self, mock_settings):
         """Missing projectV2 in response returns empty snapshot (token scope issue)."""
-        no_project = {
-            "data": {"organization": {"projectV2": None}}
-        }
+        no_project = {"data": {"organization": {"projectV2": None}}}
         mock_client = MagicMock()
         mock_client.post = AsyncMock(
             return_value=_mock_http_response(no_project)
