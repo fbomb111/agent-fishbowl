@@ -227,19 +227,24 @@ class TestFetchWindowedCounts:
                 "api.services.goals_metrics_windows._search_count",
                 new_callable=AsyncMock,
                 side_effect=[3, 10, 25],
-            ),
+            ) as mock_search_count,
             patch(
                 "api.services.goals_metrics_windows._count_commits",
                 new_callable=AsyncMock,
                 side_effect=[3, 8, 25],
-            ),
+            ) as mock_count_commits,
             patch(
                 "api.services.goals_metrics_windows.fetch_merged_prs",
                 new_callable=AsyncMock,
                 return_value=None,
-            ),
+            ) as mock_fetch_prs,
         ):
             result = await _fetch_windowed_counts("test/repo", now)
+
+            # Verify mocks were called as expected (inside context manager)
+            assert mock_search_count.call_count == 3  # 24h, 7d, 30d
+            assert mock_count_commits.call_count == 3  # 24h, 7d, 30d
+            mock_fetch_prs.assert_called_once()
 
         assert result["prs_merged"] == {"24h": None, "7d": None, "30d": None}
         assert result["commits"]["24h"] == 3
@@ -254,19 +259,24 @@ class TestFetchWindowedCounts:
                 "api.services.goals_metrics_windows._search_count",
                 new_callable=AsyncMock,
                 side_effect=[3, 10, 25],
-            ),
+            ) as mock_search_count,
             patch(
                 "api.services.goals_metrics_windows._count_commits",
                 new_callable=AsyncMock,
-                return_value=None,
-            ),
+                side_effect=[None, None, None],  # All three calls fail
+            ) as mock_count_commits,
             patch(
                 "api.services.goals_metrics_windows.fetch_merged_prs",
                 new_callable=AsyncMock,
                 return_value=[],
-            ),
+            ) as mock_fetch_prs,
         ):
             result = await _fetch_windowed_counts("test/repo", now)
+
+            # Verify mocks were called as expected (inside context manager)
+            assert mock_search_count.call_count == 3  # 24h, 7d, 30d
+            assert mock_count_commits.call_count == 3  # 24h, 7d, 30d
+            mock_fetch_prs.assert_called_once()
 
         assert result["commits"] == {"24h": None, "7d": None, "30d": None}
         assert result["prs_merged"] == {"24h": 0, "7d": 0, "30d": 0}
