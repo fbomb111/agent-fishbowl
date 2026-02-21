@@ -1,24 +1,57 @@
 """Tests for goals_roadmap service.
 
-Covers roadmap snapshot fetching, subprocess handling, and caching.
+Covers roadmap snapshot fetching via GraphQL, error handling, and caching.
 """
 
-import asyncio
-import json
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from api.services.cache import TTLCache
-from api.services.goals_roadmap import RoadmapItem, get_roadmap_snapshot
+from api.services.goals_roadmap import (
+    RoadmapItem,
+    _extract_field,
+    get_roadmap_snapshot,
+)
 
 
-def _make_subprocess_result(stdout_data: str, returncode: int = 0, stderr: str = ""):
-    """Create a mock subprocess result."""
-    proc = MagicMock()
-    proc.communicate = AsyncMock(return_value=(stdout_data.encode(), stderr.encode()))
-    proc.returncode = returncode
-    return proc
+def _graphql_response(items: list[dict]) -> dict:
+    """Build a mock GraphQL response with ProjectV2 items."""
+    nodes = []
+    for item in items:
+        field_values = []
+        for field_name, value in item.items():
+            if field_name == "title":
+                continue
+            field_values.append(
+                {
+                    "field": {"name": field_name},
+                    "name": value,
+                }
+            )
+        nodes.append(
+            {
+                "content": {"title": item.get("title", "")},
+                "fieldValues": {"nodes": field_values},
+            }
+        )
+    return {
+        "data": {
+            "organization": {
+                "projectV2": {
+                    "items": {"nodes": nodes},
+                }
+            }
+        }
+    }
+
+
+def _mock_http_response(json_data: dict, status_code: int = 200) -> MagicMock:
+    """Create a mock httpx Response."""
+    resp = MagicMock()
+    resp.status_code = status_code
+    resp.json.return_value = json_data
+    return resp
 
 
 class TestRoadmapItem:
@@ -46,6 +79,29 @@ class TestRoadmapItem:
         assert item.priority == "P1"
 
 
+class TestExtractField:
+    """Tests for _extract_field helper."""
+
+    def test_extracts_single_select(self):
+        nodes = [{"field": {"name": "Priority"}, "name": "P1"}]
+        assert _extract_field(nodes, "Priority") == "P1"
+
+    def test_extracts_text_field(self):
+        nodes = [{"field": {"name": "Goal"}, "text": "Revenue"}]
+        assert _extract_field(nodes, "Goal") == "Revenue"
+
+    def test_case_insensitive(self):
+        nodes = [{"field": {"name": "Roadmap Status"}, "name": "Active"}]
+        assert _extract_field(nodes, "roadmap status") == "Active"
+
+    def test_missing_field_returns_empty(self):
+        nodes = [{"field": {"name": "Priority"}, "name": "P1"}]
+        assert _extract_field(nodes, "NonExistent") == ""
+
+    def test_empty_nodes(self):
+        assert _extract_field([], "Priority") == ""
+
+
 class TestGetRoadmapSnapshot:
     """Tests for get_roadmap_snapshot()."""
 
@@ -59,40 +115,40 @@ class TestGetRoadmapSnapshot:
         assert result == fake_snapshot
 
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_settings, monkeypatch):
-        """Parses gh project output into active items and counts."""
-        gh_output = json.dumps(
-            {
-                "items": [
-                    {
-                        "title": "Active Feature",
-                        "roadmap Status": "Active",
-                        "priority": "P1",
-                        "goal": "Growth",
-                        "phase": "Build",
-                    },
-                    {
-                        "title": "Proposed Feature",
-                        "roadmap Status": "Proposed",
-                        "priority": "P2",
-                    },
-                    {
-                        "title": "Done Feature",
-                        "roadmap Status": "Done",
-                    },
-                ]
-            }
+    async def test_happy_path(self, mock_settings):
+        """Parses GraphQL response into active items and counts."""
+        graphql_data = _graphql_response(
+            [
+                {
+                    "title": "Active Feature",
+                    "Roadmap Status": "Active",
+                    "Priority": "P1",
+                    "Goal": "Growth",
+                    "Phase": "Build",
+                },
+                {
+                    "title": "Proposed Feature",
+                    "Roadmap Status": "Proposed",
+                    "Priority": "P2",
+                },
+                {
+                    "title": "Done Feature",
+                    "Roadmap Status": "Done",
+                },
+            ]
         )
 
-        async def mock_create_subprocess_exec(*args, **kwargs):
-            return _make_subprocess_result(gh_output)
-
-        monkeypatch.setattr(
-            asyncio, "create_subprocess_exec", mock_create_subprocess_exec
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=_mock_http_response(graphql_data)
         )
 
-        cache = TTLCache(ttl=300, max_size=10)
-        result = await get_roadmap_snapshot(cache)
+        with patch(
+            "api.services.goals_roadmap.get_shared_client",
+            return_value=mock_client,
+        ):
+            cache = TTLCache(ttl=300, max_size=10)
+            result = await get_roadmap_snapshot(cache)
 
         assert len(result["active"]) == 1
         assert result["active"][0]["title"] == "Active Feature"
@@ -103,19 +159,21 @@ class TestGetRoadmapSnapshot:
         assert result["counts"]["deferred"] == 0
 
     @pytest.mark.asyncio
-    async def test_empty_project(self, mock_settings, monkeypatch):
+    async def test_empty_project(self, mock_settings):
         """Empty project returns zero counts and no active items."""
-        gh_output = json.dumps({"items": []})
+        graphql_data = _graphql_response([])
 
-        async def mock_create_subprocess_exec(*args, **kwargs):
-            return _make_subprocess_result(gh_output)
-
-        monkeypatch.setattr(
-            asyncio, "create_subprocess_exec", mock_create_subprocess_exec
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=_mock_http_response(graphql_data)
         )
 
-        cache = TTLCache(ttl=300, max_size=10)
-        result = await get_roadmap_snapshot(cache)
+        with patch(
+            "api.services.goals_roadmap.get_shared_client",
+            return_value=mock_client,
+        ):
+            cache = TTLCache(ttl=300, max_size=10)
+            result = await get_roadmap_snapshot(cache)
 
         assert result["active"] == []
         assert result["counts"] == {
@@ -126,120 +184,135 @@ class TestGetRoadmapSnapshot:
         }
 
     @pytest.mark.asyncio
-    async def test_subprocess_failure_returns_empty(self, mock_settings, monkeypatch):
-        """Non-zero return code returns empty snapshot."""
-
-        async def mock_create_subprocess_exec(*args, **kwargs):
-            return _make_subprocess_result("", returncode=1, stderr="gh error")
-
-        monkeypatch.setattr(
-            asyncio, "create_subprocess_exec", mock_create_subprocess_exec
+    async def test_http_error_returns_empty(self, mock_settings):
+        """Non-200 HTTP status returns empty snapshot."""
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=_mock_http_response({}, status_code=401)
         )
 
-        cache = TTLCache(ttl=300, max_size=10)
-        result = await get_roadmap_snapshot(cache)
+        with patch(
+            "api.services.goals_roadmap.get_shared_client",
+            return_value=mock_client,
+        ):
+            cache = TTLCache(ttl=300, max_size=10)
+            result = await get_roadmap_snapshot(cache)
 
         assert result["active"] == []
         assert result["counts"]["active"] == 0
 
     @pytest.mark.asyncio
-    async def test_malformed_json_returns_empty(self, mock_settings, monkeypatch):
-        """Invalid JSON from subprocess returns empty snapshot."""
-
-        async def mock_create_subprocess_exec(*args, **kwargs):
-            return _make_subprocess_result("not valid json")
-
-        monkeypatch.setattr(
-            asyncio, "create_subprocess_exec", mock_create_subprocess_exec
+    async def test_graphql_errors_returns_empty(self, mock_settings):
+        """GraphQL errors in response returns empty snapshot."""
+        error_data = {
+            "errors": [{"message": "Could not resolve to a ProjectV2"}],
+            "data": None,
+        }
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=_mock_http_response(error_data)
         )
 
-        cache = TTLCache(ttl=300, max_size=10)
-        result = await get_roadmap_snapshot(cache)
+        with patch(
+            "api.services.goals_roadmap.get_shared_client",
+            return_value=mock_client,
+        ):
+            cache = TTLCache(ttl=300, max_size=10)
+            result = await get_roadmap_snapshot(cache)
 
         assert result["active"] == []
         assert result["counts"]["active"] == 0
 
     @pytest.mark.asyncio
-    async def test_timeout_returns_empty(self, mock_settings, monkeypatch):
-        """Subprocess timeout returns empty snapshot."""
-
-        async def mock_create_subprocess_exec(*args, **kwargs):
-            proc = MagicMock()
-            proc.communicate = AsyncMock(side_effect=asyncio.TimeoutError())
-            proc.returncode = 0
-            return proc
-
-        monkeypatch.setattr(
-            asyncio, "create_subprocess_exec", mock_create_subprocess_exec
+    async def test_no_project_data_returns_empty(self, mock_settings):
+        """Missing projectV2 in response returns empty snapshot (token scope issue)."""
+        no_project = {
+            "data": {"organization": {"projectV2": None}}
+        }
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=_mock_http_response(no_project)
         )
 
-        cache = TTLCache(ttl=300, max_size=10)
-        result = await get_roadmap_snapshot(cache)
+        with patch(
+            "api.services.goals_roadmap.get_shared_client",
+            return_value=mock_client,
+        ):
+            cache = TTLCache(ttl=300, max_size=10)
+            result = await get_roadmap_snapshot(cache)
 
         assert result["active"] == []
+        assert result["counts"]["active"] == 0
 
     @pytest.mark.asyncio
-    async def test_result_is_cached(self, mock_settings, monkeypatch):
+    async def test_exception_returns_empty(self, mock_settings):
+        """Network exception returns empty snapshot."""
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(side_effect=Exception("Connection refused"))
+
+        with patch(
+            "api.services.goals_roadmap.get_shared_client",
+            return_value=mock_client,
+        ):
+            cache = TTLCache(ttl=300, max_size=10)
+            result = await get_roadmap_snapshot(cache)
+
+        assert result["active"] == []
+        assert result["counts"]["active"] == 0
+
+    @pytest.mark.asyncio
+    async def test_result_is_cached(self, mock_settings):
         """Successful result is stored in cache."""
-        gh_output = json.dumps({"items": []})
-
-        async def mock_create_subprocess_exec(*args, **kwargs):
-            return _make_subprocess_result(gh_output)
-
-        monkeypatch.setattr(
-            asyncio, "create_subprocess_exec", mock_create_subprocess_exec
+        graphql_data = _graphql_response([])
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=_mock_http_response(graphql_data)
         )
 
-        cache = TTLCache(ttl=300, max_size=10)
-        await get_roadmap_snapshot(cache)
+        with patch(
+            "api.services.goals_roadmap.get_shared_client",
+            return_value=mock_client,
+        ):
+            cache = TTLCache(ttl=300, max_size=10)
+            await get_roadmap_snapshot(cache)
 
         cached = cache.get("roadmap")
         assert cached is not None
         assert "active" in cached
 
     @pytest.mark.asyncio
-    async def test_second_call_uses_cache(self, mock_settings, monkeypatch):
-        """Second call returns cached data without re-running subprocess."""
-        gh_output = json.dumps({"items": []})
-        call_count = 0
-
-        async def mock_create_subprocess_exec(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            return _make_subprocess_result(gh_output)
-
-        monkeypatch.setattr(
-            asyncio, "create_subprocess_exec", mock_create_subprocess_exec
+    async def test_second_call_uses_cache(self, mock_settings):
+        """Second call returns cached data without re-calling GraphQL."""
+        graphql_data = _graphql_response([])
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=_mock_http_response(graphql_data)
         )
 
-        cache = TTLCache(ttl=300, max_size=10)
-        await get_roadmap_snapshot(cache)
-        await get_roadmap_snapshot(cache)
+        with patch(
+            "api.services.goals_roadmap.get_shared_client",
+            return_value=mock_client,
+        ):
+            cache = TTLCache(ttl=300, max_size=10)
+            await get_roadmap_snapshot(cache)
+            await get_roadmap_snapshot(cache)
 
-        assert call_count == 1
+        assert mock_client.post.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_status_field_fallback(self, mock_settings, monkeypatch):
-        """Falls back to 'status' key when 'roadmap Status' is missing."""
-        gh_output = json.dumps(
-            {
-                "items": [
-                    {"title": "Item A", "status": "Active"},
-                    {"title": "Item B", "status": "Done"},
-                ]
-            }
-        )
+    async def test_exception_returns_stale_cache(self, mock_settings):
+        """When GraphQL fails and stale cache exists, returns stale data."""
+        cache = TTLCache(ttl=0, max_size=10)
+        stale = {"active": [{"title": "Stale"}], "counts": {"proposed": 0, "active": 1, "done": 0, "deferred": 0}}
+        cache._store["roadmap"] = (stale, 0)  # expired entry
 
-        async def mock_create_subprocess_exec(*args, **kwargs):
-            return _make_subprocess_result(gh_output)
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(side_effect=Exception("timeout"))
 
-        monkeypatch.setattr(
-            asyncio, "create_subprocess_exec", mock_create_subprocess_exec
-        )
+        with patch(
+            "api.services.goals_roadmap.get_shared_client",
+            return_value=mock_client,
+        ):
+            result = await get_roadmap_snapshot(cache)
 
-        cache = TTLCache(ttl=300, max_size=10)
-        result = await get_roadmap_snapshot(cache)
-
-        assert len(result["active"]) == 1
-        assert result["counts"]["active"] == 1
-        assert result["counts"]["done"] == 1
+        assert result == stale
