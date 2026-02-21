@@ -1,6 +1,7 @@
 """Shared HTTP client utilities — reusable httpx client."""
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
@@ -133,7 +134,7 @@ async def paginated_rest_api(
     url: str,
     since: str,
     *,
-    filter_fn: Any,
+    filter_fn: Callable[[dict[str, Any], datetime], bool],
     context: str = "",
 ) -> list[dict[str, Any]] | None:
     """Paginate through a GitHub REST API endpoint with date filtering.
