@@ -116,7 +116,13 @@ if should_check "agent-status"; then
 
         GH_RUN_COUNT=$(echo "$GH_RUNS" | jq 'length')
         if [[ "$GH_RUN_COUNT" == "0" ]]; then
-            # No runs found — could be wrong workflow filename
+            # Check if the API reports this agent as never-run — that's expected, not a mismatch
+            API_HAS_RUN=$(echo "$AGENT_STATUS" | jq -r ".agents[$i].has_run // true")
+            if [[ "$API_HAS_RUN" == "false" ]]; then
+                # Agent has never run — no runs in GitHub is the correct state
+                continue
+            fi
+            # No runs found but API thinks it has run — could be wrong workflow filename
             MISMATCHES=$(echo "$MISMATCHES" | jq --arg role "$ROLE" --arg wf "$WORKFLOW_FILE" \
                 '. + [{"role": $role, "detail": "no GitHub runs found for workflow", "workflow": $wf}]')
             continue
@@ -222,8 +228,8 @@ fi
 if should_check "active-agents"; then
     AGENT_STATUS=$(curl -sf --connect-timeout 10 --max-time 15 "${API_PREFIX}/activity/agent-status" 2>/dev/null || echo '{"agents":[]}')
 
-    # Count agents not "idle" or with recent runs
-    API_ACTIVE=$(echo "$AGENT_STATUS" | jq '[.agents[] | select(.status != "idle" or .last_completed_at != null)] | length')
+    # Count agents that have run at least once (not total — some agents are on-demand/weekly)
+    API_HAS_RUN=$(echo "$AGENT_STATUS" | jq '[.agents[] | select(.has_run == true)] | length')
     API_TOTAL=$(echo "$AGENT_STATUS" | jq '.agents | length')
 
     # Get unique workflows with runs in last 7 days
@@ -232,17 +238,17 @@ if should_check "active-agents"; then
     GH_ACTIVE=$(echo "$GH_RECENT" | jq --argjson cutoff "$SEVEN_DAYS_AGO_EPOCH" '
         [.[] | select((.createdAt | sub("\\.[0-9]+Z$"; "Z") | strptime("%Y-%m-%dT%H:%M:%SZ") | mktime) > $cutoff) | .workflowName] | unique | length')
 
-    # Allow some slack — API may aggregate differently
-    DIFF=$((API_TOTAL - GH_ACTIVE))
+    # Compare has_run count vs recent GitHub activity — allow ±5 slack for weekly/monthly agents
+    DIFF=$((API_HAS_RUN - GH_ACTIVE))
     if [[ "$DIFF" -lt 0 ]]; then DIFF=$((-DIFF)); fi
 
-    if [[ "$DIFF" -le 2 ]]; then
+    if [[ "$DIFF" -le 5 ]]; then
         add_check "active-agents" true \
-            "api_total" "$API_TOTAL" "github_active_workflows" "$GH_ACTIVE"
+            "api_has_run" "$API_HAS_RUN" "api_total" "$API_TOTAL" "github_active_workflows" "$GH_ACTIVE"
     else
         add_check "active-agents" false \
-            "api_total" "$API_TOTAL" "github_active_workflows" "$GH_ACTIVE" \
-            "detail" "\"Agent count differs by more than 2\""
+            "api_has_run" "$API_HAS_RUN" "api_total" "$API_TOTAL" "github_active_workflows" "$GH_ACTIVE" \
+            "detail" "\"Agent has_run count differs from GitHub active by more than 5\""
     fi
 fi
 
