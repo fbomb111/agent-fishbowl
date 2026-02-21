@@ -130,27 +130,83 @@ async def paginated_github_search(
 
 
 async def fetch_closed_issues(repo: str, since: str) -> list[dict[str, Any]] | None:
-    """Fetch issues closed since a date using the GitHub Search API.
+    """Fetch issues closed since a date using the Issues REST API.
 
-    Uses the Search API with `closed:>=` qualifier which accurately filters
-    by close date.  The previous REST API approach (`/repos/.../issues?state=closed`)
-    returned 0 results because its `since` param filters on `updated_at` and
-    paginated results were dominated by PRs (the Issues endpoint includes them).
+    Uses /repos/{owner}/{repo}/issues?state=closed instead of the Search API
+    is:closed qualifier, which can return 0 due to indexing (#354, #338).
 
-    Returns None on first-page failure so callers can fall back to stale cache.
-    Partial results from later-page failures are returned as-is.
+    Filters out pull requests (GitHub's Issues API includes PRs) by checking
+    that pull_request key is absent.  Filters by closed_at timestamp to get
+    accurate date filtering.
+
+    Returns None if the first page fails (callers should fall back to stale
+    cache).  Partial results from later-page failures are returned as-is.
 
     Args:
         repo: Owner/repo string (e.g. "YourMoveLabs/agent-fishbowl")
         since: ISO date string (e.g. "2026-02-13") — issues closed on or after
     """
-    since_date = since[:10] if "T" in since else since
-    query = f"repo:{repo} is:issue is:closed closed:>={since_date}"
-    return await paginated_github_search(
-        "https://api.github.com/search/issues",
-        {"q": query},
-        context="closed issues",
-    )
+    client = get_shared_client()
+    headers = github_headers()
+    url = f"https://api.github.com/repos/{repo}/issues"
+    closed_issues: list[dict[str, Any]] = []
+    page = 1
+
+    if "T" not in since:
+        since_dt = datetime.fromisoformat(since + "T00:00:00+00:00")
+    else:
+        since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+
+    while True:
+        params = {
+            "state": "closed",
+            "sort": "updated",
+            "direction": "desc",
+            "per_page": "100",
+            "page": str(page),
+        }
+        try:
+            resp = await client.get(url, headers=headers, params=params)
+            if resp.status_code != 200:
+                logger.warning(
+                    "Issues API returned %d (page %d)", resp.status_code, page
+                )
+                return None if page == 1 else closed_issues
+            items = resp.json()
+            if not items:
+                break
+
+            for issue in items:
+                # Filter out PRs (Issues API includes them)
+                if "pull_request" in issue:
+                    continue
+
+                closed_at = issue.get("closed_at")
+                if not closed_at:
+                    continue
+                issue_closed_dt = datetime.fromisoformat(
+                    closed_at.replace("Z", "+00:00")
+                )
+                if issue_closed_dt >= since_dt:
+                    closed_issues.append(issue)
+
+            # Stop if the oldest item on this page was updated before our window
+            oldest_updated = items[-1].get("updated_at", "")
+            if oldest_updated:
+                oldest_dt = datetime.fromisoformat(
+                    oldest_updated.replace("Z", "+00:00")
+                )
+                if oldest_dt < since_dt:
+                    break
+
+            if len(items) < 100:
+                break
+            page += 1
+        except Exception:
+            logger.exception("Issues API error (page %d)", page)
+            return None if page == 1 else closed_issues
+
+    return closed_issues
 
 
 async def fetch_merged_prs(repo: str, since: str) -> list[dict[str, Any]] | None:
