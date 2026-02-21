@@ -36,3 +36,6 @@ scripts/ux/package-lock.json
 
 # Agent logs
 agents/logs/
+
+# Harness (managed by CI composite action)
+.harness
