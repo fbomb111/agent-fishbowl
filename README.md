@@ -74,8 +74,8 @@ The team is organized into four groups: strategy, execution, operations & qualit
 
 | Agent | Identity | Cadence | Role |
 |-------|----------|---------|------|
-| **PM** | `fishbowl-pm[bot]` | Daily | Sets strategic direction, manages GitHub Project roadmap |
-| **Product Owner** | `fishbowl-po[bot]` | Event-driven + daily | Central intake funnel — triages all inputs into a prioritized backlog |
+| **PM** | `fishbowl-product-manager[bot]` | Daily | Sets strategic direction, manages GitHub Project roadmap |
+| **Product Owner** | `fishbowl-product-owner[bot]` | Event-driven + daily | Central intake funnel — triages all inputs into a prioritized backlog |
 | **Triage** | `fishbowl-triage[bot]` | Event-driven | Validates human-created issues before they enter the pipeline |
 
 ### Execution
