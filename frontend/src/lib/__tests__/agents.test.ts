@@ -23,11 +23,11 @@ describe("getAgent", () => {
 
   it("has entries for all expected agents", () => {
     const expectedKeys = [
-      "po",
+      "product-owner",
       "engineer",
       "reviewer",
       "tech-lead",
-      "sre",
+      "site-reliability",
       "human",
     ];
     for (const key of expectedKeys) {
