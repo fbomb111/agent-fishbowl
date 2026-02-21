@@ -303,7 +303,15 @@ class TestGetRoadmapSnapshot:
     async def test_exception_returns_stale_cache(self, mock_settings):
         """When GraphQL fails and stale cache exists, returns stale data."""
         cache = TTLCache(ttl=0, max_size=10)
-        stale = {"active": [{"title": "Stale"}], "counts": {"proposed": 0, "active": 1, "done": 0, "deferred": 0}}
+        stale = {
+            "active": [{"title": "Stale"}],
+            "counts": {
+                "proposed": 0,
+                "active": 1,
+                "done": 0,
+                "deferred": 0,
+            },
+        }
         cache._store["roadmap"] = (stale, 0)  # expired entry
 
         mock_client = MagicMock()

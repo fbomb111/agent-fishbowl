@@ -122,7 +122,10 @@ async def get_roadmap_snapshot(cache: TTLCache) -> dict[str, Any]:
             data.get("data", {}).get("organization", {}).get("projectV2")
         )
         if project is None:
-            logger.warning("GraphQL returned no projectV2 data — token may lack read:project scope")
+            logger.warning(
+                "GraphQL returned no projectV2 data"
+                " — token may lack read:project scope"
+            )
             return empty
 
         items = project.get("items", {}).get("nodes", [])
