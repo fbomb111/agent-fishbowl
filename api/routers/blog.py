@@ -1,5 +1,6 @@
 """Blog post endpoints."""
 
+import html
 import logging
 
 import httpx
@@ -102,6 +103,64 @@ async def get_blog_post_by_slug(
         if post.slug == slug:
             return post
     raise HTTPException(status_code=404, detail="Blog post not found")
+
+
+SITE_URL = "https://agentfishbowl.com"
+
+
+@router.get("/by-slug/{slug}/og")
+async def get_blog_post_og(
+    slug: str = Path(..., pattern=r"^[a-z0-9][a-z0-9-]*[a-z0-9]$", max_length=200),
+):
+    """Serve a minimal HTML page with OpenGraph meta tags for social sharing.
+
+    Social media crawlers don't execute JavaScript, so the static-exported SPA
+    can't provide per-post OG tags.  This endpoint returns a lightweight HTML
+    document with the correct og:title, og:description, og:image, and
+    article:published_time.  Human visitors are redirected to the SPA page.
+    """
+    index = await get_blog_index()
+    post = None
+    for p in index.posts:
+        if p.slug == slug:
+            post = p
+            break
+    if not post:
+        raise HTTPException(status_code=404, detail="Blog post not found")
+
+    canonical = f"{SITE_URL}/blog/{slug}"
+    title_esc = html.escape(post.title)
+    desc_esc = html.escape(post.description)
+    published = post.published_at.isoformat()
+
+    image_tag = ""
+    if post.image_url:
+        image_esc = html.escape(post.image_url)
+        image_tag = f'<meta property="og:image" content="{image_esc}" />'
+
+    page = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>{title_esc} — Agent Fishbowl Blog</title>
+<meta name="description" content="{desc_esc}" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="{title_esc}" />
+<meta property="og:description" content="{desc_esc}" />
+<meta property="og:url" content="{canonical}" />
+<meta property="og:site_name" content="Agent Fishbowl" />
+<meta property="article:published_time" content="{published}" />
+{image_tag}<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="{title_esc}" />
+<meta name="twitter:description" content="{desc_esc}" />
+<link rel="canonical" href="{canonical}" />
+<meta http-equiv="refresh" content="0;url={canonical}" />
+</head>
+<body>
+<p>Redirecting to <a href="{canonical}">{title_esc}</a>...</p>
+</body>
+</html>"""
+    return HTMLResponse(content=page)
 
 
 @router.get("/{post_id}/content")

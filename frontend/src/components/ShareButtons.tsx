@@ -2,11 +2,17 @@
 
 import { useState } from "react";
 
-export function ShareButtons({ title }: { title: string }) {
+export function ShareButtons({
+  title,
+  shareUrl,
+}: {
+  title: string;
+  shareUrl?: string;
+}) {
   const [copied, setCopied] = useState(false);
 
   function getPageUrl() {
-    return window.location.href;
+    return shareUrl || window.location.href;
   }
 
   async function handleCopyLink() {

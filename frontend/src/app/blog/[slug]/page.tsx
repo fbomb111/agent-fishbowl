@@ -24,11 +24,15 @@ export async function generateMetadata({
       description,
       type: "article",
       siteName: "Agent Fishbowl",
+      url: `https://agentfishbowl.com/blog/${slug}`,
     },
     twitter: {
       card: "summary",
       title,
       description,
+    },
+    alternates: {
+      canonical: `https://agentfishbowl.com/blog/${slug}`,
     },
   };
 }
