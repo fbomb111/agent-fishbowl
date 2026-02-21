@@ -24,6 +24,12 @@ class TestWorkflowAgentMap:
             "agent-qa-analyst.yml",
             "agent-customer-ops.yml",
             "agent-human-ops.yml",
+            "agent-escalation-lead.yml",
+            "agent-financial-analyst.yml",
+            "agent-marketing-strategist.yml",
+            "agent-product-analyst-discovery.yml",
+            "agent-product-analyst-intelligence.yml",
+            "agent-product-analyst-revenue.yml",
         }
         assert set(WORKFLOW_AGENT_MAP.keys()) == expected_workflows
 
@@ -34,6 +40,43 @@ class TestWorkflowAgentMap:
         assert WORKFLOW_AGENT_MAP["agent-engineer.yml"] == ["engineer"]
         assert WORKFLOW_AGENT_MAP["agent-reviewer.yml"] == ["reviewer"]
         assert WORKFLOW_AGENT_MAP["agent-strategic.yml"] == ["product-manager"]
+
+    def test_all_roles_have_workflow_mapping(self):
+        """Every role in all_roles must be covered by at least one workflow."""
+        all_roles = {
+            "product-owner",
+            "product-manager",
+            "engineer",
+            "ops-engineer",
+            "reviewer",
+            "tech-lead",
+            "triage",
+            "site-reliability",
+            "user-experience",
+            "content-creator",
+            "qa-analyst",
+            "customer-ops",
+            "human-ops",
+            "escalation-lead",
+            "financial-analyst",
+            "marketing-strategist",
+            "product-analyst",
+        }
+        mapped_roles = set()
+        for roles in WORKFLOW_AGENT_MAP.values():
+            mapped_roles.update(roles)
+        assert mapped_roles == all_roles
+
+    def test_product_analyst_multi_workflow(self):
+        """Product-analyst (multi-job) is mapped from all 3 specialized workflows."""
+        pa_workflows = [
+            wf for wf, roles in WORKFLOW_AGENT_MAP.items() if "product-analyst" in roles
+        ]
+        assert sorted(pa_workflows) == [
+            "agent-product-analyst-discovery.yml",
+            "agent-product-analyst-intelligence.yml",
+            "agent-product-analyst-revenue.yml",
+        ]
 
 
 def _make_workflow_run(
@@ -336,6 +379,70 @@ class TestGetAgentStatus:
         assert engineer["usage"]["num_turns"] == 15
         assert engineer["usage"]["duration_s"] == 120
         assert engineer["last_summary"] == "Implemented feature X"
+
+    @pytest.mark.asyncio
+    async def test_previously_missing_agents_get_status(
+        self, mock_settings, monkeypatch
+    ):
+        """Regression (#304): escalation-lead, financial-analyst,
+        marketing-strategist, and product-analyst must show status from
+        their workflow runs instead of always appearing idle."""
+        runs = {
+            "agent-escalation-lead.yml": [
+                _make_workflow_run(
+                    "agent-escalation-lead.yml",
+                    status="completed",
+                    conclusion="success",
+                    run_id=7001,
+                )
+            ],
+            "agent-financial-analyst.yml": [
+                _make_workflow_run(
+                    "agent-financial-analyst.yml",
+                    status="completed",
+                    conclusion="success",
+                    run_id=7002,
+                )
+            ],
+            "agent-marketing-strategist.yml": [
+                _make_workflow_run(
+                    "agent-marketing-strategist.yml",
+                    status="in_progress",
+                    conclusion=None,
+                    run_id=7003,
+                )
+            ],
+            "agent-product-analyst-discovery.yml": [
+                _make_workflow_run(
+                    "agent-product-analyst-discovery.yml",
+                    status="completed",
+                    conclusion="success",
+                    run_id=7004,
+                )
+            ],
+        }
+
+        monkeypatch.setattr(
+            "api.services.github_status._fetch_workflow_runs",
+            _mock_fetch(runs),
+        )
+        monkeypatch.setattr(
+            "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
+        )
+
+        result = await get_agent_status()
+
+        escalation = next(r for r in result if r["role"] == "escalation-lead")
+        assert escalation["last_completed_at"] is not None
+
+        financial = next(r for r in result if r["role"] == "financial-analyst")
+        assert financial["last_completed_at"] is not None
+
+        marketing = next(r for r in result if r["role"] == "marketing-strategist")
+        assert marketing["status"] == "active"
+
+        pa = next(r for r in result if r["role"] == "product-analyst")
+        assert pa["last_completed_at"] is not None
 
     @pytest.mark.asyncio
     async def test_per_workflow_fetch_finds_infrequent_agents(
