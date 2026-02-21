@@ -27,7 +27,7 @@ def mock_settings(monkeypatch):
 
     class FakeSettings:
         github_repo = "YourMoveLabs/agent-fishbowl"
-        github_token = "fake-token"
+        github_token = "fake-token"  # noqa: S105
 
     monkeypatch.setattr(
         "api.services.board_health.get_settings",
