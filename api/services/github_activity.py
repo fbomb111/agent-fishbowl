@@ -308,16 +308,18 @@ async def _fetch_deploy_events(limit: int = 10) -> list[dict[str, Any]]:
             status_label = conclusion
             desc = f"Deploy {conclusion} {head_sha}: {title}"
 
-        events.append({
-            "id": f"deploy-{run.get('id', '')}",
-            "type": "deploy",
-            "actor": _map_actor(actor_login),
-            "avatar_url": actor_avatar,
-            "description": desc,
-            "timestamp": created_at,
-            "url": run_url,
-            "deploy_status": status_label,
-        })
+        events.append(
+            {
+                "id": f"deploy-{run.get('id', '')}",
+                "type": "deploy",
+                "actor": _map_actor(actor_login),
+                "avatar_url": actor_avatar,
+                "description": desc,
+                "timestamp": created_at,
+                "url": run_url,
+                "deploy_status": status_label,
+            }
+        )
 
     return events
 
