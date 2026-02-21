@@ -111,6 +111,32 @@ if [ -f "$PROJECT_ROOT/scripts/validate-flow.py" ]; then
     else
         echo "  PASS"
     fi
+
+    # --- Flow diagram freshness (auto-regenerate) ---
+    echo ""
+    echo "▸ Flow diagram freshness"
+    DIAGRAM="$PROJECT_ROOT/docs/agent-flow.md"
+    DIAGRAM_TMP=$(mktemp)
+    python "$PROJECT_ROOT/scripts/validate-flow.py" --mermaid -o "$DIAGRAM_TMP" 2>/dev/null
+    if [ -f "$DIAGRAM" ] && [ -f "$DIAGRAM_TMP" ]; then
+        # Compare ignoring the timestamp line (CI does the same)
+        OLD_CONTENT=$(grep -v '<!-- Last generated:' "$DIAGRAM")
+        NEW_CONTENT=$(grep -v '<!-- Last generated:' "$DIAGRAM_TMP")
+        if [ "$OLD_CONTENT" != "$NEW_CONTENT" ]; then
+            cp "$DIAGRAM_TMP" "$DIAGRAM"
+            echo "  REGENERATED: docs/agent-flow.md was stale and has been updated."
+            echo "  NOTE: Remember to stage and commit docs/agent-flow.md with your changes."
+        else
+            echo "  PASS (diagram is up to date)"
+        fi
+    elif [ -f "$DIAGRAM_TMP" ]; then
+        cp "$DIAGRAM_TMP" "$DIAGRAM"
+        echo "  REGENERATED: docs/agent-flow.md was missing and has been created."
+        echo "  NOTE: Remember to stage and commit docs/agent-flow.md with your changes."
+    else
+        echo "  SKIP: Could not regenerate diagram"
+    fi
+    rm -f "$DIAGRAM_TMP"
 else
     echo "  SKIP: validate-flow.py not found"
 fi
