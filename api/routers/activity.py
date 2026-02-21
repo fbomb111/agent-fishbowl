@@ -52,6 +52,7 @@ async def usage_summary(
     recent = await get_recent_usage(limit=limit)
 
     by_role: dict[str, dict] = {}
+    all_run_ids: set[str] = set()
     for run_data in recent:
         run_id = run_data.get("run_id", "")
         for agent in run_data.get("agents", []):
@@ -66,6 +67,7 @@ async def usage_summary(
                 }
             by_role[role]["total_cost"] += cost
             by_role[role]["run_ids"].add(run_id)
+            all_run_ids.add(run_id)
 
     # Finalize: convert run_ids sets to counts, round costs
     for entry in by_role.values():
@@ -76,7 +78,7 @@ async def usage_summary(
 
     return {
         "total_cost": total_cost,
-        "total_runs": len(recent),
+        "total_runs": len(all_run_ids),
         "by_role": sorted(
             by_role.values(), key=lambda x: x["total_cost"], reverse=True
         ),
