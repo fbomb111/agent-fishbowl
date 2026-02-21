@@ -38,7 +38,7 @@ jobs:
       - name: Run SRE
         uses: YourMoveLabs/agent-harness@fdc364e879682d2068f72f13fecbf161574b1c1d  # v1.5.3
         with:
-          entry-point: scripts/run-sre.sh
+          entry-point: scripts/run-site-reliability.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SRE_MODE: ${{ steps.mode.outputs.mode }}
