@@ -14,7 +14,7 @@ version: "2"
 
 # All agent workflows must pin this harness version.
 # Bump via: scripts/bump-harness.sh <new-version>
-harness_ref: "@v1.5.0"
+harness_ref: "@v1.5.1"
 
 # ─── Event Registry ───────────────────────────────────────────────
 # Every repository_dispatch event_type MUST be declared here.
