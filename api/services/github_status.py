@@ -67,10 +67,7 @@ async def get_agent_status() -> list[dict[str, Any]]:
 
     # Fetch latest run for each workflow concurrently
     fetch_results = await asyncio.gather(
-        *(
-            _fetch_workflow_runs(settings.github_repo, wf)
-            for wf in WORKFLOW_AGENT_MAP
-        ),
+        *(_fetch_workflow_runs(settings.github_repo, wf) for wf in WORKFLOW_AGENT_MAP),
         return_exceptions=True,
     )
 
