@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { API_URL, fetchBlogPostBySlug, type BlogPost } from "@/lib/api";
 import { ErrorFallback } from "./ErrorFallback";
+import { ShareButtons } from "./ShareButtons";
 import { useFetch } from "@/hooks/useFetch";
 
 export function BlogPostViewer({ slug }: { slug: string }) {
@@ -89,6 +90,7 @@ export function BlogPostViewer({ slug }: { slug: string }) {
               </span>
             </div>
           )}
+          <ShareButtons title={post.title} />
         </header>
 
         <iframe
