@@ -1,10 +1,13 @@
 name: Agent - User Experience Review
 
 on:
+  schedule:
+    - cron: "0 14 * * *"   # Daily at 14:00 UTC (9 AM ET)
   workflow_dispatch: {}
 
 permissions:
   contents: read
+  issues: write              # Create UX improvement issues
 
 jobs:
   run:

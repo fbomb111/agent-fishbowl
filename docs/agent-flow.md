@@ -1,5 +1,5 @@
 <!-- AUTO-GENERATED — Do not edit. Edit config/agent-flow.yaml instead. -->
-<!-- Last generated: 2026-02-21 18:43 UTC -->
+<!-- Last generated: 2026-02-21 18:55 UTC -->
 <!-- Regenerate: python scripts/validate-flow.py --mermaid -o docs/agent-flow.md -->
 
 # Agent Flow Graph
@@ -191,7 +191,7 @@ flowchart TD
 | tech-lead/tech-debt-scan | `0 8 * * *` | daily | Manual |
 | tech-lead/test-review | `0 17 * * *` | daily | Manual |
 | triage | `0 12 * * *` | daily | Issues opened, Manual |
-| user-experience | --- |  | Manual |
+| user-experience | `0 14 * * *` | daily | Manual |
 
 ## Safety Constraints
 
