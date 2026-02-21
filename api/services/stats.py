@@ -54,7 +54,7 @@ async def get_team_stats() -> dict[str, Any]:
     since_str = since.strftime("%Y-%m-%d")
 
     # Fetch closed issues and merged PRs using REST APIs instead of Search API
-    # (Search API items can return 0 due to GitHub indexing issues — #186, #187)
+    # (Search API can return 0 due to GitHub indexing issues — #186, #187, #338, #354)
     issues_items, prs_items = await asyncio.gather(
         fetch_closed_issues(repo, since_str),
         fetch_merged_prs(repo, since_str),
