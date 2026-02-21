@@ -38,18 +38,14 @@ async def _search_count(query: str) -> int | None:
     Returns None on API errors so callers can distinguish "zero results"
     from "request failed".
     """
-    url = "https://api.github.com/search/issues"
-    params = {"q": query, "per_page": "1"}
-    client = get_shared_client()
-    headers = github_headers()
-    try:
-        resp = await client.get(url, headers=headers, params=params)
-        if resp.status_code == 200:
-            return resp.json().get("total_count", 0)
-        logger.warning("GitHub search API returned %d for: %s", resp.status_code, query)
-    except Exception:
-        logger.exception("GitHub search error for: %s", query)
-    return None
+    data = await github_api_get(
+        "https://api.github.com/search/issues",
+        params={"q": query, "per_page": "1"},
+        context=f"search count: {query}",
+    )
+    if data is None:
+        return None
+    return data.get("total_count", 0) if isinstance(data, dict) else 0
 
 
 async def _search_items(query: str) -> list[dict[str, Any]] | None:
@@ -98,6 +94,10 @@ async def _count_commits(repo: str, since: str) -> int | None:
 
     Returns None on API errors so callers can distinguish "zero commits"
     from "request failed".
+
+    Uses raw httpx instead of github_api_get because it needs the Link
+    response header to extract the total page count without fetching all
+    commits. github_api_get only returns parsed JSON bodies.
     """
     url = f"https://api.github.com/repos/{repo}/commits"
     params = {"since": since, "per_page": "1"}
