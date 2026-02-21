@@ -29,6 +29,12 @@ WORKFLOW_AGENT_MAP: dict[str, list[str]] = {
     "agent-qa-analyst.yml": ["qa-analyst"],
     "agent-customer-ops.yml": ["customer-ops"],
     "agent-human-ops.yml": ["human-ops"],
+    "agent-escalation-lead.yml": ["escalation-lead"],
+    "agent-financial-analyst.yml": ["financial-analyst"],
+    "agent-marketing-strategist.yml": ["marketing-strategist"],
+    "agent-product-analyst-discovery.yml": ["product-analyst"],
+    "agent-product-analyst-intelligence.yml": ["product-analyst"],
+    "agent-product-analyst-revenue.yml": ["product-analyst"],
 }
 
 
