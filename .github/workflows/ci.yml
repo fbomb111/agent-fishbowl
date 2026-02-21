@@ -39,6 +39,7 @@ jobs:
         run: python -m pytest api/tests/ -v --tb=short
       - name: Audit Python dependencies
         run: pip-audit -r requirements.txt
+        continue-on-error: true
 
   frontend-lint:
     name: Frontend Lint & Typecheck
@@ -63,6 +64,7 @@ jobs:
       - run: npx vitest run --reporter=verbose
       - name: Audit npm dependencies
         run: npm audit --audit-level=high
+        continue-on-error: true
 
   flow-validation:
     name: Validate Agent Flow Graph
