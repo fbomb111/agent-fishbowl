@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     managed_identity_client_id: str = ""
 
     # GitHub (for activity feed)
-    github_repo: str = ""
+    github_repo: str = "YourMoveLabs/agent-fishbowl"
     github_token: str = ""
     harness_repo: str = "YourMoveLabs/agent-harness"
 
