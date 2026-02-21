@@ -33,17 +33,32 @@ NEW_REF="@${NEW_VERSION}"
 echo "Bumping harness to ${NEW_REF}..."
 echo ""
 
+# Resolve version tag to SHA for workflow pinning
+echo "0. Resolving ${NEW_VERSION} to SHA..."
+if [ "$NEW_VERSION" = "main" ]; then
+    NEW_SHA=$(gh api "repos/YourMoveLabs/agent-harness/git/ref/heads/main" --jq '.object.sha')
+else
+    NEW_SHA=$(gh api "repos/YourMoveLabs/agent-harness/git/ref/tags/${NEW_VERSION}" --jq '.object.sha')
+fi
+
+if [ -z "$NEW_SHA" ]; then
+    echo "Error: Could not resolve ${NEW_VERSION} to a SHA"
+    exit 1
+fi
+echo "   Resolved to: ${NEW_SHA}"
+echo ""
+
 # 1. Update agent-flow.yaml global harness_ref
 echo "1. Updating config/agent-flow.yaml..."
 sed -i "s|^harness_ref: \"@[^\"]*\"|harness_ref: \"${NEW_REF}\"|" \
     "${REPO_ROOT}/config/agent-flow.yaml"
 
-# 2. Update all workflow files
+# 2. Update all workflow files (SHA-pinned with version comment)
 echo "2. Updating workflow files..."
 count=0
 for wf in "${REPO_ROOT}"/.github/workflows/*.yml; do
     if grep -q "YourMoveLabs/agent-harness@" "$wf"; then
-        sed -i "s|YourMoveLabs/agent-harness@[^ ]*|YourMoveLabs/agent-harness@${NEW_VERSION}|g" "$wf"
+        sed -i "s|YourMoveLabs/agent-harness@[a-f0-9]*  # .*|YourMoveLabs/agent-harness@${NEW_SHA}  # ${NEW_VERSION}|g" "$wf"
         echo "   $(basename "$wf")"
         count=$((count + 1))
     fi
