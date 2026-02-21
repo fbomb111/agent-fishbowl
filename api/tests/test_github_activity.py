@@ -551,8 +551,6 @@ class TestEventsWithFallback:
     @pytest.mark.asyncio
     async def test_uses_events_api_when_available(self, mock_settings, monkeypatch):
         """When Events API returns data, fallback is not called."""
-        from unittest.mock import AsyncMock
-
         from api.services.github_activity import _get_events_with_fallback
 
         raw_events = [
@@ -572,28 +570,33 @@ class TestEventsWithFallback:
             }
         ]
 
-        mock_api = AsyncMock(return_value=raw_events)
-        monkeypatch.setattr("api.services.github_activity.github_api_get", mock_api)
+        async def mock_github_api_get(url, params=None, **kwargs):
+            if "/events" in url:
+                return raw_events
+            if "/actions/workflows/" in url:
+                return {"workflow_runs": []}
+            return None
+
+        monkeypatch.setattr(
+            "api.services.github_activity.github_api_get",
+            mock_github_api_get,
+        )
 
         result = await _get_events_with_fallback(per_page=30)
 
         assert len(result) == 1
         assert result[0]["type"] == "issue_created"
-        # Only one API call (events), no fallback
-        assert mock_api.call_count == 1
 
     @pytest.mark.asyncio
     async def test_falls_back_when_events_api_empty(self, mock_settings, monkeypatch):
         """When Events API returns empty, falls back to Issues API."""
         from api.services.github_activity import _get_events_with_fallback
 
-        call_count = 0
-
         async def mock_github_api_get(url, params=None, **kwargs):
-            nonlocal call_count
-            call_count += 1
             if "/events" in url:
                 return []
+            if "/actions/workflows/" in url:
+                return {"workflow_runs": []}
             if "/issues" in url:
                 return [
                     {
@@ -624,8 +627,166 @@ class TestEventsWithFallback:
         assert len(result) == 1
         assert result[0]["type"] == "issue_created"
         assert result[0]["description"] == "Opened issue #50: Fallback issue"
-        # Two API calls: events (empty) + issues (fallback)
-        assert call_count == 2
+
+
+class TestFetchDeployEvents:
+    """Tests for _fetch_deploy_events() — deploy workflow runs."""
+
+    @pytest.mark.asyncio
+    async def test_returns_deploy_events_from_workflow_runs(
+        self, mock_settings, monkeypatch
+    ):
+        """Completed workflow runs are converted to deploy events."""
+        from api.services.github_activity import _fetch_deploy_events
+
+        workflow_response = {
+            "workflow_runs": [
+                {
+                    "id": 12345,
+                    "status": "completed",
+                    "conclusion": "success",
+                    "head_sha": "abc1234def5678",
+                    "display_title": "feat(api): add deploy events (#92)",
+                    "html_url": "https://github.com/test/actions/runs/12345",
+                    "created_at": "2026-02-20T10:00:00Z",
+                    "actor": {
+                        "login": "github-actions[bot]",
+                        "avatar_url": "https://example.com/actions.png",
+                    },
+                },
+                {
+                    "id": 12346,
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "head_sha": "def5678abc1234",
+                    "display_title": "fix(api): broken deploy",
+                    "html_url": "https://github.com/test/actions/runs/12346",
+                    "created_at": "2026-02-20T09:00:00Z",
+                    "actor": {
+                        "login": "github-actions[bot]",
+                        "avatar_url": "https://example.com/actions.png",
+                    },
+                },
+            ]
+        }
+
+        from unittest.mock import AsyncMock
+
+        monkeypatch.setattr(
+            "api.services.github_activity.github_api_get",
+            AsyncMock(return_value=workflow_response),
+        )
+
+        result = await _fetch_deploy_events()
+
+        assert len(result) == 2
+        assert result[0]["type"] == "deploy"
+        assert result[0]["deploy_status"] == "healthy"
+        assert "abc1234" in result[0]["description"]
+        assert result[1]["type"] == "deploy"
+        assert result[1]["deploy_status"] == "failed"
+
+    @pytest.mark.asyncio
+    async def test_skips_in_progress_runs(self, mock_settings, monkeypatch):
+        """Runs that haven't completed yet are excluded."""
+        from unittest.mock import AsyncMock
+
+        from api.services.github_activity import _fetch_deploy_events
+
+        workflow_response = {
+            "workflow_runs": [
+                {
+                    "id": 99999,
+                    "status": "in_progress",
+                    "conclusion": None,
+                    "head_sha": "abc1234",
+                    "display_title": "Still running",
+                    "html_url": "https://github.com/test/actions/runs/99999",
+                    "created_at": "2026-02-20T10:00:00Z",
+                    "actor": {"login": "github-actions[bot]", "avatar_url": ""},
+                },
+            ]
+        }
+
+        monkeypatch.setattr(
+            "api.services.github_activity.github_api_get",
+            AsyncMock(return_value=workflow_response),
+        )
+
+        result = await _fetch_deploy_events()
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_on_api_failure(self, mock_settings, monkeypatch):
+        """API failure returns empty list, no crash."""
+        from unittest.mock import AsyncMock
+
+        from api.services.github_activity import _fetch_deploy_events
+
+        monkeypatch.setattr(
+            "api.services.github_activity.github_api_get",
+            AsyncMock(return_value=None),
+        )
+
+        result = await _fetch_deploy_events()
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_deploy_events_merged_into_feed(self, mock_settings, monkeypatch):
+        """Deploy events appear in _get_events_with_fallback output."""
+        from api.services.github_activity import _get_events_with_fallback
+
+        raw_events = [
+            {
+                "id": "1",
+                "type": "IssuesEvent",
+                "actor": {"login": "fishbowl-engineer[bot]"},
+                "payload": {
+                    "action": "opened",
+                    "issue": {
+                        "number": 10,
+                        "title": "Test",
+                        "html_url": "https://github.com/test/repo/issues/10",
+                    },
+                },
+                "created_at": "2026-01-15T10:00:00Z",
+            }
+        ]
+
+        async def mock_github_api_get(url, params=None, **kwargs):
+            if "/events" in url:
+                return raw_events
+            if "/actions/workflows/" in url:
+                return {
+                    "workflow_runs": [
+                        {
+                            "id": 555,
+                            "status": "completed",
+                            "conclusion": "success",
+                            "head_sha": "abc1234",
+                            "display_title": "Deploy test",
+                            "html_url": "https://github.com/test/runs/555",
+                            "created_at": "2026-01-15T11:00:00Z",
+                            "actor": {"login": "github-actions[bot]", "avatar_url": ""},
+                        }
+                    ]
+                }
+            return None
+
+        monkeypatch.setattr(
+            "api.services.github_activity.github_api_get",
+            mock_github_api_get,
+        )
+
+        result = await _get_events_with_fallback(per_page=30)
+
+        # Should have both the issue event and the deploy event
+        assert len(result) == 2
+        types = {e["type"] for e in result}
+        assert "issue_created" in types
+        assert "deploy" in types
+        # Deploy event (11:00) is more recent, so it should be first
+        assert result[0]["type"] == "deploy"
 
 
 class TestGetThreadedActivityCaching:

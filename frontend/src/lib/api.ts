@@ -55,6 +55,7 @@ export interface ActivityEvent {
   subject_title?: string;
   comment_body?: string;
   comment_url?: string;
+  deploy_status?: string;
 }
 
 export interface ActivityThread {
