@@ -212,3 +212,39 @@ async def test_duplicates_removed_in_stats(mocker):
     stats_dict = stats.to_dict()
     assert "duplicates_removed" in stats_dict
     assert stats_dict["duplicates_removed"] == 0
+
+
+async def test_filters_low_relevance_articles(mocker):
+    """Articles below the relevance threshold are filtered out."""
+    from api.services.ingestion.orchestrator import run_ingestion
+
+    parsed = [
+        _make_parsed("low-relevance"),
+        _make_parsed("high-relevance"),
+    ]
+
+    mock_analyze, mock_write_only, mock_write_index = _mock_orchestrator_deps(
+        mocker, existing_ids=[], parsed_articles=parsed
+    )
+
+    # First article scores below threshold (3), second scores at threshold (4)
+    mock_analyze.side_effect = [
+        AnalysisResult(
+            insights=[{"text": "Insight", "category": "tool"}],
+            ai_summary="Summary",
+            relevance_score=3,
+        ),
+        AnalysisResult(
+            insights=[{"text": "Insight", "category": "tool"}],
+            ai_summary="Summary",
+            relevance_score=4,
+        ),
+    ]
+
+    stats = await run_ingestion()
+
+    assert stats.new == 1  # Only high-relevance article ingested
+    assert stats.filtered == 1  # Low-relevance article filtered
+    assert mock_analyze.call_count == 2  # Both analyzed
+    assert mock_write_only.call_count == 1  # Only one written
+    mock_write_index.assert_called_once()
