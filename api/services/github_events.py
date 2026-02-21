@@ -307,12 +307,17 @@ def parse_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
             body = body_raw[:300]
             is_pr = "pull_request" in issue
             html_url = comment.get("html_url")
+            # Include snippet to distinguish multiple comments on same issue
+            snippet = (body_raw[:50].replace("\n", " ") + "...") if body_raw else ""
+            description = f"Commented on #{number}: {title}"
+            if snippet:
+                description = f"{description} — {snippet}"
             parsed.append(
                 _make_event(
                     event,
                     event_type="comment",
                     actor=actor,
-                    description=f"Commented on #{number}: {title}",
+                    description=description,
                     url=html_url,
                     subject_type="pr" if is_pr else "issue",
                     subject_number=number,

@@ -199,3 +199,55 @@ def test_dedup_keeps_different_labels():
     parsed = parse_events(events)
     labeled = [e for e in parsed if e["type"] == "issue_labeled"]
     assert len(labeled) == 2
+
+
+def test_multiple_comments_have_unique_descriptions():
+    """Regression (#341): Multiple comments on same issue should have
+    distinct descriptions to prevent duplicate detection false positives.
+
+    Previously all comments on same issue had identical descriptions like
+    'Commented on #42: Title', causing QA checks to flag them as duplicates.
+    Now includes comment snippet to distinguish them.
+    """
+    base_issue = {
+        "number": 325,
+        "title": "refactor(api): extract paginated GitHub API fetch",
+        "html_url": "https://github.com/test/repo/issues/325",
+    }
+    events = [
+        _make_event(
+            "IssueCommentEvent",
+            "fishbowl-engineer[bot]",
+            {
+                "issue": base_issue,
+                "comment": {
+                    "body": "Picking this up. Branch: feat/issue-325-refactor",
+                    "html_url": "https://github.com/test/repo/issues/325#comment-1",
+                },
+            },
+            event_id="6764033160",
+        ),
+        _make_event(
+            "IssueCommentEvent",
+            "fishbowl-engineer[bot]",
+            {
+                "issue": base_issue,
+                "comment": {
+                    "body": "PR opened: https://github.com/test/repo/pull/326",
+                    "html_url": "https://github.com/test/repo/issues/325#comment-2",
+                },
+            },
+            event_id="6764079821",
+        ),
+    ]
+    parsed = parse_events(events)
+    comments = [e for e in parsed if e["type"] == "comment"]
+    assert len(comments) == 2
+
+    # Both comments should reference the same issue
+    assert all("#325" in c["description"] for c in comments)
+
+    # But descriptions must be different (include snippet)
+    assert comments[0]["description"] != comments[1]["description"]
+    assert "Picking this up" in comments[0]["description"]
+    assert "PR opened" in comments[1]["description"]
