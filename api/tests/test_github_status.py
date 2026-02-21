@@ -19,6 +19,7 @@ class TestWorkflowAgentMap:
             "agent-triage.yml",
             "agent-site-reliability.yml",
             "agent-scans.yml",
+            "agent-user-experience.yml",
             "agent-strategic.yml",
             "agent-content-creator.yml",
             "agent-qa-analyst.yml",
@@ -33,8 +34,17 @@ class TestWorkflowAgentMap:
         }
         assert set(WORKFLOW_AGENT_MAP.keys()) == expected_workflows
 
-    def test_scans_maps_to_multiple_agents(self):
-        assert WORKFLOW_AGENT_MAP["agent-scans.yml"] == ["tech-lead", "user-experience"]
+    def test_scans_maps_to_tech_lead_only(self):
+        """Regression (#347): agent-scans.yml should only map to tech-lead.
+
+        Previously incorrectly mapped to both tech-lead and user-experience,
+        causing cross-agent timestamp contamination when tech-lead ran.
+        """
+        assert WORKFLOW_AGENT_MAP["agent-scans.yml"] == ["tech-lead"]
+
+    def test_ux_has_own_workflow(self):
+        """Regression (#347): UX has its own workflow file, not agent-scans."""
+        assert WORKFLOW_AGENT_MAP["agent-user-experience.yml"] == ["user-experience"]
 
     def test_single_agent_workflows(self):
         assert WORKFLOW_AGENT_MAP["agent-engineer.yml"] == ["engineer"]
@@ -314,15 +324,30 @@ class TestGetAgentStatus:
         assert reviewer["status"] == "idle"
 
     @pytest.mark.asyncio
-    async def test_scans_workflow_maps_to_both_roles(self, mock_settings, monkeypatch):
-        """agent-scans.yml maps to both tech-lead and ux roles."""
-        run = _make_workflow_run(
-            "agent-scans.yml", status="in_progress", conclusion=None
+    async def test_scans_workflow_only_updates_tech_lead(
+        self, mock_settings, monkeypatch
+    ):
+        """Regression (#347): agent-scans.yml should only update tech-lead status.
+
+        Previously mapped to both tech-lead and UX, causing UX to show
+        tech-lead's timestamps even though UX never ran.
+        """
+        scans_run = _make_workflow_run(
+            "agent-scans.yml", status="in_progress", conclusion=None, run_id=1000
+        )
+        ux_run = _make_workflow_run(
+            "agent-user-experience.yml",
+            status="completed",
+            conclusion="success",
+            run_id=2000,
+            updated_at="2026-01-10T08:00:00Z",
         )
 
         monkeypatch.setattr(
             "api.services.github_status._fetch_workflow_runs",
-            _mock_fetch({"agent-scans.yml": [run]}),
+            _mock_fetch(
+                {"agent-scans.yml": [scans_run], "agent-user-experience.yml": [ux_run]}
+            ),
         )
         monkeypatch.setattr(
             "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
@@ -331,8 +356,13 @@ class TestGetAgentStatus:
         result = await get_agent_status()
         tech_lead = next(r for r in result if r["role"] == "tech-lead")
         ux = next(r for r in result if r["role"] == "user-experience")
+
+        # Tech-lead should show as active (from agent-scans.yml)
         assert tech_lead["status"] == "active"
-        assert ux["status"] == "active"
+
+        # UX should show as idle with its own timestamp (from agent-user-experience.yml)
+        assert ux["status"] == "idle"
+        assert ux["last_completed_at"] == "2026-01-10T08:00:00Z"
 
     @pytest.mark.asyncio
     async def test_usage_data_enriches_completed_run(self, mock_settings, monkeypatch):
