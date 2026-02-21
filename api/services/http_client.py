@@ -70,6 +70,65 @@ async def github_api_get(
         return None
 
 
+async def paginated_github_search(
+    url: str,
+    params: dict[str, str],
+    *,
+    items_key: str = "items",
+    total_key: str = "total_count",
+    per_page: int = 100,
+    context: str = "",
+) -> list[dict[str, Any]] | None:
+    """Paginate through a GitHub Search API endpoint, returning all items.
+
+    Returns None on first-page failure so callers can fall back to stale cache.
+    Partial results from later-page failures are returned as-is.
+
+    Args:
+        url: The API endpoint URL.
+        params: Base query parameters (pagination params are added automatically).
+        items_key: Key in the response JSON containing the result list.
+        total_key: Key in the response JSON containing the total result count.
+        per_page: Number of results per page (max 100 for Search API).
+        context: Description for log messages.
+    """
+    client = get_shared_client()
+    headers = github_headers()
+    all_items: list[dict[str, Any]] = []
+    page = 1
+
+    while True:
+        page_params = {**params, "per_page": str(per_page), "page": str(page)}
+        try:
+            resp = await client.get(url, headers=headers, params=page_params)
+            if resp.status_code != 200:
+                logger.warning(
+                    "GitHub API %d for %s (page %d)%s",
+                    resp.status_code,
+                    url,
+                    page,
+                    f" ({context})" if context else "",
+                )
+                return None if not all_items else all_items
+            data = resp.json()
+            items = data.get(items_key, [])
+            all_items.extend(items)
+            total_count = data.get(total_key, 0)
+            if len(all_items) >= total_count or len(items) < per_page:
+                break
+            page += 1
+        except Exception:
+            logger.exception(
+                "GitHub API error for %s (page %d)%s",
+                url,
+                page,
+                f" ({context})" if context else "",
+            )
+            return None if not all_items else all_items
+
+    return all_items
+
+
 async def fetch_closed_issues(repo: str, since: str) -> list[dict[str, Any]] | None:
     """Fetch issues closed since a date using the GitHub Search API.
 
@@ -85,40 +144,13 @@ async def fetch_closed_issues(repo: str, since: str) -> list[dict[str, Any]] | N
         repo: Owner/repo string (e.g. "YourMoveLabs/agent-fishbowl")
         since: ISO date string (e.g. "2026-02-13") — issues closed on or after
     """
-    client = get_shared_client()
-    headers = github_headers()
-    url = "https://api.github.com/search/issues"
-    all_items: list[dict[str, Any]] = []
-    page = 1
-
-    # Normalize to date-only for the search qualifier
     since_date = since[:10] if "T" in since else since
-
     query = f"repo:{repo} is:issue is:closed closed:>={since_date}"
-
-    while True:
-        params = {"q": query, "per_page": "100", "page": str(page)}
-        try:
-            resp = await client.get(url, headers=headers, params=params)
-            if resp.status_code != 200:
-                logger.warning(
-                    "Search API returned %d for closed issues (page %d)",
-                    resp.status_code,
-                    page,
-                )
-                return None if page == 1 else all_items
-            data = resp.json()
-            items = data.get("items", [])
-            all_items.extend(items)
-            total_count = data.get("total_count", 0)
-            if len(all_items) >= total_count or len(items) < 100:
-                break
-            page += 1
-        except Exception:
-            logger.exception("Search API error for closed issues (page %d)", page)
-            return None if page == 1 else all_items
-
-    return all_items
+    return await paginated_github_search(
+        "https://api.github.com/search/issues",
+        {"q": query},
+        context="closed issues",
+    )
 
 
 async def fetch_merged_prs(repo: str, since: str) -> list[dict[str, Any]] | None:

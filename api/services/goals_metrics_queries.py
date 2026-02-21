@@ -6,7 +6,12 @@ Generic paginated search/count wrappers used by the metrics pipeline.
 import logging
 from typing import Any
 
-from api.services.http_client import get_shared_client, github_api_get, github_headers
+from api.services.http_client import (
+    get_shared_client,
+    github_api_get,
+    github_headers,
+    paginated_github_search,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,36 +41,11 @@ async def _search_items(query: str) -> list[dict[str, Any]] | None:
     Returns None on API errors so callers can distinguish "no results"
     from "request failed".
     """
-    client = get_shared_client()
-    headers = github_headers()
-    url = "https://api.github.com/search/issues"
-    all_items: list[dict[str, Any]] = []
-    page = 1
-
-    while True:
-        params = {"q": query, "per_page": "100", "page": str(page)}
-        try:
-            resp = await client.get(url, headers=headers, params=params)
-            if resp.status_code != 200:
-                logger.warning(
-                    "GitHub search API returned %d for: %s (page %d)",
-                    resp.status_code,
-                    query,
-                    page,
-                )
-                return None if not all_items else all_items
-            data = resp.json()
-            items = data.get("items", [])
-            all_items.extend(items)
-            total_count = data.get("total_count", 0)
-            if len(all_items) >= total_count or len(items) < 100:
-                break
-            page += 1
-        except Exception:
-            logger.exception("GitHub search error for: %s (page %d)", query, page)
-            return None if not all_items else all_items
-
-    return all_items
+    return await paginated_github_search(
+        "https://api.github.com/search/issues",
+        {"q": query},
+        context=f"search: {query}",
+    )
 
 
 async def _count_commits(repo: str, since: str) -> int | None:
