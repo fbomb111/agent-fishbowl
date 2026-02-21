@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 import pytest
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 
-from api.models.article import ArticleSummary
 from api.services.blob_storage import (
     get_article,
     get_article_index,
