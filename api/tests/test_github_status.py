@@ -445,7 +445,9 @@ class TestGetAgentStatus:
         assert pa["last_completed_at"] is not None
 
     @pytest.mark.asyncio
-    async def test_never_run_agents_have_has_run_false(self, mock_settings, monkeypatch):
+    async def test_never_run_agents_have_has_run_false(
+        self, mock_settings, monkeypatch
+    ):
         """Regression (#322): agents that have never run should have has_run=False
         to distinguish them from agents that completed and are now idle."""
         run = _make_workflow_run(
