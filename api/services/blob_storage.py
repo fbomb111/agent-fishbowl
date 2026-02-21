@@ -166,35 +166,6 @@ async def get_article(article_id: str) -> Article | None:
         return None
 
 
-async def write_article(article: Article) -> None:
-    """Write an article to blob storage and update the index."""
-    client = _get_container_client()
-    try:
-        # Write individual article
-        blob = client.get_blob_client(f"{article.id}.json")
-        blob.upload_blob(
-            article.model_dump_json(indent=2),
-            overwrite=True,
-            content_settings=ContentSettings(content_type="application/json"),
-        )
-
-        # Update index
-        index = await get_article_index()
-        # Remove existing entry if present, then prepend
-        existing_ids = {a.id for a in index.articles}
-        if article.id not in existing_ids:
-            summary = ArticleSummary(**article.model_dump())
-            index.articles.insert(0, summary)
-
-        await write_article_index(index.articles)
-    except HttpResponseError as e:
-        logger.warning("Azure API error writing article %s: %s", article.id, e.message)
-        raise
-    except Exception as e:
-        logger.error("Unexpected error writing article %s: %s", article.id, e)
-        raise
-
-
 async def write_article_only(article: Article) -> None:
     """Write only the article JSON to blob storage (no index update).
 

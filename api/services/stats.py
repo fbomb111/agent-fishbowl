@@ -10,17 +10,10 @@ from typing import Any
 
 from api.config import get_settings
 from api.services.cache import TTLCache
-from api.services.github_events import ACTOR_MAP
+from api.services.github_events import agent_role as _agent_role
 from api.services.http_client import fetch_closed_issues, fetch_merged_prs
 
 _cache = TTLCache(ttl=300, max_size=5)
-
-
-def _agent_role(login: str) -> str | None:
-    """Map a GitHub login to an agent role, or None if not a known actor."""
-    if login == "fbomb111":
-        return "human"
-    return ACTOR_MAP.get(login)
 
 
 def _compute_pr_cycle_hours(pr: dict[str, Any]) -> float | None:
