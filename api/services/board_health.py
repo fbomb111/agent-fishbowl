@@ -127,9 +127,7 @@ async def _fetch_open_issue_numbers(repo: str) -> set[int] | None:
             "per_page": "100",
             "page": str(page),
         }
-        data = await github_api_get(
-            url, params, context=f"open issues page {page}"
-        )
+        data = await github_api_get(url, params, context=f"open issues page {page}")
         if data is None:
             return None if not all_numbers else all_numbers
 
