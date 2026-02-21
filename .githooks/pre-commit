@@ -5,9 +5,10 @@
 set -uo pipefail
 
 # --- Enforce wrapper usage ---
-# Bare `git commit` is blocked. Use scripts/pre-commit.sh instead.
+# Bare `git commit` is blocked on the runner. Use scripts/pre-commit.sh instead.
 # The wrapper sets PRECOMMIT_WRAPPER=1 before calling git commit.
-if [ "${PRECOMMIT_WRAPPER:-}" != "1" ]; then
+# Dev server (dev-machine) is allowed to bypass for manual/interactive work.
+if [ "${PRECOMMIT_WRAPPER:-}" != "1" ] && [ "$(hostname)" != "dev-machine" ]; then
     echo ""
     echo "ERROR: Bare 'git commit' is not allowed."
     echo "Use:  scripts/pre-commit.sh \"your commit message\""
