@@ -39,5 +39,5 @@ fi
 echo ""
 echo "=== Committing ==="
 git add -A
-git commit -m "$MSG"
+PRECOMMIT_WRAPPER=1 git commit -m "$MSG"
 echo "=== Done ==="

@@ -4,6 +4,18 @@
 # cannot commit unformatted Python code.
 set -uo pipefail
 
+# --- Enforce wrapper usage ---
+# Bare `git commit` is blocked. Use scripts/pre-commit.sh instead.
+# The wrapper sets PRECOMMIT_WRAPPER=1 before calling git commit.
+if [ "${PRECOMMIT_WRAPPER:-}" != "1" ]; then
+    echo ""
+    echo "ERROR: Bare 'git commit' is not allowed."
+    echo "Use:  scripts/pre-commit.sh \"your commit message\""
+    echo ""
+    echo "The wrapper runs auto-fix + full quality checks before committing."
+    exit 1
+fi
+
 # Resolve ruff: venv first, then system PATH
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$HOOK_DIR/.." && pwd)"
@@ -24,6 +36,13 @@ if [ -n "$STAGED_PY" ]; then
     $RUFF check --fix $STAGED_PY 2>/dev/null || true
     # Re-stage after formatting
     git add $STAGED_PY
+
+    # Verify formatting is clean after auto-fix
+    if ! $RUFF format --check $STAGED_PY 2>/dev/null; then
+        echo ""
+        echo "Pre-commit: ruff format --check failed after auto-fix. Some files need manual formatting."
+        exit 1
+    fi
 
     # Final lint check — abort commit if unfixable issues remain
     if ! $RUFF check $STAGED_PY; then
