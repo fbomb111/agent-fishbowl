@@ -551,8 +551,6 @@ class TestEventsWithFallback:
     @pytest.mark.asyncio
     async def test_uses_events_api_when_available(self, mock_settings, monkeypatch):
         """When Events API returns data, fallback is not called."""
-        from unittest.mock import AsyncMock
-
         from api.services.github_activity import _get_events_with_fallback
 
         raw_events = [
@@ -672,13 +670,6 @@ class TestFetchDeployEvents:
             ]
         }
 
-        monkeypatch.setattr(
-            "api.services.github_activity.github_api_get",
-            lambda *a, **kw: __import__("asyncio").coroutine(
-                lambda: workflow_response
-            )(),
-        )
-
         from unittest.mock import AsyncMock
 
         monkeypatch.setattr(
@@ -743,8 +734,6 @@ class TestFetchDeployEvents:
     @pytest.mark.asyncio
     async def test_deploy_events_merged_into_feed(self, mock_settings, monkeypatch):
         """Deploy events appear in _get_events_with_fallback output."""
-        from unittest.mock import AsyncMock
-
         from api.services.github_activity import _get_events_with_fallback
 
         raw_events = [
