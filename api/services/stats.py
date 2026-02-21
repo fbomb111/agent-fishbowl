@@ -65,8 +65,15 @@ async def get_team_stats() -> dict[str, Any]:
         stale = _cache.get_stale(cache_key)
         if stale is not None:
             return stale
-    # Treat None as empty for the computation below (partial failure is better
-    # than returning stale data for everything)
+
+    # On partial failure, preserve stale values for the failed component
+    # rather than reporting zeros (#302)
+    issues_failed = issues_items is None
+    prs_failed = prs_items is None
+    stale = None
+    if issues_failed or prs_failed:
+        stale = _cache.get_stale(cache_key)
+
     if issues_items is None:
         issues_items = []
     if prs_items is None:
@@ -113,6 +120,32 @@ async def get_team_stats() -> dict[str, Any]:
         "period_start": since.isoformat(),
         "period_end": now.isoformat(),
     }
+
+    # Substitute stale values for failed components (#302)
+    if stale is not None:
+        if issues_failed:
+            result["issues_closed"] = stale.get("issues_closed", 0)
+        if prs_failed:
+            result["prs_merged"] = stale.get("prs_merged", 0)
+            result["avg_pr_cycle_hours"] = stale.get("avg_pr_cycle_hours")
+        # Merge per-agent data: use stale data for roles absent in fresh data
+        if issues_failed or prs_failed:
+            stale_agents = {a["role"]: a for a in stale.get("agents", [])}
+            fresh_roles = {a["role"] for a in agents_list}
+            for role, agent_data in stale_agents.items():
+                if role not in fresh_roles:
+                    agents_list.append(agent_data)
+                else:
+                    # Supplement missing fields from stale data
+                    fresh_agent = next(a for a in agents_list if a["role"] == role)
+                    if prs_failed:
+                        fresh_agent["prs_merged"] = agent_data.get("prs_merged", 0)
+                    if issues_failed:
+                        fresh_agent["issues_closed"] = agent_data.get(
+                            "issues_closed", 0
+                        )
+            agents_list.sort(key=lambda a: a["role"])
+            result["agents"] = agents_list
 
     _cache.set(cache_key, result)
     return result
