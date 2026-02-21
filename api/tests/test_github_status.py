@@ -564,3 +564,77 @@ class TestGetAgentStatus:
         sre = next(r for r in result if r["role"] == "site-reliability")
         assert sre["status"] == "failed"
         assert sre["last_conclusion"] == "failure"
+
+    @pytest.mark.asyncio
+    async def test_all_agents_show_has_run_false_bug_regression(
+        self, mock_settings, monkeypatch
+    ):
+        """Regression (#368): ALL agents showing has_run=False despite active workflows.
+
+        Root cause: When GITHUB_REPO env var is not set, github_repo defaults to
+        empty string, causing malformed API URLs that return errors. All fetches
+        fail silently, resulting in empty agent_runs dict and all agents showing
+        as never-run.
+
+        This test verifies that when workflow runs exist, agents show has_run=True.
+        """
+        # Simulate multiple agents with recent workflow runs
+        runs = {
+            "agent-engineer.yml": [
+                _make_workflow_run(
+                    "agent-engineer.yml",
+                    status="completed",
+                    conclusion="success",
+                    run_id=1001,
+                    updated_at="2026-02-21T18:03:09Z",
+                )
+            ],
+            "agent-reviewer.yml": [
+                _make_workflow_run(
+                    "agent-reviewer.yml",
+                    status="completed",
+                    conclusion="success",
+                    run_id=1002,
+                    updated_at="2026-02-21T17:45:00Z",
+                )
+            ],
+            "agent-qa-analyst.yml": [
+                _make_workflow_run(
+                    "agent-qa-analyst.yml",
+                    status="completed",
+                    conclusion="success",
+                    run_id=1003,
+                    updated_at="2026-02-21T18:18:00Z",
+                )
+            ],
+        }
+
+        monkeypatch.setattr(
+            "api.services.github_status._fetch_workflow_runs",
+            _mock_fetch(runs),
+        )
+        monkeypatch.setattr(
+            "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
+        )
+
+        result = await get_agent_status()
+
+        # Agents with workflow runs should have has_run=True
+        engineer = next(r for r in result if r["role"] == "engineer")
+        assert engineer["has_run"] is True
+        assert engineer["status"] == "idle"
+
+        reviewer = next(r for r in result if r["role"] == "reviewer")
+        assert reviewer["has_run"] is True
+
+        qa = next(r for r in result if r["role"] == "qa-analyst")
+        assert qa["has_run"] is True
+
+        # Agents without workflow runs should have has_run=False
+        ux = next(r for r in result if r["role"] == "user-experience")
+        assert ux["has_run"] is False
+        assert ux["status"] == "idle"
+
+        # Verify NOT all agents show has_run=False (the bug symptom)
+        has_run_count = sum(1 for r in result if r.get("has_run") is True)
+        assert has_run_count >= 3, "Expected at least 3 agents with has_run=True"
