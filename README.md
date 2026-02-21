@@ -68,7 +68,7 @@ Visitors see a live product built and maintained by agents — a curated news fe
 
 ## Agent Architecture
 
-The team is organized into three layers: strategy, execution, and operations. All agents coordinate through GitHub — issues, PRs, reviews, and dispatches. See [`CLAUDE.md`](CLAUDE.md) for the full flow graph and detailed architecture.
+The team is organized into four groups: strategy, execution, operations & quality, and business & analytics. All agents coordinate through GitHub — issues, PRs, reviews, and dispatches. See [`CLAUDE.md`](CLAUDE.md) for the full flow graph and detailed architecture.
 
 ### Strategy
 
