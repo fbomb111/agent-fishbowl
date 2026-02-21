@@ -40,6 +40,7 @@ _ROLE_ALIASES: dict[str, str] = {
     "product-manager": "pm",
     "site-reliability": "sre",
     "user-experience": "ux",
+    "infra-engineer": "ops-engineer",
 }
 
 
@@ -51,23 +52,31 @@ async def usage_summary(
     recent = await get_recent_usage(limit=limit)
 
     by_role: dict[str, dict] = {}
-    total_cost = 0.0
-    total_runs = 0
     for run_data in recent:
+        run_id = run_data.get("run_id", "")
         for agent in run_data.get("agents", []):
             role = agent.get("role", "unknown")
             role = _ROLE_ALIASES.get(role, role)
             cost = agent.get("total_cost_usd") or 0
-            total_cost += cost
-            total_runs += 1
             if role not in by_role:
-                by_role[role] = {"role": role, "total_cost": 0.0, "run_count": 0}
-            by_role[role]["total_cost"] = round(by_role[role]["total_cost"] + cost, 4)
-            by_role[role]["run_count"] += 1
+                by_role[role] = {
+                    "role": role,
+                    "total_cost": 0.0,
+                    "run_ids": set(),
+                }
+            by_role[role]["total_cost"] += cost
+            by_role[role]["run_ids"].add(run_id)
+
+    # Finalize: convert run_ids sets to counts, round costs
+    for entry in by_role.values():
+        entry["run_count"] = len(entry.pop("run_ids"))
+        entry["total_cost"] = round(entry["total_cost"], 4)
+
+    total_cost = round(sum(e["total_cost"] for e in by_role.values()), 2)
 
     return {
-        "total_cost": round(total_cost, 2),
-        "total_runs": total_runs,
+        "total_cost": total_cost,
+        "total_runs": len(recent),
         "by_role": sorted(
             by_role.values(), key=lambda x: x["total_cost"], reverse=True
         ),

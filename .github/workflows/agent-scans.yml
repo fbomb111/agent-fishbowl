@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Tech Lead full scan
-        uses: YourMoveLabs/agent-harness@v1.3.0
+        uses: YourMoveLabs/agent-harness@v1.4.0
         with:
           role: tech-lead
           job: full-scan

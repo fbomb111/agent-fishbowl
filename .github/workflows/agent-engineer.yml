@@ -33,7 +33,7 @@ jobs:
     # - check_suite/failure: CI broke (fix it)
     if: >
       (github.event_name == 'issues' && github.event.action == 'labeled' &&
-       startsWith(github.event.label.name, 'priority/')) ||
+       (startsWith(github.event.label.name, 'priority/') || github.event.label.name == 'role/engineer')) ||
       (github.event_name == 'issues' && github.event.action == 'unlabeled' &&
        (github.event.label.name == 'status/blocked' || github.event.label.name == 'harness/request')) ||
       (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
@@ -46,10 +46,11 @@ jobs:
       - name: Check for available work
         id: workcheck
         run: |
-          # Actionable issues = open, has priority/*, unassigned, not blocked or harness-only
+          # Actionable issues = open, routed to engineer, unassigned, not blocked or harness-only
           ACTIONABLE=$(gh issue list --state open --json assignees,labels \
             --jq '[.[] | select(
               (.assignees | length == 0) and
+              (.labels | map(.name) | any(. == "role/engineer")) and
               (.labels | map(.name) | any(test("^priority/"))) and
               (.labels | map(.name) | any(. == "status/blocked") | not) and
               (.labels | map(.name) | any(. == "harness/request") | not)
@@ -75,7 +76,7 @@ jobs:
 
       - name: Run Engineer agent
         if: steps.workcheck.outputs.idle != 'true'
-        uses: YourMoveLabs/agent-harness@v1.3.0
+        uses: YourMoveLabs/agent-harness@v1.4.0
         with:
           role: engineer
         env:

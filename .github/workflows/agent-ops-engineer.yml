@@ -14,7 +14,7 @@ jobs:
   run:
     if: >
       (github.event_name == 'issues' && github.event.action == 'labeled' &&
-       startsWith(github.event.label.name, 'priority/')) ||
+       (startsWith(github.event.label.name, 'priority/') || github.event.label.name == 'role/ops')) ||
       (github.event_name == 'issues' && github.event.action == 'unlabeled' &&
        github.event.label.name == 'status/blocked') ||
       github.event_name == 'repository_dispatch' ||

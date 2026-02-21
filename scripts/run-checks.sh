@@ -77,6 +77,17 @@ else
     echo "  PASS"
 fi
 
+# --- Frontend tests (vitest) ---
+echo ""
+echo "▸ vitest (Frontend tests)"
+if (cd "$PROJECT_ROOT/frontend" && npx vitest run --reporter=verbose 2>/dev/null); then
+    echo "  PASS"
+else
+    FAILED=1
+    echo "  FAIL: Frontend tests failed"
+    echo "  FIX: Read failures above, fix the code, run 'cd frontend && npx vitest run' again."
+fi
+
 # --- Convention checks ---
 echo ""
 echo "▸ Convention lint"

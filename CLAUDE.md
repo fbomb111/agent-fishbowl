@@ -223,9 +223,8 @@ Scopes: `api`, `frontend`, `ci`, `config`
 
 | Label | Purpose |
 |-------|---------|
-| `agent/frontend` | Frontend work (React, Tailwind, pages) |
-| `agent/backend` | Backend work (FastAPI, services, models) |
-| `agent/ingestion` | Article ingestion and processing |
+| `role/engineer` | Routed to engineer agent for code changes |
+| `role/ops` | Routed to ops-engineer agent for Azure operations |
 | `priority/high` | Do first |
 | `priority/medium` | Do after high-priority items |
 | `priority/low` | Low priority — do when convenient |

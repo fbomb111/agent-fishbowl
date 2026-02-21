@@ -164,8 +164,22 @@ async def get_agent_status() -> list[dict[str, Any]]:
             usage_data = await get_run_usage(run["id"])
             if usage_data:
                 agents_list = usage_data.get("agents", [])
+                # Alias long-form role names to match short names
+                _BLOB_ROLE_ALIASES: dict[str, str] = {
+                    "product-owner": "po",
+                    "product-manager": "pm",
+                    "site-reliability": "sre",
+                    "user-experience": "ux",
+                    "infra-engineer": "ops-engineer",
+                }
                 role_usage = next(
-                    (a for a in agents_list if a.get("role") == role), None
+                    (
+                        a
+                        for a in agents_list
+                        if _BLOB_ROLE_ALIASES.get(a.get("role", ""), a.get("role", ""))
+                        == role
+                    ),
+                    None,
                 )
                 if role_usage:
                     raw_usage = role_usage.get("usage") or {}
