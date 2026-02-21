@@ -272,6 +272,20 @@ export async function fetchTeamStats(): Promise<TeamStatsResponse> {
   return res.json();
 }
 
+// Board health types
+
+export interface BoardHealthResponse {
+  total_items: number;
+  by_status: Record<string, number>;
+  draft_items: number;
+}
+
+export async function fetchBoardHealth(): Promise<BoardHealthResponse> {
+  const res = await fetch(`${API_BASE}/board-health`);
+  if (!res.ok) throw apiError(res.status);
+  return res.json();
+}
+
 // Feedback types
 
 export interface FeedbackSubmission {
