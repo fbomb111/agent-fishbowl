@@ -1,0 +1,16 @@
+name: Agent - Product Analyst Revenue
+
+on:
+  workflow_dispatch: {}   # Manual only — activate when Stripe is live
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  run:
+    uses: ./.github/workflows/reusable-agent.yml
+    with:
+      role: product-analyst
+      job: revenue-operations
+    secrets: inherit

@@ -14,7 +14,7 @@ version: "2"
 
 # All agent workflows must pin this harness version.
 # Bump via: scripts/bump-harness.sh <new-version>
-harness_ref: "@v1.4.0"
+harness_ref: "@v1.5.0"
 
 # ─── Event Registry ───────────────────────────────────────────────
 # Every repository_dispatch event_type MUST be declared here.
@@ -503,19 +503,41 @@ agents:
           - name: "Dispatch PO to process new issues"
 
   product-analyst:
-    workflow: agent-product-analyst.yml
-    type: reusable
+    description: "Product Analyst runs as three jobs with distinct cadences"
+    role: product-analyst
 
-    timeout: 30
-    permissions:
-      contents: read
-      issues: write
-    # concurrency: inherited from reusable-agent.yml → agent-script (uses entry-point, not role)
-    triggers:
-      - type: schedule
-        cron: "0 14 * * *"
-      - type: workflow_dispatch
-    dispatches: []
+    jobs:
+      product-discovery:
+        workflow: agent-product-analyst-discovery.yml
+        timeout: 30
+        permissions:
+          contents: read
+          issues: write
+        triggers:
+          - type: schedule
+            cron: "0 3 * * 1,3,5"  # Mon/Wed/Fri 03:00 UTC (before PM at 06:00)
+          - type: workflow_dispatch
+        dispatches: []
+      market-intelligence:
+        workflow: agent-product-analyst-intelligence.yml
+        timeout: 30
+        permissions:
+          contents: read
+          issues: write
+        triggers:
+          - type: schedule
+            cron: "0 3 * * 2,4"    # Tue/Thu 03:00 UTC (before PM at 06:00)
+          - type: workflow_dispatch
+        dispatches: []
+      revenue-operations:
+        workflow: agent-product-analyst-revenue.yml
+        timeout: 30
+        permissions:
+          contents: read
+          issues: write
+        triggers:
+          - type: workflow_dispatch   # Manual only until Stripe is active
+        dispatches: []
 
   financial-analyst:
     workflow: agent-financial-analyst.yml

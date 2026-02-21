@@ -1,5 +1,5 @@
 <!-- AUTO-GENERATED — Do not edit. Edit config/agent-flow.yaml instead. -->
-<!-- Last generated: 2026-02-20 22:16 UTC -->
+<!-- Last generated: 2026-02-21 04:14 UTC -->
 <!-- Regenerate: python scripts/validate-flow.py --mermaid -o docs/agent-flow.md -->
 
 # Agent Flow Graph
@@ -168,7 +168,9 @@ flowchart TD
 | human-ops | `0 15 * * 5` | Fri | Manual |
 | marketing-strategist | `0 8 * * 1` | Mon | Manual |
 | ops-engineer | --- |  | Issues labeled/unlabeled, `agent-product-owner-complete`, Manual |
-| product-analyst | `0 14 * * *` | daily | Manual |
+| product-analyst/market-intelligence | `0 3 * * 2,4` | Tue/Thu | Manual |
+| product-analyst/product-discovery | `0 3 * * 1,3,5` | Mon/Wed/Fri | Manual |
+| product-analyst/revenue-operations | --- |  | Manual |
 | product-owner | `0 6,18 * * *` | daily | `agent-product-manager-feedback`, Manual |
 | qa-analyst | `0 16 * * *` | daily | Manual |
 | reviewer | `0 */12 * * *` | daily | `pr-needs-review`, Manual |

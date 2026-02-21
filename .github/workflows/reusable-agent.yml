@@ -7,6 +7,10 @@ on:
         description: 'Agent role from config/roles.json (e.g., engineer, reviewer, product-owner)'
         type: string
         required: false
+      job:
+        description: 'Job for multi-job roles (from agents/prompts/jobs/{role}/). Requires role input.'
+        type: string
+        required: false
       entry-point:
         description: 'Script to run relative to harness root (e.g., scripts/run-strategic.sh)'
         type: string
@@ -30,9 +34,10 @@ jobs:
       # HARNESS PIN — must match harness_ref in config/agent-flow.yaml
       # Bump via: scripts/bump-harness.sh <new-version>
       - name: Run agent
-        uses: YourMoveLabs/agent-harness@v1.4.0
+        uses: YourMoveLabs/agent-harness@v1.5.0
         with:
           role: ${{ inputs.role }}
+          job: ${{ inputs.job }}
           entry-point: ${{ inputs.entry-point }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

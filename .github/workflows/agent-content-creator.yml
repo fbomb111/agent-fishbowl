@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Content Creator agent
-        uses: YourMoveLabs/agent-harness@v1.4.0
+        uses: YourMoveLabs/agent-harness@v1.5.0
         with:
           role: content-creator
         env:
