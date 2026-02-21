@@ -141,7 +141,7 @@ if should_check "activity"; then
     ACTIVITY=$(curl -sf --connect-timeout 10 --max-time 30 "${API_PREFIX}/activity?mode=threaded" 2>/dev/null || echo '{"threads":[]}')
 
     # Check 4: No pr_opened events with url: null
-    NULL_PR_URLS=$(echo "$ACTIVITY" | jq '[.threads[].events[] | select(.type == "pr_opened" and (.url == null or .url == ""))] | length')
+    NULL_PR_URLS=$(echo "$ACTIVITY" | jq '[(.threads // [])[] | (.events // [])[] | select(.type == "pr_opened" and (.url == null or .url == ""))] | length')
     if [[ "$NULL_PR_URLS" == "0" ]]; then
         add_check "/activity?mode=threaded" "no_null_pr_urls" true
     else
@@ -150,9 +150,9 @@ if should_check "activity"; then
 
     # Check 5: No duplicate events within a thread (same type+description)
     DUPE_THREADS=$(echo "$ACTIVITY" | jq '
-        [.threads[] |
+        [(.threads // [])[] |
             .subject_number as $sn |
-            [.events[] | {type, description}] |
+            [(.events // [])[] | {type, description}] |
             group_by({type, description}) |
             map(select(length > 1)) |
             select(length > 0) |
