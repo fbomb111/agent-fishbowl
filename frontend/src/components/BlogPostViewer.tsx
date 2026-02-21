@@ -59,6 +59,7 @@ export function BlogPostViewer({ slug }: { slug: string }) {
   });
 
   const contentUrl = `${API_URL}/api/fishbowl/blog/${encodeURIComponent(post.id)}/content`;
+  const ogShareUrl = `${API_URL}/api/fishbowl/blog/by-slug/${encodeURIComponent(post.slug)}/og`;
 
   return (
     <div className="space-y-6">
@@ -90,7 +91,7 @@ export function BlogPostViewer({ slug }: { slug: string }) {
               </span>
             </div>
           )}
-          <ShareButtons title={post.title} />
+          <ShareButtons title={post.title} shareUrl={ogShareUrl} />
         </header>
 
         <iframe
