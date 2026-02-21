@@ -39,8 +39,15 @@ def _enforce_monotonic(values: list[int | None]) -> list[int]:
     return [v24, v7, v30]
 
 
-async def _fetch_windowed_counts(repo: str, now: datetime) -> dict[str, dict[str, int]]:
-    """Fetch cumulative issue/PR/commit counts for 24h, 7d, and 30d windows."""
+async def _fetch_windowed_counts(
+    repo: str, now: datetime
+) -> dict[str, dict[str, int | None]]:
+    """Fetch cumulative issue/PR/commit counts for 24h, 7d, and 30d windows.
+
+    Returns ``None`` for ``prs_merged`` or ``commits`` windows when the
+    underlying API call failed, so callers can fall back to stale cache
+    for the failed component instead of serving zeros (#326).
+    """
     cutoffs = {
         "24h": (now - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "7d": (now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -72,17 +79,27 @@ async def _fetch_windowed_counts(repo: str, now: datetime) -> dict[str, dict[str
     # (returns None), fill it from its neighbours so the response is
     # never internally contradictory.
     issues = _enforce_monotonic(raw_issues)
+
+    # Track whether all commit API calls failed (#326)
+    commits_failed = all(c is None for c in raw_commits)
     commits = _enforce_monotonic(raw_commits)
 
-    # Count merged PRs per window from the single fetch
-    pr_counts: dict[str, int] = {"24h": 0, "7d": 0, "30d": 0}
-    for pr in all_merged_prs or []:
-        merged_at = pr.get("merged_at", "")
-        if not merged_at:
-            continue
-        for window in ("24h", "7d", "30d"):
-            if merged_at >= cutoffs[window]:
-                pr_counts[window] += 1
+    # Count merged PRs per window from the single fetch.
+    # When fetch_merged_prs returned None (API failure), signal with
+    # None values so callers can substitute stale cache (#326).
+    prs_failed = all_merged_prs is None
+    pr_counts: dict[str, int | None]
+    if prs_failed:
+        pr_counts = {"24h": None, "7d": None, "30d": None}
+    else:
+        pr_counts = {"24h": 0, "7d": 0, "30d": 0}
+        for pr in all_merged_prs:
+            merged_at = pr.get("merged_at", "")
+            if not merged_at:
+                continue
+            for window in ("24h", "7d", "30d"):
+                if merged_at >= cutoffs[window]:
+                    pr_counts[window] += 1
 
     return {
         "issues_closed": {
@@ -92,8 +109,8 @@ async def _fetch_windowed_counts(repo: str, now: datetime) -> dict[str, dict[str
         },
         "prs_merged": pr_counts,
         "commits": {
-            "24h": commits[0],
-            "7d": commits[1],
-            "30d": commits[2],
+            "24h": None if commits_failed else commits[0],
+            "7d": None if commits_failed else commits[1],
+            "30d": None if commits_failed else commits[2],
         },
     }
