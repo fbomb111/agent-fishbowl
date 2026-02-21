@@ -139,9 +139,7 @@ class TestGetRoadmapSnapshot:
         )
 
         mock_client = MagicMock()
-        mock_client.post = AsyncMock(
-            return_value=_mock_http_response(graphql_data)
-        )
+        mock_client.post = AsyncMock(return_value=_mock_http_response(graphql_data))
 
         with patch(
             "api.services.goals_roadmap.get_shared_client",
@@ -164,9 +162,7 @@ class TestGetRoadmapSnapshot:
         graphql_data = _graphql_response([])
 
         mock_client = MagicMock()
-        mock_client.post = AsyncMock(
-            return_value=_mock_http_response(graphql_data)
-        )
+        mock_client.post = AsyncMock(return_value=_mock_http_response(graphql_data))
 
         with patch(
             "api.services.goals_roadmap.get_shared_client",
@@ -209,9 +205,7 @@ class TestGetRoadmapSnapshot:
             "data": None,
         }
         mock_client = MagicMock()
-        mock_client.post = AsyncMock(
-            return_value=_mock_http_response(error_data)
-        )
+        mock_client.post = AsyncMock(return_value=_mock_http_response(error_data))
 
         with patch(
             "api.services.goals_roadmap.get_shared_client",
@@ -228,9 +222,7 @@ class TestGetRoadmapSnapshot:
         """Missing projectV2 in response returns empty snapshot (token scope issue)."""
         no_project = {"data": {"organization": {"projectV2": None}}}
         mock_client = MagicMock()
-        mock_client.post = AsyncMock(
-            return_value=_mock_http_response(no_project)
-        )
+        mock_client.post = AsyncMock(return_value=_mock_http_response(no_project))
 
         with patch(
             "api.services.goals_roadmap.get_shared_client",
@@ -263,9 +255,7 @@ class TestGetRoadmapSnapshot:
         """Successful result is stored in cache."""
         graphql_data = _graphql_response([])
         mock_client = MagicMock()
-        mock_client.post = AsyncMock(
-            return_value=_mock_http_response(graphql_data)
-        )
+        mock_client.post = AsyncMock(return_value=_mock_http_response(graphql_data))
 
         with patch(
             "api.services.goals_roadmap.get_shared_client",
@@ -283,9 +273,7 @@ class TestGetRoadmapSnapshot:
         """Second call returns cached data without re-calling GraphQL."""
         graphql_data = _graphql_response([])
         mock_client = MagicMock()
-        mock_client.post = AsyncMock(
-            return_value=_mock_http_response(graphql_data)
-        )
+        mock_client.post = AsyncMock(return_value=_mock_http_response(graphql_data))
 
         with patch(
             "api.services.goals_roadmap.get_shared_client",
