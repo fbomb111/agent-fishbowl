@@ -268,6 +268,7 @@ export interface BoardHealthResponse {
   total_items: number;
   by_status: Record<string, number>;
   draft_items: number;
+  untracked_issues: number;
 }
 
 export async function fetchBoardHealth(): Promise<BoardHealthResponse> {
