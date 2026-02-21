@@ -151,9 +151,42 @@ def extract_wf_concurrency(wf: dict) -> dict | None:
 
 
 def _find_harness_ref_in_uses(uses: str) -> str | None:
-    """Extract @version from a YourMoveLabs/agent-harness uses string."""
+    """Extract @version from a YourMoveLabs/agent-harness uses string.
+
+    Supports both tag refs (@v1.5.3) and SHA-pinned refs (@sha).
+    For SHA refs, the YAML comment (# v1.5.3) is stripped by the parser,
+    so we return the raw @sha. The caller must handle SHA-to-tag resolution.
+    """
     match = re.search(r"YourMoveLabs/agent-harness(@[\w.\-]+)", uses)
     return match.group(1) if match else None
+
+
+def _find_harness_ref_in_raw_file(filename: str) -> str | None:
+    """Extract the harness version from the raw workflow file.
+
+    Handles SHA-pinned refs by reading the YAML comment:
+      uses: YourMoveLabs/agent-harness@SHA  # v1.5.3
+    Returns '@v1.5.3' (the version from the comment).
+    Falls back to the ref after @ if no comment is present.
+    """
+    path = WORKFLOWS_DIR / filename
+    if not path.exists():
+        return None
+    with open(path) as f:
+        for line in f:
+            if "YourMoveLabs/agent-harness@" not in line:
+                continue
+            # Try SHA-pinned format: @sha  # vX.Y.Z
+            m = re.search(
+                r"YourMoveLabs/agent-harness@[a-f0-9]+\s+#\s*(v[\w.\-]+)", line
+            )
+            if m:
+                return f"@{m.group(1)}"
+            # Fallback: tag format @vX.Y.Z
+            m = re.search(r"YourMoveLabs/agent-harness(@[\w.\-]+)", line)
+            if m:
+                return m.group(1)
+    return None
 
 
 def extract_harness_ref(wf: dict) -> str | None:
@@ -475,17 +508,16 @@ def check_harness_refs(flow: dict) -> CheckResult:
         return r
 
     # Validate reusable-agent.yml itself (the single pin for all reusable callers)
-    reusable_wf = load_workflow("reusable-agent.yml")
-    if reusable_wf:
-        reusable_ref = extract_harness_ref(reusable_wf)
-        if reusable_ref and reusable_ref != global_ref:
-            r.errors.append(
-                f"[reusable-agent.yml] Harness ref is {reusable_ref}, "
-                f"expected {global_ref} (from agent-flow.yaml harness_ref)"
-            )
+    # Use raw file reader to handle SHA-pinned refs with version comments
+    reusable_ref = _find_harness_ref_in_raw_file("reusable-agent.yml")
+    if reusable_ref and reusable_ref != global_ref:
+        r.errors.append(
+            f"[reusable-agent.yml] Harness ref is {reusable_ref}, "
+            f"expected {global_ref} (from agent-flow.yaml harness_ref)"
+        )
 
     # Validate all agent workflows
-    for label, unit, wf_file in iter_agent_units(flow):
+    for label, _unit, wf_file in iter_agent_units(flow):
         wf = load_workflow(wf_file)
         if wf is None:
             continue
@@ -494,7 +526,8 @@ def check_harness_refs(flow: dict) -> CheckResult:
         if is_reusable_caller(wf):
             continue
 
-        wf_ref = extract_harness_ref(wf)
+        # Use raw file reader to handle SHA-pinned refs with version comments
+        wf_ref = _find_harness_ref_in_raw_file(wf_file)
         if wf_ref is None:
             continue
 
@@ -508,7 +541,7 @@ def check_harness_refs(flow: dict) -> CheckResult:
 
 
 def check_dispatch_targets(flow: dict) -> CheckResult:
-    """Dispatch targets must exist. Events must be registered. Report in_agent dispatches."""
+    """Dispatch targets must exist. Events registered. Report in_agent."""
     r = CheckResult()
     events = flow.get("events", {})
     agents = flow.get("agents", {})
@@ -519,7 +552,7 @@ def check_dispatch_targets(flow: dict) -> CheckResult:
 
     # Collect valid target names: top-level agents, job IDs, infrastructure
     valid_targets: set[str] = set(agents.keys()) | set(infra.keys())
-    for agent_id, agent in agents.items():
+    for _agent_id, agent in agents.items():
         if "jobs" in agent:
             for job_id in agent["jobs"]:
                 valid_targets.add(job_id)
@@ -1032,7 +1065,9 @@ def write_doc(flow: dict, output_path: Path) -> None:
     schedule_table = generate_schedule_table(flow)
     safety_section = generate_safety_section(flow)
 
-    content = f"""<!-- AUTO-GENERATED — Do not edit. Edit config/agent-flow.yaml instead. -->
+    header = "<!-- AUTO-GENERATED — Do not edit."
+    header += " Edit config/agent-flow.yaml instead. -->"
+    content = f"""{header}
 <!-- Last generated: {now} -->
 <!-- Regenerate: python scripts/validate-flow.py --mermaid -o docs/agent-flow.md -->
 

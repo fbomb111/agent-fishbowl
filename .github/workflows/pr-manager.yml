@@ -34,7 +34,7 @@ jobs:
       pr_number: ${{ steps.assess.outputs.pr_number }}
       skip: ${{ steps.assess.outputs.skip }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
       - name: Check review round limit
         id: rounds
@@ -107,7 +107,7 @@ jobs:
     timeout-minutes: 5
     if: needs.assess.outputs.auto_approvable == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
       - name: Approve and merge
         run: |
@@ -170,7 +170,7 @@ jobs:
       needs.assess.outputs.auto_approvable == 'false' &&
       needs.assess.outputs.skip != 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
       - name: Label and dispatch AI review
         run: |

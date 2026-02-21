@@ -20,7 +20,7 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
       - name: Check if any harness requests exist
         id: preflight
@@ -39,7 +39,7 @@ jobs:
 
       - name: Run Tech Lead harness request review
         if: steps.preflight.outputs.skip != 'true'
-        uses: YourMoveLabs/agent-harness@v1.5.3
+        uses: YourMoveLabs/agent-harness@fdc364e879682d2068f72f13fecbf161574b1c1d  # v1.5.3
         with:
           role: tech-lead
           job: harness-request-review
