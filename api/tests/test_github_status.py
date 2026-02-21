@@ -445,6 +445,54 @@ class TestGetAgentStatus:
         assert pa["last_completed_at"] is not None
 
     @pytest.mark.asyncio
+    async def test_never_run_agents_have_has_run_false(self, mock_settings, monkeypatch):
+        """Regression (#322): agents that have never run should have has_run=False
+        to distinguish them from agents that completed and are now idle."""
+        run = _make_workflow_run(
+            "agent-engineer.yml", status="completed", conclusion="success"
+        )
+
+        monkeypatch.setattr(
+            "api.services.github_status._fetch_workflow_runs",
+            _mock_fetch({"agent-engineer.yml": [run]}),
+        )
+        monkeypatch.setattr(
+            "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
+        )
+
+        result = await get_agent_status()
+
+        # Engineer has run — has_run should be True
+        engineer = next(r for r in result if r["role"] == "engineer")
+        assert engineer["has_run"] is True
+        assert engineer["status"] == "idle"
+
+        # Agents with no workflow runs should have has_run=False
+        ux = next(r for r in result if r["role"] == "user-experience")
+        assert ux["has_run"] is False
+        assert ux["status"] == "idle"
+
+    @pytest.mark.asyncio
+    async def test_active_agents_have_has_run_true(self, mock_settings, monkeypatch):
+        """Active agents should have has_run=True."""
+        run = _make_workflow_run(
+            "agent-engineer.yml", status="in_progress", conclusion=None
+        )
+
+        monkeypatch.setattr(
+            "api.services.github_status._fetch_workflow_runs",
+            _mock_fetch({"agent-engineer.yml": [run]}),
+        )
+        monkeypatch.setattr(
+            "api.services.github_status.get_run_usage", AsyncMock(return_value=None)
+        )
+
+        result = await get_agent_status()
+        engineer = next(r for r in result if r["role"] == "engineer")
+        assert engineer["has_run"] is True
+        assert engineer["status"] == "active"
+
+    @pytest.mark.asyncio
     async def test_per_workflow_fetch_finds_infrequent_agents(
         self, mock_settings, monkeypatch
     ):

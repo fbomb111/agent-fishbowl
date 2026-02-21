@@ -135,7 +135,7 @@ async def get_agent_status() -> list[dict[str, Any]]:
     for role in all_roles:
         run = agent_runs.get(role)
         if run is None:
-            result.append({"role": role, "status": "idle"})
+            result.append({"role": role, "status": "idle", "has_run": False})
             continue
 
         run_status = run.get("status", "")  # queued, in_progress, completed
@@ -151,6 +151,7 @@ async def get_agent_status() -> list[dict[str, Any]]:
         entry: dict[str, Any] = {
             "role": role,
             "status": status,
+            "has_run": True,
         }
 
         if run_status in ("queued", "in_progress"):

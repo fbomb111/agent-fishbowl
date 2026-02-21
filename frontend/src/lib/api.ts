@@ -126,6 +126,7 @@ export interface AgentUsage {
 export interface AgentStatus {
   role: string;
   status: "active" | "idle" | "failed";
+  has_run: boolean;
   started_at?: string;
   trigger?: string;
   last_completed_at?: string;
