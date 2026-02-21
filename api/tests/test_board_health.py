@@ -29,8 +29,14 @@ def mock_settings(monkeypatch):
         github_repo = "YourMoveLabs/agent-fishbowl"
         github_token = "fake-token"
 
-    monkeypatch.setattr("api.services.board_health.get_settings", lambda: FakeSettings())
-    monkeypatch.setattr("api.services.http_client.get_settings", lambda: FakeSettings())
+    monkeypatch.setattr(
+        "api.services.board_health.get_settings",
+        lambda: FakeSettings(),
+    )
+    monkeypatch.setattr(
+        "api.services.http_client.get_settings",
+        lambda: FakeSettings(),
+    )
     return FakeSettings()
 
 
@@ -176,7 +182,10 @@ class TestFetchProjectItems:
                                             "hasNextPage": True,
                                             "endCursor": "cursor1",
                                         },
-                                        "nodes": [_make_item("Todo"), _make_item("Done")],
+                                        "nodes": [
+                                            _make_item("Todo"),
+                                            _make_item("Done"),
+                                        ],
                                     }
                                 }
                             }

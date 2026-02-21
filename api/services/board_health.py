@@ -50,7 +50,9 @@ query($owner: String!, $number: Int!, $cursor: String) {
 """
 
 
-async def _fetch_project_items(owner: str, project_number: int) -> list[dict[str, Any]] | None:
+async def _fetch_project_items(
+    owner: str, project_number: int
+) -> list[dict[str, Any]] | None:
     """Fetch all project board items via GitHub GraphQL API.
 
     Returns None on API error so callers can fall back to stale cache.
@@ -75,7 +77,10 @@ async def _fetch_project_items(owner: str, project_number: int) -> list[dict[str
                 json={"query": _PROJECT_ITEMS_QUERY, "variables": variables},
             )
             if resp.status_code != 200:
-                logger.warning("GraphQL API returned %d for project items", resp.status_code)
+                logger.warning(
+                    "GraphQL API returned %d for project items",
+                    resp.status_code,
+                )
                 return None if not all_items else all_items
 
             data = resp.json()
