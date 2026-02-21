@@ -8,7 +8,7 @@ changelog:
         - type/bug
     - title: UX Improvements
       labels:
-        - type/ux
+        - type/user-experience
     - title: Maintenance
       labels:
         - type/chore

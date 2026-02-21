@@ -437,7 +437,7 @@ class TestFetchAgentStats:
         ):
             result = await _fetch_agent_stats("test/repo", "2026-01-01")
 
-        assert result["po"]["issues_closed"] == 1
+        assert result["product-owner"]["issues_closed"] == 1
 
     @pytest.mark.asyncio
     async def test_falls_back_to_user_login(self):

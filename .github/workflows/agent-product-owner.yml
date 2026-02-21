@@ -34,7 +34,7 @@ jobs:
             )] | length')
 
           # Count PM-flagged misaligned issues
-          MISALIGNED=$(gh issue list --state open --label "pm/misaligned" \
+          MISALIGNED=$(gh issue list --state open --label "product-manager/misaligned" \
             --json number --jq length)
 
           echo "intake=$INTAKE misaligned=$MISALIGNED"

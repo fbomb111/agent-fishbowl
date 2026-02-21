@@ -28,12 +28,12 @@ class TestWorkflowAgentMap:
         assert set(WORKFLOW_AGENT_MAP.keys()) == expected_workflows
 
     def test_scans_maps_to_multiple_agents(self):
-        assert WORKFLOW_AGENT_MAP["agent-scans.yml"] == ["tech-lead", "ux"]
+        assert WORKFLOW_AGENT_MAP["agent-scans.yml"] == ["tech-lead", "user-experience"]
 
     def test_single_agent_workflows(self):
         assert WORKFLOW_AGENT_MAP["agent-engineer.yml"] == ["engineer"]
         assert WORKFLOW_AGENT_MAP["agent-reviewer.yml"] == ["reviewer"]
-        assert WORKFLOW_AGENT_MAP["agent-strategic.yml"] == ["pm"]
+        assert WORKFLOW_AGENT_MAP["agent-strategic.yml"] == ["product-manager"]
 
 
 def _make_workflow_run(
@@ -145,7 +145,7 @@ class TestGetAgentStatus:
         )
 
         result = await get_agent_status()
-        po = next(r for r in result if r["role"] == "po")
+        po = next(r for r in result if r["role"] == "product-owner")
         assert po["status"] == "idle"
         assert po["last_conclusion"] == "success"
 
@@ -179,12 +179,12 @@ class TestGetAgentStatus:
         )
 
         result = await get_agent_status()
-        sre = next(r for r in result if r["role"] == "sre")
+        sre = next(r for r in result if r["role"] == "site-reliability")
         assert sre["status"] == "idle"
 
     @pytest.mark.asyncio
     async def test_all_roles_present_in_output(self, mock_settings, monkeypatch):
-        """Output always includes all 10 agent roles."""
+        """Output always includes all 17 agent roles."""
         # Need at least one run so any_success is True
         run = _make_workflow_run(
             "agent-engineer.yml", status="completed", conclusion="success"
@@ -201,19 +201,23 @@ class TestGetAgentStatus:
         result = await get_agent_status()
         roles = {r["role"] for r in result}
         expected_roles = {
-            "po",
+            "product-owner",
+            "product-manager",
             "engineer",
             "ops-engineer",
             "reviewer",
-            "triage",
-            "sre",
-            "pm",
             "tech-lead",
-            "ux",
+            "triage",
+            "site-reliability",
+            "user-experience",
             "content-creator",
             "qa-analyst",
             "customer-ops",
             "human-ops",
+            "escalation-lead",
+            "financial-analyst",
+            "marketing-strategist",
+            "product-analyst",
         }
         assert roles == expected_roles
 
@@ -283,7 +287,7 @@ class TestGetAgentStatus:
 
         result = await get_agent_status()
         tech_lead = next(r for r in result if r["role"] == "tech-lead")
-        ux = next(r for r in result if r["role"] == "ux")
+        ux = next(r for r in result if r["role"] == "user-experience")
         assert tech_lead["status"] == "active"
         assert ux["status"] == "active"
 
@@ -370,6 +374,6 @@ class TestGetAgentStatus:
         )
 
         result = await get_agent_status()
-        sre = next(r for r in result if r["role"] == "sre")
+        sre = next(r for r in result if r["role"] == "site-reliability")
         assert sre["status"] == "failed"
         assert sre["last_conclusion"] == "failure"

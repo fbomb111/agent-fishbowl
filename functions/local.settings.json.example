@@ -6,6 +6,6 @@
     "GITHUB_REPO": "YourMoveLabs/agent-fishbowl",
     "GITHUB_APP_ID": "2868629",
     "GITHUB_APP_INSTALLATION_ID": "110315536",
-    "GITHUB_APP_SRE_KEY_PATH": "/home/fcleary/.config/agent-fishbowl/fishbowl-sre.pem"
+    "GITHUB_APP_SITE_RELIABILITY_KEY_PATH": "/home/fcleary/.config/agent-fishbowl/site-reliability.pem"
   }
 }

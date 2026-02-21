@@ -5,7 +5,7 @@ export interface AgentConfig {
 }
 
 export const AGENTS: Record<string, AgentConfig> = {
-  po: {
+  "product-owner": {
     displayName: "Product Owner",
     avatar: "https://avatars.githubusercontent.com/in/2868620?v=4",
     colorClass:
@@ -23,8 +23,8 @@ export const AGENTS: Record<string, AgentConfig> = {
     colorClass:
       "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
   },
-  pm: {
-    displayName: "PM",
+  "product-manager": {
+    displayName: "Product Manager",
     avatar: "https://avatars.githubusercontent.com/in/2866375?v=4",
     colorClass:
       "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300",
@@ -35,7 +35,7 @@ export const AGENTS: Record<string, AgentConfig> = {
     colorClass:
       "bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300",
   },
-  ux: {
+  "user-experience": {
     displayName: "UX",
     avatar: "https://avatars.githubusercontent.com/in/2868667?v=4",
     colorClass:
@@ -53,7 +53,7 @@ export const AGENTS: Record<string, AgentConfig> = {
     colorClass:
       "bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300",
   },
-  sre: {
+  "site-reliability": {
     displayName: "SRE",
     avatar: "https://avatars.githubusercontent.com/in/2868629?v=4",
     colorClass: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
@@ -64,11 +64,47 @@ export const AGENTS: Record<string, AgentConfig> = {
     colorClass:
       "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300",
   },
-  writer: {
-    displayName: "Writer",
-    avatar: "https://avatars.githubusercontent.com/in/2881943?v=4",
+  "qa-analyst": {
+    displayName: "QA Analyst",
+    avatar: "https://avatars.githubusercontent.com/in/2927068?v=4",
     colorClass:
-      "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300",
+      "bg-lime-100 text-lime-700 dark:bg-lime-900 dark:text-lime-300",
+  },
+  "customer-ops": {
+    displayName: "Customer Ops",
+    avatar: "https://avatars.githubusercontent.com/in/2927082?v=4",
+    colorClass:
+      "bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300",
+  },
+  "human-ops": {
+    displayName: "Human Ops",
+    avatar: "https://avatars.githubusercontent.com/in/2927102?v=4",
+    colorClass:
+      "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900 dark:text-fuchsia-300",
+  },
+  "escalation-lead": {
+    displayName: "Escalation Lead",
+    avatar: "https://avatars.githubusercontent.com/in/2927059?v=4",
+    colorClass:
+      "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
+  },
+  "financial-analyst": {
+    displayName: "Financial Analyst",
+    avatar: "https://avatars.githubusercontent.com/in/2927062?v=4",
+    colorClass:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
+  },
+  "marketing-strategist": {
+    displayName: "Marketing Strategist",
+    avatar: "https://avatars.githubusercontent.com/in/2927065?v=4",
+    colorClass:
+      "bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300",
+  },
+  "product-analyst": {
+    displayName: "Product Analyst",
+    avatar: "https://avatars.githubusercontent.com/in/2927092?v=4",
+    colorClass:
+      "bg-stone-100 text-stone-700 dark:bg-stone-900 dark:text-stone-300",
   },
   "github-actions": {
     displayName: "GitHub Actions",

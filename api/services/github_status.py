@@ -20,11 +20,11 @@ WORKFLOW_AGENT_MAP: dict[str, list[str]] = {
     "agent-engineer.yml": ["engineer"],
     "agent-ops-engineer.yml": ["ops-engineer"],
     "agent-reviewer.yml": ["reviewer"],
-    "agent-product-owner.yml": ["po"],
+    "agent-product-owner.yml": ["product-owner"],
     "agent-triage.yml": ["triage"],
-    "agent-site-reliability.yml": ["sre"],
-    "agent-scans.yml": ["tech-lead", "ux"],
-    "agent-strategic.yml": ["pm"],
+    "agent-site-reliability.yml": ["site-reliability"],
+    "agent-scans.yml": ["tech-lead", "user-experience"],
+    "agent-strategic.yml": ["product-manager"],
     "agent-content-creator.yml": ["content-creator"],
     "agent-qa-analyst.yml": ["qa-analyst"],
     "agent-customer-ops.yml": ["customer-ops"],
@@ -107,19 +107,23 @@ async def get_agent_status() -> list[dict[str, Any]]:
     # Convert to response format
     result: list[dict[str, Any]] = []
     all_roles = [
-        "po",
+        "product-owner",
+        "product-manager",
         "engineer",
         "ops-engineer",
         "reviewer",
-        "triage",
-        "sre",
-        "pm",
         "tech-lead",
-        "ux",
+        "triage",
+        "site-reliability",
+        "user-experience",
         "content-creator",
         "qa-analyst",
         "customer-ops",
         "human-ops",
+        "escalation-lead",
+        "financial-analyst",
+        "marketing-strategist",
+        "product-analyst",
     ]
 
     for role in all_roles:
@@ -161,12 +165,12 @@ async def get_agent_status() -> list[dict[str, Any]]:
             usage_data = await get_run_usage(run["id"])
             if usage_data:
                 agents_list = usage_data.get("agents", [])
-                # Alias long-form role names to match short names
+                # Alias old short-form role names from legacy blobs to canonical names
                 _BLOB_ROLE_ALIASES: dict[str, str] = {
-                    "product-owner": "po",
-                    "product-manager": "pm",
-                    "site-reliability": "sre",
-                    "user-experience": "ux",
+                    "po": "product-owner",
+                    "pm": "product-manager",
+                    "sre": "site-reliability",
+                    "ux": "user-experience",
                     "infra-engineer": "ops-engineer",
                 }
                 role_usage = next(

@@ -76,19 +76,19 @@ PM reviews daily → adjusts roadmap → dispatches PO
 
 ### Alert Bridge (Azure Function → GitHub)
 
-Real-time alerting bridge: Azure Monitor detects problems → fires alert → Action Group webhooks to an Azure Function → Function dispatches `azure-alert` to GitHub → `agent-sre.yml` triggers with alert context.
+Real-time alerting bridge: Azure Monitor detects problems → fires alert → Action Group webhooks to an Azure Function → Function dispatches `azure-alert` to GitHub → `agent-site-reliability.yml` triggers with alert context.
 
 **Flow:**
 ```
 Container App metrics → Alert Rule fires → Action Group webhook
   → func-fishbowl-alert-bridge (Azure Function)
-    → reads fishbowl-sre PEM from Key Vault (via Managed Identity)
+    → reads fishbowl-site-reliability PEM from Key Vault (via Managed Identity)
       → mints JWT → exchanges for installation access token
         → POST repos/{repo}/dispatches (event_type: azure-alert)
-          → agent-sre.yml triggers → run-sre.sh routes to playbooks/Claude
+          → agent-site-reliability.yml triggers → run-sre.sh routes to playbooks/Claude
 ```
 
-**Auth:** Uses `fishbowl-sre` GitHub App (App ID: `2868629`, Installation ID: `110315536`). PEM key stored in Key Vault as `fishbowl-sre-pem`. No PATs — tokens are short-lived installation tokens minted per-invocation.
+**Auth:** Uses `fishbowl-site-reliability` GitHub App (App ID: `2868629`, Installation ID: `110315536`). PEM key stored in Key Vault as `fishbowl-sre-pem`. No PATs — tokens are short-lived installation tokens minted per-invocation.
 
 **Azure Resources** (all in `rg-agent-fishbowl`):
 
@@ -109,8 +109,8 @@ Container App metrics → Alert Rule fires → Action Group webhook
 
 **Function Code:** `functions/alert_bridge/__init__.py`
 - Parses Azure Monitor Common Alert Schema
-- Authenticates as `fishbowl-sre[bot]` GitHub App (PEM from Key Vault → JWT → installation token)
-- Falls back to local PEM file via `GITHUB_APP_SRE_KEY_PATH` for local dev
+- Authenticates as `fishbowl-site-reliability[bot]` GitHub App (PEM from Key Vault → JWT → installation token)
+- Falls back to local PEM file via `GITHUB_APP_SITE_RELIABILITY_KEY_PATH` for local dev
 - Deploy: `cd functions && func azure functionapp publish func-fishbowl-alert-bridge --python`
 
 ## Project Structure
@@ -303,19 +303,19 @@ Scopes: `api`, `frontend`, `ci`, `config`
 | `type/bug` | Something broken |
 | `type/chore` | Maintenance, CI, docs |
 | `type/refactor` | Code refactoring or architecture improvement |
-| `type/ux` | User experience improvement |
+| `type/user-experience` | User experience improvement |
 | `source/roadmap` | From product roadmap |
 | `source/tech-lead` | From tech lead code review |
-| `source/ux-review` | From UX agent review |
+| `source/user-experience` | From UX agent review |
 | `source/triage` | Validated by triage agent |
 | `source/reviewer-backlog` | Rework from closed PR |
-| `source/sre` | From SRE monitoring |
+| `source/site-reliability` | From SRE monitoring |
 | `status/in-progress` | An agent is working on this |
 | `status/blocked` | Cannot proceed — needs human input |
 | `status/needs-info` | Needs more information from reporter |
 | `review/approved` | Reviewer approved this PR |
 | `review/changes-requested` | Reviewer requested changes |
-| `pm/misaligned` | PM flagged: issue misinterprets roadmap intent |
+| `product-manager/misaligned` | PM flagged: issue misinterprets roadmap intent |
 | `harness/request` | Agent needs a harness capability (tool, permission, config) |
 | `agent-created` | Created by an agent (not human) |
 
@@ -323,15 +323,15 @@ Scopes: `api`, `frontend`, `ci`, `config`
 
 | Role | Identity | Cadence | One-liner |
 |------|----------|---------|-----------|
-| **PO** | `fishbowl-po[bot]` | Event-driven + 2x daily | Central intake funnel — triages all inputs into a prioritized backlog |
+| **Product Owner** | `fishbowl-product-owner[bot]` | Event-driven + 2x daily | Central intake funnel — triages all inputs into a prioritized backlog |
 | **Engineer** | `fishbowl-engineer[bot]` | Event-driven (dispatch + PR merge) | Picks issues, implements application code, opens PRs |
 | **Ops Engineer** | `fishbowl-ops-engineer[bot]` | Event-driven (dispatch + unblock) | Azure resource management via `az` CLI — scaling, env vars, ACR, health checks |
 | **Reviewer** | `fishbowl-reviewer[bot]` | Event-driven + 12h | Reviews PRs, approves+merges or requests changes |
-| **Tech Lead** | `fishbowl-techlead[bot]` | Daily (11 specialized jobs) | Sets technical standards, identifies architecture/debt/security needs |
-| **PM** | `fishbowl-pm[bot]` | Daily | Strategic goals and GitHub Project roadmap management |
+| **Tech Lead** | `fishbowl-tech-lead[bot]` | Daily (11 specialized jobs) | Sets technical standards, identifies architecture/debt/security needs |
+| **Product Manager** | `fishbowl-product-manager[bot]` | Daily | Strategic goals and GitHub Project roadmap management |
 | **Triage** | `fishbowl-triage[bot]` | Event-driven (issues.opened) + daily | Validates human-created issues |
-| **UX** | `fishbowl-ux[bot]` | On-demand (PO dispatch) | Reviews product UX, creates improvement issues |
-| **SRE** | `fishbowl-sre[bot]` | Every 4h + alerts | Monitors system health, files issues for problems |
+| **UX Reviewer** | `fishbowl-user-experience[bot]` | On-demand (PO dispatch) | Reviews product UX, creates improvement issues |
+| **SRE** | `fishbowl-site-reliability[bot]` | Every 4h + alerts | Monitors system health, files issues for problems |
 | **Content Creator** | `fishbowl-content-creator[bot]` | Daily 10am UTC | Generates one blog post per day via Captain AI headless API |
 | **Product Analyst** | `fishbowl-product-analyst[bot]` | Daily | Analyzes product metrics and usage patterns |
 | **Financial Analyst** | `fishbowl-financial-analyst[bot]` | Daily | Tracks costs, revenue signals, and financial health |
@@ -347,9 +347,9 @@ All roads lead to the PO. No agent bypasses the PO to create work for the engine
 
 ```
 PM (strategy) → manages GitHub Project roadmap → PO (tactical) reads project items + source/* intake → backlog
-PM reviews PO's source/roadmap issues → pm/misaligned if off-target → PO re-scopes
+PM reviews PO's source/roadmap issues → product-manager/misaligned if off-target → PO re-scopes
 Tech Lead, UX, QA, Product Analyst, Triage → create source/* intake issues → PO triages → backlog
-SRE → monitors health, creates source/sre issues for failures → PO triages → backlog
+SRE → monitors health, creates source/site-reliability issues for failures → PO triages → backlog
 Engineer claims issues → opens PR → Reviewer merges (or backlogs via source/reviewer-backlog → PO)
 Escalation Lead → resolves agent disputes and stuck situations
 ```
@@ -501,7 +501,7 @@ Agents use `gh` for all GitHub operations:
 - **Agent coordination**: PO triages intake → creates prioritized issues → engineer picks up → opens PR → reviewer reviews → may request changes → engineer fixes → reviewer approves and merges → CI/CD deploys
 - **Intake pipeline**: Scanning agents (tech lead, UX, triage) create `source/*` issues → PO triages and prioritizes → engineer works → reviewer gates quality
 - **Per-role tool allowlists**: Non-code agents can't Write/Edit application code. Tech lead can only modify `config/` and `scripts/`. PM has read-only codebase access plus `gh` for managing the GitHub Project roadmap — no Write/Edit/git, no Glob/Grep. PM understands product through outcomes, not code. SRE has curl, az CLI, gh, and python3 for health checks and diagnostics — no Write/Edit.
-- **PM↔PO feedback loop**: PM reviews `source/roadmap` issues for alignment. If misaligned, PM labels `pm/misaligned` with a comment. PO re-scopes before the engineer picks it up.
+- **PM↔PO feedback loop**: PM reviews `source/roadmap` issues for alignment. If misaligned, PM labels `product-manager/misaligned` with a comment. PO re-scopes before the engineer picks it up.
 - **Full autonomy**: Agents handle the complete cycle. The human monitors and adjusts workflows, but does not manually merge or write code.
 
 ## Development

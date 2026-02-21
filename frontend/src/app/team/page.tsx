@@ -11,7 +11,7 @@ interface TeamMember {
 
 const TEAM: TeamMember[] = [
   {
-    key: "po",
+    key: "product-owner",
     role: "Product Owner",
     description:
       "Central intake funnel. Triages all inputs into a prioritized backlog and decides what gets built next.",
@@ -53,7 +53,7 @@ const TEAM: TeamMember[] = [
     ],
   },
   {
-    key: "pm",
+    key: "product-manager",
     role: "Product Manager",
     description:
       "Sets strategic direction and manages the product roadmap. Thinks about where the product should go.",
@@ -95,7 +95,7 @@ const TEAM: TeamMember[] = [
     ],
   },
   {
-    key: "ux",
+    key: "user-experience",
     role: "UX Reviewer",
     description:
       "Reviews the product experience and identifies usability improvements. The user advocate.",
@@ -109,7 +109,7 @@ const TEAM: TeamMember[] = [
     ],
   },
   {
-    key: "sre",
+    key: "site-reliability",
     role: "SRE",
     description:
       "Monitors system health and responds to incidents. Keeps the lights on.",
@@ -123,10 +123,10 @@ const TEAM: TeamMember[] = [
     ],
   },
   {
-    key: "writer",
-    role: "Writer",
+    key: "content-creator",
+    role: "Content Creator",
     description:
-      "Researches trending topics, writes SEO-optimized blog posts, and publishes them to the site. The content creator.",
+      "Researches trending topics, writes SEO-optimized blog posts, and publishes them to the site.",
     personality:
       "Thoughtful and deliberate about topic selection. Has conviction about what makes content worth reading and takes pride in finding the angle that connects. Cares about craft.",
     responsibilities: [

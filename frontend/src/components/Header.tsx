@@ -14,7 +14,7 @@ export function Header() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
         <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
           <Image
-            src="/agents/fishbowl-po.png"
+            src="/agents/fishbowl-product-owner.png"
             alt="Agent Fishbowl"
             width={28}
             height={28}

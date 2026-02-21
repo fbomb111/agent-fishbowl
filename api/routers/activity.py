@@ -36,10 +36,10 @@ async def agent_status():
 
 
 _ROLE_ALIASES: dict[str, str] = {
-    "product-owner": "po",
-    "product-manager": "pm",
-    "site-reliability": "sre",
-    "user-experience": "ux",
+    "po": "product-owner",
+    "pm": "product-manager",
+    "sre": "site-reliability",
+    "ux": "user-experience",
     "infra-engineer": "ops-engineer",
 }
 

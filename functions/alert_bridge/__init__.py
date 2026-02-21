@@ -3,7 +3,7 @@
 Receives Azure Monitor Common Alert Schema webhooks and dispatches
 repository_dispatch events to trigger the SRE agent workflow.
 
-Authentication uses GitHub App (fishbowl-sre) — PEM key stored in
+Authentication uses GitHub App (fishbowl-site-reliability) — PEM key stored in
 Key Vault, JWT minted on each invocation, exchanged for an
 installation access token.
 """
@@ -35,12 +35,14 @@ def get_pem_key() -> str:
         return client.get_secret(secret_name).value
 
     # Local dev: read from file path
-    key_path = os.environ.get("GITHUB_APP_SRE_KEY_PATH", "")
+    key_path = os.environ.get("GITHUB_APP_SITE_RELIABILITY_KEY_PATH", "")
     if key_path and os.path.isfile(key_path):
         with open(key_path) as f:
             return f.read()
 
-    raise ValueError("No PEM key: set KEY_VAULT_NAME or GITHUB_APP_SRE_KEY_PATH")
+    raise ValueError(
+        "No PEM key: set KEY_VAULT_NAME or GITHUB_APP_SITE_RELIABILITY_KEY_PATH"
+    )
 
 
 def get_installation_token(app_id: str, installation_id: str, pem_key: str) -> str:
@@ -122,7 +124,9 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     )
 
     if resp.status_code == 204:
-        logger.info("Dispatched azure-alert to %s via fishbowl-sre[bot]", repo)
+        logger.info(
+            "Dispatched azure-alert to %s via fishbowl-site-reliability[bot]", repo
+        )
         return func.HttpResponse("Dispatched", status_code=200)
 
     logger.error("GitHub dispatch failed: %s %s", resp.status_code, resp.text)

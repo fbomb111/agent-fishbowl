@@ -455,7 +455,7 @@ class TestFallbackEvents:
         # Most recent first
         assert result[0]["type"] == "issue_created"
         assert result[0]["subject_number"] == 43
-        assert result[0]["actor"] == "po"
+        assert result[0]["actor"] == "product-owner"
         assert result[1]["type"] == "issue_closed"
         assert result[1]["subject_number"] == 42
         assert result[1]["actor"] == "engineer"
