@@ -89,7 +89,8 @@ def mock_settings(monkeypatch):
     # (from api.config import get_settings creates a local binding that
     # the api.config monkeypatch above does not affect)
     for mod_path in [
-        "api.services.github_activity",
+        "api.services.github_activity_fetch",
+        "api.services.github_activity_threading",
         "api.services.github_events",
         "api.services.github_status",
         "api.services.http_client",
