@@ -193,8 +193,10 @@ if should_check "commit-counts"; then
     SINCE=$(date -u -d "7 days ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-7d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "")
 
     DISCREPANCIES="[]"
-    # Check a few key agents (not all — GitHub rate limits)
-    for AGENT in engineer content-creator product-owner tech-lead site-reliability; do
+    # Check only agents that commit code (not all agents push commits)
+    # Excluded: content-creator (creates blog posts via API), product-owner (triages issues),
+    # site-reliability (files issues, runs playbooks)
+    for AGENT in engineer tech-lead; do
         API_COMMITS=$(echo "$GOALS" | jq --arg a "$AGENT" '.metrics.by_agent[$a].commits // 0')
 
         # Query GitHub commits by author
@@ -205,8 +207,7 @@ if should_check "commit-counts"; then
                 --jq 'length' 2>/dev/null || echo "0")
         fi
 
-        # We can't easily filter by agent role in GitHub, so just check if API shows 0
-        # when there are clearly commits in the repo (a known bug per issue #215)
+        # Check if API shows 0 when the agent should have commits
         if [[ "$API_COMMITS" == "0" ]]; then
             DISCREPANCIES=$(echo "$DISCREPANCIES" | jq \
                 --arg agent "$AGENT" \
