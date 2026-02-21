@@ -129,6 +129,85 @@ async def paginated_github_search(
     return all_items
 
 
+async def paginated_rest_api(
+    url: str,
+    since: str,
+    *,
+    filter_fn: Any,
+    context: str = "",
+) -> list[dict[str, Any]] | None:
+    """Paginate through a GitHub REST API endpoint with date filtering.
+
+    This helper handles the common pagination pattern used by /repos/{repo}/issues
+    and /repos/{repo}/pulls endpoints. It fetches all pages sorted by updated_at desc,
+    filtering items by a custom filter function, and stops when items are too old.
+
+    Returns None on first-page failure so callers can fall back to stale cache.
+    Partial results from later-page failures are returned as-is.
+
+    Args:
+        url: The API endpoint URL
+        since: ISO date string (e.g. "2026-02-13") for date filtering
+        filter_fn: Callback that receives (item, since_dt) and returns True to include
+        context: Description for log messages
+    """
+    client = get_shared_client()
+    headers = github_headers()
+    results: list[dict[str, Any]] = []
+    page = 1
+
+    if "T" not in since:
+        since_dt = datetime.fromisoformat(since + "T00:00:00+00:00")
+    else:
+        since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+
+    while True:
+        params = {
+            "state": "closed",
+            "sort": "updated",
+            "direction": "desc",
+            "per_page": "100",
+            "page": str(page),
+        }
+        try:
+            resp = await client.get(url, headers=headers, params=params)
+            if resp.status_code != 200:
+                logger.warning(
+                    "REST API returned %d (page %d)%s",
+                    resp.status_code,
+                    page,
+                    f" ({context})" if context else "",
+                )
+                return None if page == 1 else results
+            items = resp.json()
+            if not items:
+                break
+
+            for item in items:
+                if filter_fn(item, since_dt):
+                    results.append(item)
+
+            # Stop if the oldest item on this page was updated before our window
+            oldest_updated = items[-1].get("updated_at", "")
+            if oldest_updated:
+                oldest_dt = datetime.fromisoformat(
+                    oldest_updated.replace("Z", "+00:00")
+                )
+                if oldest_dt < since_dt:
+                    break
+
+            if len(items) < 100:
+                break
+            page += 1
+        except Exception:
+            logger.exception(
+                "REST API error (page %d)%s", page, f" ({context})" if context else ""
+            )
+            return None if page == 1 else results
+
+    return results
+
+
 async def fetch_closed_issues(repo: str, since: str) -> list[dict[str, Any]] | None:
     """Fetch issues closed since a date using the Issues REST API.
 
@@ -146,67 +225,24 @@ async def fetch_closed_issues(repo: str, since: str) -> list[dict[str, Any]] | N
         repo: Owner/repo string (e.g. "YourMoveLabs/agent-fishbowl")
         since: ISO date string (e.g. "2026-02-13") — issues closed on or after
     """
-    client = get_shared_client()
-    headers = github_headers()
     url = f"https://api.github.com/repos/{repo}/issues"
-    closed_issues: list[dict[str, Any]] = []
-    page = 1
 
-    if "T" not in since:
-        since_dt = datetime.fromisoformat(since + "T00:00:00+00:00")
-    else:
-        since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+    def filter_issue(issue: dict[str, Any], since_dt: datetime) -> bool:
+        """Filter out PRs and check if issue was closed in our window."""
+        # Filter out PRs (Issues API includes them)
+        if "pull_request" in issue:
+            return False
 
-    while True:
-        params = {
-            "state": "closed",
-            "sort": "updated",
-            "direction": "desc",
-            "per_page": "100",
-            "page": str(page),
-        }
-        try:
-            resp = await client.get(url, headers=headers, params=params)
-            if resp.status_code != 200:
-                logger.warning(
-                    "Issues API returned %d (page %d)", resp.status_code, page
-                )
-                return None if page == 1 else closed_issues
-            items = resp.json()
-            if not items:
-                break
+        closed_at = issue.get("closed_at")
+        if not closed_at:
+            return False
 
-            for issue in items:
-                # Filter out PRs (Issues API includes them)
-                if "pull_request" in issue:
-                    continue
+        issue_closed_dt = datetime.fromisoformat(closed_at.replace("Z", "+00:00"))
+        return issue_closed_dt >= since_dt
 
-                closed_at = issue.get("closed_at")
-                if not closed_at:
-                    continue
-                issue_closed_dt = datetime.fromisoformat(
-                    closed_at.replace("Z", "+00:00")
-                )
-                if issue_closed_dt >= since_dt:
-                    closed_issues.append(issue)
-
-            # Stop if the oldest item on this page was updated before our window
-            oldest_updated = items[-1].get("updated_at", "")
-            if oldest_updated:
-                oldest_dt = datetime.fromisoformat(
-                    oldest_updated.replace("Z", "+00:00")
-                )
-                if oldest_dt < since_dt:
-                    break
-
-            if len(items) < 100:
-                break
-            page += 1
-        except Exception:
-            logger.exception("Issues API error (page %d)", page)
-            return None if page == 1 else closed_issues
-
-    return closed_issues
+    return await paginated_rest_api(
+        url, since, filter_fn=filter_issue, context="closed issues"
+    )
 
 
 async def fetch_merged_prs(repo: str, since: str) -> list[dict[str, Any]] | None:
@@ -222,59 +258,17 @@ async def fetch_merged_prs(repo: str, since: str) -> list[dict[str, Any]] | None
         repo: Owner/repo string (e.g. "YourMoveLabs/agent-fishbowl")
         since: ISO date string (e.g. "2026-02-13") — PRs merged on or after
     """
-    client = get_shared_client()
-    headers = github_headers()
     url = f"https://api.github.com/repos/{repo}/pulls"
-    merged: list[dict[str, Any]] = []
-    page = 1
 
-    if "T" not in since:
-        since_dt = datetime.fromisoformat(since + "T00:00:00+00:00")
-    else:
-        since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+    def filter_merged_pr(pr: dict[str, Any], since_dt: datetime) -> bool:
+        """Check if PR was merged in our window."""
+        merged_at = pr.get("merged_at")
+        if not merged_at:
+            return False
 
-    while True:
-        params = {
-            "state": "closed",
-            "sort": "updated",
-            "direction": "desc",
-            "per_page": "100",
-            "page": str(page),
-        }
-        try:
-            resp = await client.get(url, headers=headers, params=params)
-            if resp.status_code != 200:
-                logger.warning(
-                    "Pulls API returned %d (page %d)", resp.status_code, page
-                )
-                return None if page == 1 else merged
-            items = resp.json()
-            if not items:
-                break
+        pr_merged_dt = datetime.fromisoformat(merged_at.replace("Z", "+00:00"))
+        return pr_merged_dt >= since_dt
 
-            stop_paging = False
-            for pr in items:
-                merged_at = pr.get("merged_at")
-                if not merged_at:
-                    continue
-                pr_merged_dt = datetime.fromisoformat(merged_at.replace("Z", "+00:00"))
-                if pr_merged_dt >= since_dt:
-                    merged.append(pr)
-
-            # Stop if the oldest item on this page was updated before our window
-            oldest_updated = items[-1].get("updated_at", "")
-            if oldest_updated:
-                oldest_dt = datetime.fromisoformat(
-                    oldest_updated.replace("Z", "+00:00")
-                )
-                if oldest_dt < since_dt:
-                    stop_paging = True
-
-            if stop_paging or len(items) < 100:
-                break
-            page += 1
-        except Exception:
-            logger.exception("Pulls API error (page %d)", page)
-            return None if page == 1 else merged
-
-    return merged
+    return await paginated_rest_api(
+        url, since, filter_fn=filter_merged_pr, context="merged PRs"
+    )
