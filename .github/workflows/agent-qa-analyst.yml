@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
       - name: Run QA Analyst (default job)
-        uses: YourMoveLabs/agent-harness@fdc364e879682d2068f72f13fecbf161574b1c1d  # v1.5.3
+        uses: YourMoveLabs/agent-harness@fa3439510d0b87563260c9bd27f0e1dd51ce1843  # v1.6.0
         with:
           role: qa-analyst
           job: default

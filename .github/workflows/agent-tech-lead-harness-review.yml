@@ -39,7 +39,7 @@ jobs:
 
       - name: Run Tech Lead harness request review
         if: steps.preflight.outputs.skip != 'true'
-        uses: YourMoveLabs/agent-harness@fdc364e879682d2068f72f13fecbf161574b1c1d  # v1.5.3
+        uses: YourMoveLabs/agent-harness@fa3439510d0b87563260c9bd27f0e1dd51ce1843  # v1.6.0
         with:
           role: tech-lead
           job: harness-request-review
