@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 
 from api.config import get_settings
 from api.middleware import RequestIDMiddleware
-from api.routers import activity, articles, blog, feedback, goals, stats
+from api.routers import activity, articles, blog, board_health, feedback, goals, stats
 from api.services.blob_storage import check_storage_connectivity
 
 logger = logging.getLogger(__name__)
@@ -60,6 +60,7 @@ app.include_router(goals.router, prefix="/api/fishbowl")
 app.include_router(feedback.router, prefix="/api/fishbowl")
 app.include_router(blog.router, prefix="/api/fishbowl")
 app.include_router(stats.router, prefix="/api/fishbowl")
+app.include_router(board_health.router, prefix="/api/fishbowl")
 
 
 def _check_config() -> str:

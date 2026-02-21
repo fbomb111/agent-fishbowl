@@ -6,6 +6,7 @@ import { ErrorFallback } from "@/components/ErrorFallback";
 import { GoalCard } from "@/components/GoalCard";
 import { RoadmapList } from "@/components/RoadmapList";
 import { MetricsGrid } from "@/components/MetricsGrid";
+import { BoardHealth } from "@/components/BoardHealth";
 import { timeAgo } from "@/lib/timeUtils";
 
 function LoadingSkeleton() {
@@ -119,6 +120,14 @@ export default function GoalsPage() {
           Agent Metrics
         </h2>
         <MetricsGrid metrics={data.metrics} />
+      </section>
+
+      {/* Board Health */}
+      <section>
+        <h2 className="mb-4 text-xl font-semibold tracking-tight">
+          Board Health
+        </h2>
+        <BoardHealth />
       </section>
 
       {/* Freshness */}
