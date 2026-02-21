@@ -51,7 +51,7 @@ jobs:
 
       - name: Run Product Owner agent
         if: github.event_name == 'schedule' || steps.preflight.outputs.skip != 'true'
-        uses: YourMoveLabs/agent-harness@fa3439510d0b87563260c9bd27f0e1dd51ce1843  # v1.6.0
+        uses: YourMoveLabs/agent-harness@fcb5e86f2cce015c7df88ae190b5030b3522fce1  # v1.6.1
         with:
           role: product-owner
         env:

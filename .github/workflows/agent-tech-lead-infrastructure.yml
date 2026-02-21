@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
       - name: Run Tech Lead infrastructure review
-        uses: YourMoveLabs/agent-harness@fa3439510d0b87563260c9bd27f0e1dd51ce1843  # v1.6.0
+        uses: YourMoveLabs/agent-harness@fcb5e86f2cce015c7df88ae190b5030b3522fce1  # v1.6.1
         with:
           role: tech-lead
           job: infrastructure-review

@@ -2,6 +2,8 @@
 
 import html
 import logging
+import mimetypes
+import re
 
 import httpx
 from fastapi import APIRouter, Header, HTTPException, Path, Query
@@ -12,6 +14,7 @@ from api.models.blog import BlogIndex, BlogPost
 from api.services.blob_storage import (
     get_blog_index,
     read_blog_html,
+    upload_blog_asset,
     upload_blog_html,
     write_blog_index,
 )
@@ -21,6 +24,43 @@ from api.services.http_client import get_shared_client
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/blog", tags=["blog"])
+
+_IMAGE_SRC_RE = re.compile(r'src=["\']((images/[^"\']+))["\']')
+
+
+async def _copy_blog_images(client: httpx.AsyncClient, base_url: str, slug: str) -> int:
+    """Discover image references in the source HTML and copy them to fishbowl storage.
+
+    Fetches the HTML from the source, finds all src="images/..." references,
+    downloads each image, and uploads it to the fishbowl blog storage.
+
+    Returns the number of images successfully copied.
+    """
+    resp = await client.get(f"{base_url}/index.html")
+    if resp.status_code != 200:
+        return 0
+
+    image_paths = set()
+    for match in _IMAGE_SRC_RE.finditer(resp.text):
+        image_paths.add(match.group(1))
+
+    copied = 0
+    for rel_path in sorted(image_paths):
+        try:
+            img_resp = await client.get(f"{base_url}/{rel_path}")
+            img_resp.raise_for_status()
+
+            content_type = img_resp.headers.get("content-type", "")
+            if not content_type or content_type == "application/octet-stream":
+                guessed, _ = mimetypes.guess_type(rel_path)
+                content_type = guessed or "application/octet-stream"
+
+            await upload_blog_asset(slug, rel_path, img_resp.content, content_type)
+            copied += 1
+        except Exception:
+            logger.warning("Could not copy image %s for blog %s", rel_path, slug)
+
+    return copied
 
 
 @router.get("", response_model=BlogIndex)
@@ -43,8 +83,10 @@ async def add_blog_post(post: BlogPost, x_ingest_key: str = Header()):
     if any(p.id == post.id for p in index.posts):
         return {"status": "exists", "id": post.id}
 
-    # Copy HTML from source preview_url to fishbowl storage
+    # Copy HTML and images from source preview_url to fishbowl storage
     copied = False
+    images_copied = 0
+    source_base_url = post.preview_url.rsplit("/index.html", 1)[0].rstrip("/")
     try:
         client = get_shared_client()
         resp = await client.get(post.preview_url)
@@ -54,6 +96,16 @@ async def add_blog_post(post: BlogPost, x_ingest_key: str = Header()):
         post.preview_url = f"{FISHBOWL_BLOG_BASE}/{post.slug}/index.html"
         copied = True
         logger.info("Copied blog HTML for %s to fishbowl storage", post.slug)
+
+        # Copy images referenced in the HTML
+        try:
+            images_copied = await _copy_blog_images(client, source_base_url, post.slug)
+            if images_copied:
+                logger.info("Copied %d images for blog %s", images_copied, post.slug)
+        except Exception:
+            logger.warning(
+                "Could not copy images for blog %s", post.slug, exc_info=True
+            )
     except Exception:
         logger.warning(
             "Could not copy blog HTML for %s from %s — registering with original URL",
@@ -64,7 +116,12 @@ async def add_blog_post(post: BlogPost, x_ingest_key: str = Header()):
 
     index.posts.insert(0, post)
     await write_blog_index(index.posts)
-    return {"status": "created", "id": post.id, "copied": copied}
+    return {
+        "status": "created",
+        "id": post.id,
+        "copied": copied,
+        "images_copied": images_copied,
+    }
 
 
 @router.post("/resanitize")

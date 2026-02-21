@@ -243,6 +243,23 @@ async def upload_blog_html(slug: str, html: str) -> None:
     )
 
 
+async def upload_blog_asset(
+    slug: str, rel_path: str, data: bytes, content_type: str
+) -> None:
+    """Upload a blog asset (image, etc.) to $web/blog/{slug}/{rel_path}."""
+    validate_blob_path_segment(slug)
+    for segment in rel_path.split("/"):
+        if segment:
+            validate_blob_path_segment(segment)
+    client = _get_blog_container_client()
+    blob = client.get_blob_client(f"blog/{slug}/{rel_path}")
+    blob.upload_blob(
+        data,
+        overwrite=True,
+        content_settings=ContentSettings(content_type=content_type),
+    )
+
+
 async def read_blog_html(slug: str) -> str | None:
     """Read blog post HTML from $web/blog/{slug}/index.html.
 

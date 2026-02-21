@@ -34,7 +34,7 @@ jobs:
       # HARNESS PIN — must match harness_ref in config/agent-flow.yaml
       # Bump via: scripts/bump-harness.sh <new-version>
       - name: Run agent
-        uses: YourMoveLabs/agent-harness@fa3439510d0b87563260c9bd27f0e1dd51ce1843  # v1.6.0
+        uses: YourMoveLabs/agent-harness@fcb5e86f2cce015c7df88ae190b5030b3522fce1  # v1.6.1
         with:
           role: ${{ inputs.role }}
           job: ${{ inputs.job }}
