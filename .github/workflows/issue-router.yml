@@ -1,0 +1,48 @@
+name: Issue Router
+
+on:
+  issues:
+    types: [labeled, unlabeled]
+
+permissions:
+  contents: write    # required for repository_dispatch via GITHUB_TOKEN
+
+jobs:
+  route:
+    name: Route issue event
+    runs-on: self-hosted
+    timeout-minutes: 5
+    steps:
+      - name: Route label event
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LABEL: ${{ github.event.label.name }}
+          ACTION: ${{ github.event.action }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          dispatch() {
+            echo "Routing $ACTION '$LABEL' on #$ISSUE_NUMBER → $1"
+            gh api "repos/$GITHUB_REPOSITORY/dispatches" \
+              --input - <<< "{
+                \"event_type\": \"$1\",
+                \"client_payload\": {
+                  \"issue_number\": $ISSUE_NUMBER,
+                  \"label_name\": \"$LABEL\",
+                  \"action\": \"$ACTION\"
+                }
+              }"
+          }
+
+          if [ "$ACTION" = "labeled" ]; then
+            case "$LABEL" in
+              role/engineer)       dispatch "issue-labeled-engineer" ;;
+              role/ops|priority/*) dispatch "issue-labeled-ops" ;;
+              harness/request)     dispatch "issue-labeled-human-escalation" ;;
+              *) echo "No route for label '$LABEL'" ;;
+            esac
+          elif [ "$ACTION" = "unlabeled" ]; then
+            case "$LABEL" in
+              status/blocked) dispatch "issue-unlabeled-ops" ;;
+              *) echo "No route for unlabeled '$LABEL'" ;;
+            esac
+          fi

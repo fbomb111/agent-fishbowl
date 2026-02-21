@@ -43,6 +43,18 @@ events:
   dispute-detected:
     description: "Agent disagreement loop detected"
     status: stub  # receiver wired, no sender yet
+  issue-labeled-engineer:
+    description: "Router: role/engineer label applied"
+    status: external  # sent by issue-router.yml
+  issue-labeled-ops:
+    description: "Router: priority/* or role/ops label applied"
+    status: external  # sent by issue-router.yml
+  issue-unlabeled-ops:
+    description: "Router: status/blocked label removed"
+    status: external  # sent by issue-router.yml
+  issue-labeled-human-escalation:
+    description: "Router: harness/request label applied"
+    status: external  # sent by issue-router.yml
 
 # ─── Agent Nodes ──────────────────────────────────────────────────
 #
@@ -139,8 +151,8 @@ agents:
       group: agent-engineer
       cancel_in_progress: false
     triggers:
-      - type: issues
-        actions: [labeled, unlabeled]
+      - type: repository_dispatch
+        event: issue-labeled-engineer
       - type: repository_dispatch
         event: agent-product-owner-complete
       - type: repository_dispatch
@@ -173,8 +185,10 @@ agents:
       contents: read
     # concurrency: inherited from reusable-agent.yml → agent-ops-engineer
     triggers:
-      - type: issues
-        actions: [labeled, unlabeled]
+      - type: repository_dispatch
+        event: issue-labeled-ops
+      - type: repository_dispatch
+        event: issue-unlabeled-ops
       - type: repository_dispatch
         event: agent-product-owner-complete
       - type: workflow_dispatch
@@ -717,6 +731,9 @@ infrastructure:
   ci:
     workflow: ci.yml
     note: "Produces check_suite events that engineer reacts to"
+  issue-router:
+    workflow: issue-router.yml
+    note: "Routes issues/labeled and issues/unlabeled to correct agent via repository_dispatch"
 
 # ─── Safety Constraints ──────────────────────────────────────────
 # Validated by scripts/validate-flow.py

@@ -1,5 +1,5 @@
 <!-- AUTO-GENERATED — Do not edit. Edit config/agent-flow.yaml instead. -->
-<!-- Last generated: 2026-02-21 15:55 UTC -->
+<!-- Last generated: 2026-02-21 18:43 UTC -->
 <!-- Regenerate: python scripts/validate-flow.py --mermaid -o docs/agent-flow.md -->
 
 # Agent Flow Graph
@@ -71,6 +71,7 @@ flowchart TD
         QA_TRIAGE_WF[Qa Triage]:::infraStyle
         INGEST_WF[Ingest]:::infraStyle
         CI_WF[Ci]:::infraStyle
+        ISSUE_ROUTER_WF[Issue Router]:::infraStyle
     end
 
     ISSUE_OPENED{{Issue Opened}}:::external
@@ -102,10 +103,8 @@ flowchart TD
     TECH_LEAD_PIPELINE_QUALITY_REVIEW -.->|"always"| PRODUCT_OWNER
 
     ISSUE_OPENED -.-> TRIAGE
-    ISSUE_LABELED -.-> ENGINEER
     PR_MERGED -.-> ENGINEER
     CHECK_SUITE -.-> ENGINEER
-    ISSUE_LABELED -.-> OPS_ENGINEER
     AZURE_ALERT -.-> SITE_RELIABILITY
 
     classDef external fill:#f9f,stroke:#333,stroke-width:1px
@@ -154,6 +153,10 @@ flowchart TD
 | `azure-alert` | Azure Monitor alert fired via alert bridge function | external |
 | `deploy-complete` | Deployment finished, triggers QA triage (deploy.yml → qa-triage.yml) | external |
 | `dispute-detected` | Agent disagreement loop detected | stub |
+| `issue-labeled-engineer` | Router: role/engineer label applied | external |
+| `issue-labeled-human-escalation` | Router: harness/request label applied | external |
+| `issue-labeled-ops` | Router: priority/* or role/ops label applied | external |
+| `issue-unlabeled-ops` | Router: status/blocked label removed | external |
 | `pr-needs-review` | PR Manager flagged a PR for AI review (non-trivial risk) (payload: pr_number, risk_level, chain_depth) | external |
 
 ## Agent Schedules
@@ -162,12 +165,12 @@ flowchart TD
 |-------|----------|-----|----------------|
 | content-creator | `0 10 * * *` | daily | Manual |
 | customer-ops | `0 */4 * * *` | daily | Manual |
-| engineer | --- |  | Issues labeled/unlabeled, `agent-product-owner-complete`, `agent-reviewer-feedback`, PR closed, Check suite, Manual |
+| engineer | --- |  | `issue-labeled-engineer`, `agent-product-owner-complete`, `agent-reviewer-feedback`, PR closed, Check suite, Manual |
 | escalation-lead | `0 18 * * 3` | Wed | `dispute-detected`, Manual |
 | financial-analyst | `0 12 * * *` | daily | Manual |
 | human-ops | `0 15 * * 5` | Fri | Manual |
 | marketing-strategist | `0 8 * * 1` | Mon | Manual |
-| ops-engineer | --- |  | Issues labeled/unlabeled, `agent-product-owner-complete`, Manual |
+| ops-engineer | --- |  | `issue-labeled-ops`, `issue-unlabeled-ops`, `agent-product-owner-complete`, Manual |
 | product-analyst/market-intelligence | `0 3 * * 2,4` | Tue/Thu | Manual |
 | product-analyst/product-discovery | `0 3 * * 1,3,5` | Mon/Wed/Fri | Manual |
 | product-analyst/revenue-operations | --- |  | Manual |

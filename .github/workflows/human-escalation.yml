@@ -1,8 +1,8 @@
 name: Human Escalation
 
 on:
-  issues:
-    types: [labeled]
+  repository_dispatch:
+    types: [issue-labeled-human-escalation]
 
 permissions:
   issues: write
@@ -10,15 +10,15 @@ permissions:
 jobs:
   notify:
     name: Notify human operator
-    if: github.event.label.name == 'harness/request'
     runs-on: self-hosted
     timeout-minutes: 5
     steps:
       - name: Comment on issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.client_payload.issue_number }}
         run: |
-          gh issue comment "${{ github.event.issue.number }}" \
+          gh issue comment "$ISSUE_NUMBER" \
             --repo "${{ github.repository }}" \
             --body "🔔 **Human action needed** — this issue requires a harness or infrastructure change that agents can't make themselves.
 

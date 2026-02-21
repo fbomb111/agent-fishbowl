@@ -1,10 +1,8 @@
 name: Agent - Operations Engineer
 
 on:
-  issues:
-    types: [labeled, unlabeled]
   repository_dispatch:
-    types: [agent-product-owner-complete]
+    types: [agent-product-owner-complete, issue-labeled-ops, issue-unlabeled-ops]
   workflow_dispatch: {}
 
 permissions:
@@ -13,10 +11,6 @@ permissions:
 jobs:
   run:
     if: >
-      (github.event_name == 'issues' && github.event.action == 'labeled' &&
-       (startsWith(github.event.label.name, 'priority/') || github.event.label.name == 'role/ops')) ||
-      (github.event_name == 'issues' && github.event.action == 'unlabeled' &&
-       github.event.label.name == 'status/blocked') ||
       github.event_name == 'repository_dispatch' ||
       github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/reusable-agent.yml

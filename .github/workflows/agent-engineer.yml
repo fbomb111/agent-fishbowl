@@ -1,10 +1,8 @@
 name: Agent - Engineer
 
 on:
-  issues:
-    types: [labeled]                     # React to role/engineer label — the canonical routing signal
   repository_dispatch:
-    types: [agent-product-owner-complete, agent-reviewer-feedback]
+    types: [agent-product-owner-complete, agent-reviewer-feedback, issue-labeled-engineer]
   pull_request:
     types: [closed]
     branches: [main]
@@ -26,15 +24,10 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 30
     # Event-driven: wake up on meaningful state changes
-    # - issues/labeled role/engineer: PO routed issue to engineer (the canonical signal)
+    # - repository_dispatch: PO complete, reviewer feedback, or issue-router label dispatch
     # - pull_request/closed: PR merged (pick up next task)
-    # - repository_dispatch: PO complete or reviewer feedback
     # - check_suite/failure: CI broke (fix it)
-    # Note: priority/* labels removed as trigger — they double-fire alongside role/engineer.
-    # Note: unlabeled events removed — status/blocked removal is rare, use workflow_dispatch.
     if: >
-      (github.event_name == 'issues' && github.event.action == 'labeled' &&
-       github.event.label.name == 'role/engineer') ||
       (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
       github.event_name == 'repository_dispatch' ||
       (github.event_name == 'check_suite' && github.event.check_suite.conclusion == 'failure') ||
