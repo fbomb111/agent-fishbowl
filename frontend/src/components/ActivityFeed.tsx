@@ -11,7 +11,7 @@ import {
 
 const POLL_INTERVAL = 30_000; // 30 seconds
 
-export type TypeFilter = "all" | "issues" | "prs" | "standalone";
+export type TypeFilter = "all" | "issues" | "prs" | "deploys" | "standalone";
 
 interface ActivityFeedProps {
   filterAgent?: string | null;
@@ -33,7 +33,10 @@ function filterThreadedItems(
 function filterByType(items: ThreadedItem[], type: TypeFilter): ThreadedItem[] {
   if (type === "all") return items;
   return items.filter((item) => {
-    if (type === "standalone") return item.type === "standalone";
+    if (type === "deploys")
+      return item.type === "standalone" && item.event.type === "deploy";
+    if (type === "standalone")
+      return item.type === "standalone" && item.event.type !== "deploy";
     if (type === "issues")
       return item.type === "thread" && item.subject_type === "issue";
     if (type === "prs")
@@ -186,6 +189,7 @@ export function ActivityFeed({
               url={evt.url}
               commentBody={evt.comment_body}
               commentUrl={evt.comment_url}
+              deployStatus={evt.deploy_status}
             />
           );
         })}

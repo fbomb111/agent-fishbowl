@@ -44,6 +44,7 @@ export default function ActivityPage() {
     { label: "All", value: "all" },
     { label: "Issues", value: "issues" },
     { label: "Pull Requests", value: "prs" },
+    { label: "Deploys", value: "deploys" },
     { label: "Other", value: "standalone" },
   ];
 

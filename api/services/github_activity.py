@@ -3,6 +3,7 @@
 Fetches repository events from the GitHub API, parses them into ActivityEvent
 dicts, groups them into threads by issue/PR, and caches the results.
 Falls back to the Issues/PRs REST API when the Events API returns empty.
+Includes deploy events from GitHub Actions workflow runs.
 """
 
 import asyncio
@@ -263,14 +264,82 @@ async def _fetch_fallback_events(limit: int = 30) -> list[dict[str, Any]]:
     return events[:limit]
 
 
+async def _fetch_deploy_events(limit: int = 10) -> list[dict[str, Any]]:
+    """Fetch recent deploy workflow runs and convert them to activity events.
+
+    Queries the GitHub Actions API for the deploy.yml workflow runs and
+    creates standalone deploy events with status (success/failure).
+    """
+    settings = get_settings()
+    repo = settings.github_repo
+    if not repo:
+        return []
+
+    url = f"https://api.github.com/repos/{repo}/actions/workflows/deploy.yml/runs"
+    data = await github_api_get(
+        url,
+        params={"per_page": str(limit)},
+        context="deploy workflow runs",
+    )
+    if not data or not isinstance(data, dict):
+        return []
+
+    runs = data.get("workflow_runs", [])
+    events: list[dict[str, Any]] = []
+    for run in runs:
+        if run.get("status") != "completed":
+            continue
+
+        conclusion = run.get("conclusion", "unknown")
+        head_sha = run.get("head_sha", "")[:7]
+        title = run.get("display_title", "")
+        run_url = run.get("html_url", "")
+        created_at = run.get("created_at", "")
+        actor_login = run.get("actor", {}).get("login", "")
+        actor_avatar = run.get("actor", {}).get("avatar_url")
+
+        if conclusion == "success":
+            status_label = "healthy"
+            desc = f"Deployed {head_sha}: {title}"
+        elif conclusion == "failure":
+            status_label = "failed"
+            desc = f"Deploy failed {head_sha}: {title}"
+        else:
+            status_label = conclusion
+            desc = f"Deploy {conclusion} {head_sha}: {title}"
+
+        events.append({
+            "id": f"deploy-{run.get('id', '')}",
+            "type": "deploy",
+            "actor": _map_actor(actor_login),
+            "avatar_url": actor_avatar,
+            "description": desc,
+            "timestamp": created_at,
+            "url": run_url,
+            "deploy_status": status_label,
+        })
+
+    return events
+
+
 async def _get_events_with_fallback(per_page: int = 50) -> list[dict[str, Any]]:
-    """Fetch activity events via Events API, falling back to Issues/PRs API."""
-    all_raw = await _fetch_all_events(per_page)
+    """Fetch activity events via Events API, falling back to Issues/PRs API.
+
+    Also fetches deploy events from workflow runs and merges them in.
+    """
+    all_raw, deploy_events = await asyncio.gather(
+        _fetch_all_events(per_page),
+        _fetch_deploy_events(),
+    )
     events = parse_events(all_raw)
 
     if not events:
         logger.info("Events API empty — using Issues/PRs API fallback")
         events = await _fetch_fallback_events(per_page)
+
+    # Merge deploy events into the feed
+    events.extend(deploy_events)
+    events.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
 
     await _backfill_pr_titles(events)
     return events
