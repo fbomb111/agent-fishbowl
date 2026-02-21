@@ -30,7 +30,7 @@ INTER_ARTICLE_DELAY = 1.5
 
 # Minimum relevance score to include an article
 # (configurable via RELEVANCE_THRESHOLD env var)
-RELEVANCE_THRESHOLD = int(os.environ.get("RELEVANCE_THRESHOLD", "5"))
+RELEVANCE_THRESHOLD = int(os.environ.get("RELEVANCE_THRESHOLD", "4"))
 
 
 @dataclass
