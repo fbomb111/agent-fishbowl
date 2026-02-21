@@ -40,31 +40,34 @@ class TestSearchCount:
     """Tests for _search_count()."""
 
     @pytest.mark.asyncio
-    async def test_returns_total_count(self, monkeypatch):
-        async def mock_get(self, url, **kwargs):
-            return httpx.Response(200, json={"total_count": 42, "items": []})
-
-        monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
-        result = await _search_count("repo:test is:issue is:open")
+    async def test_returns_total_count(self):
+        with patch(
+            "api.services.goals_metrics.github_api_get",
+            new_callable=AsyncMock,
+            return_value={"total_count": 42, "items": []},
+        ):
+            result = await _search_count("repo:test is:issue is:open")
         assert result == 42
 
     @pytest.mark.asyncio
-    async def test_returns_none_on_error(self, monkeypatch):
-        async def mock_get(self, url, **kwargs):
-            return httpx.Response(403, json={"message": "rate limited"})
-
-        monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
-        result = await _search_count("repo:test is:issue is:open")
+    async def test_returns_none_on_error(self):
+        with patch(
+            "api.services.goals_metrics.github_api_get",
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
+            result = await _search_count("repo:test is:issue is:open")
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_none_on_exception(self, monkeypatch):
-        async def mock_get(self, url, **kwargs):
-            raise httpx.HTTPError("connection failed")
-
-        monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
-        result = await _search_count("repo:test is:issue is:open")
-        assert result is None
+    async def test_returns_zero_when_total_count_missing(self):
+        with patch(
+            "api.services.goals_metrics.github_api_get",
+            new_callable=AsyncMock,
+            return_value={"items": []},
+        ):
+            result = await _search_count("repo:test is:issue is:open")
+        assert result == 0
 
 
 class TestCountCommits:
