@@ -42,7 +42,7 @@ class TestSearchCount:
     @pytest.mark.asyncio
     async def test_returns_total_count(self):
         with patch(
-            "api.services.goals_metrics.github_api_get",
+            "api.services.goals_metrics_queries.github_api_get",
             new_callable=AsyncMock,
             return_value={"total_count": 42, "items": []},
         ):
@@ -52,7 +52,7 @@ class TestSearchCount:
     @pytest.mark.asyncio
     async def test_returns_none_on_error(self):
         with patch(
-            "api.services.goals_metrics.github_api_get",
+            "api.services.goals_metrics_queries.github_api_get",
             new_callable=AsyncMock,
             return_value=None,
         ):
@@ -62,7 +62,7 @@ class TestSearchCount:
     @pytest.mark.asyncio
     async def test_returns_zero_when_total_count_missing(self):
         with patch(
-            "api.services.goals_metrics.github_api_get",
+            "api.services.goals_metrics_queries.github_api_get",
             new_callable=AsyncMock,
             return_value={"items": []},
         ):
@@ -168,17 +168,17 @@ class TestFetchWindowedCounts:
 
         with (
             patch(
-                "api.services.goals_metrics._search_count",
+                "api.services.goals_metrics_windows._search_count",
                 new_callable=AsyncMock,
                 side_effect=[3, 10, 25],  # issues_closed: 24h, 7d, 30d
             ),
             patch(
-                "api.services.goals_metrics._count_commits",
+                "api.services.goals_metrics_windows._count_commits",
                 new_callable=AsyncMock,
                 side_effect=[3, 8, 25],  # commits: 24h, 7d, 30d
             ),
             patch(
-                "api.services.goals_metrics.fetch_merged_prs",
+                "api.services.goals_metrics_windows.fetch_merged_prs",
                 new_callable=AsyncMock,
                 return_value=merged_prs,
             ),
@@ -207,7 +207,7 @@ class TestFetchWindowedCounts:
         mock_results = [[], 2, 5, 10, 3, 8, 20]
 
         with patch(
-            "api.services.goals_metrics.asyncio.gather",
+            "api.services.goals_metrics_windows.asyncio.gather",
             new_callable=AsyncMock,
             return_value=mock_results,
         ):
@@ -415,22 +415,22 @@ class TestFetchAgentStats:
 
         with (
             patch(
-                "api.services.goals_metrics._search_items",
+                "api.services.goals_metrics_agents._search_items",
                 new_callable=AsyncMock,
                 side_effect=[closed_issues, [], []],
             ),
             patch(
-                "api.services.goals_metrics.fetch_merged_prs",
+                "api.services.goals_metrics_agents.fetch_merged_prs",
                 new_callable=AsyncMock,
                 return_value=[],
             ),
             patch(
-                "api.services.goals_metrics._fetch_review_counts",
+                "api.services.goals_metrics_agents._fetch_review_counts",
                 new_callable=AsyncMock,
                 return_value={},
             ),
             patch(
-                "api.services.goals_metrics._fetch_commits_by_agent",
+                "api.services.goals_metrics_agents._fetch_commits_by_agent",
                 new_callable=AsyncMock,
                 return_value={},
             ),
@@ -451,22 +451,22 @@ class TestFetchAgentStats:
 
         with (
             patch(
-                "api.services.goals_metrics._search_items",
+                "api.services.goals_metrics_agents._search_items",
                 new_callable=AsyncMock,
                 side_effect=[closed_issues, [], []],
             ),
             patch(
-                "api.services.goals_metrics.fetch_merged_prs",
+                "api.services.goals_metrics_agents.fetch_merged_prs",
                 new_callable=AsyncMock,
                 return_value=[],
             ),
             patch(
-                "api.services.goals_metrics._fetch_review_counts",
+                "api.services.goals_metrics_agents._fetch_review_counts",
                 new_callable=AsyncMock,
                 return_value={},
             ),
             patch(
-                "api.services.goals_metrics._fetch_commits_by_agent",
+                "api.services.goals_metrics_agents._fetch_commits_by_agent",
                 new_callable=AsyncMock,
                 return_value={},
             ),
@@ -486,22 +486,22 @@ class TestFetchAgentStats:
 
         with (
             patch(
-                "api.services.goals_metrics._search_items",
+                "api.services.goals_metrics_agents._search_items",
                 new_callable=AsyncMock,
                 side_effect=[[], opened_issues, []],
             ),
             patch(
-                "api.services.goals_metrics.fetch_merged_prs",
+                "api.services.goals_metrics_agents.fetch_merged_prs",
                 new_callable=AsyncMock,
                 return_value=[],
             ),
             patch(
-                "api.services.goals_metrics._fetch_review_counts",
+                "api.services.goals_metrics_agents._fetch_review_counts",
                 new_callable=AsyncMock,
                 return_value={},
             ),
             patch(
-                "api.services.goals_metrics._fetch_commits_by_agent",
+                "api.services.goals_metrics_agents._fetch_commits_by_agent",
                 new_callable=AsyncMock,
                 return_value={},
             ),
@@ -521,22 +521,22 @@ class TestFetchAgentStats:
 
         with (
             patch(
-                "api.services.goals_metrics._search_items",
+                "api.services.goals_metrics_agents._search_items",
                 new_callable=AsyncMock,
                 side_effect=[[], [], prs_opened],
             ),
             patch(
-                "api.services.goals_metrics.fetch_merged_prs",
+                "api.services.goals_metrics_agents.fetch_merged_prs",
                 new_callable=AsyncMock,
                 return_value=[],
             ),
             patch(
-                "api.services.goals_metrics._fetch_review_counts",
+                "api.services.goals_metrics_agents._fetch_review_counts",
                 new_callable=AsyncMock,
                 return_value={},
             ),
             patch(
-                "api.services.goals_metrics._fetch_commits_by_agent",
+                "api.services.goals_metrics_agents._fetch_commits_by_agent",
                 new_callable=AsyncMock,
                 return_value={},
             ),
@@ -554,22 +554,22 @@ class TestFetchAgentStats:
 
         with (
             patch(
-                "api.services.goals_metrics._search_items",
+                "api.services.goals_metrics_agents._search_items",
                 new_callable=AsyncMock,
                 side_effect=[[], [], []],
             ),
             patch(
-                "api.services.goals_metrics.fetch_merged_prs",
+                "api.services.goals_metrics_agents.fetch_merged_prs",
                 new_callable=AsyncMock,
                 return_value=prs,
             ),
             patch(
-                "api.services.goals_metrics._fetch_review_counts",
+                "api.services.goals_metrics_agents._fetch_review_counts",
                 new_callable=AsyncMock,
                 return_value={},
             ),
             patch(
-                "api.services.goals_metrics._fetch_commits_by_agent",
+                "api.services.goals_metrics_agents._fetch_commits_by_agent",
                 new_callable=AsyncMock,
                 return_value={},
             ),
@@ -590,22 +590,22 @@ class TestFetchAgentStats:
 
         with (
             patch(
-                "api.services.goals_metrics._search_items",
+                "api.services.goals_metrics_agents._search_items",
                 new_callable=AsyncMock,
                 side_effect=[closed_issues, [], []],
             ),
             patch(
-                "api.services.goals_metrics.fetch_merged_prs",
+                "api.services.goals_metrics_agents.fetch_merged_prs",
                 new_callable=AsyncMock,
                 return_value=[],
             ),
             patch(
-                "api.services.goals_metrics._fetch_review_counts",
+                "api.services.goals_metrics_agents._fetch_review_counts",
                 new_callable=AsyncMock,
                 return_value={},
             ),
             patch(
-                "api.services.goals_metrics._fetch_commits_by_agent",
+                "api.services.goals_metrics_agents._fetch_commits_by_agent",
                 new_callable=AsyncMock,
                 return_value={},
             ),
@@ -629,22 +629,22 @@ class TestFetchAgentStats:
 
         with (
             patch(
-                "api.services.goals_metrics._search_items",
+                "api.services.goals_metrics_agents._search_items",
                 new_callable=AsyncMock,
                 side_effect=[closed_issues, [], []],
             ),
             patch(
-                "api.services.goals_metrics.fetch_merged_prs",
+                "api.services.goals_metrics_agents.fetch_merged_prs",
                 new_callable=AsyncMock,
                 return_value=prs,
             ),
             patch(
-                "api.services.goals_metrics._fetch_review_counts",
+                "api.services.goals_metrics_agents._fetch_review_counts",
                 new_callable=AsyncMock,
                 return_value={"reviewer": 5},
             ),
             patch(
-                "api.services.goals_metrics._fetch_commits_by_agent",
+                "api.services.goals_metrics_agents._fetch_commits_by_agent",
                 new_callable=AsyncMock,
                 return_value={},
             ),
@@ -662,22 +662,22 @@ class TestFetchAgentStats:
 
         with (
             patch(
-                "api.services.goals_metrics._search_items",
+                "api.services.goals_metrics_agents._search_items",
                 new_callable=AsyncMock,
                 side_effect=[[], [], []],
             ),
             patch(
-                "api.services.goals_metrics.fetch_merged_prs",
+                "api.services.goals_metrics_agents.fetch_merged_prs",
                 new_callable=AsyncMock,
                 return_value=prs,
             ),
             patch(
-                "api.services.goals_metrics._fetch_review_counts",
+                "api.services.goals_metrics_agents._fetch_review_counts",
                 new_callable=AsyncMock,
                 return_value={},
             ),
             patch(
-                "api.services.goals_metrics._fetch_commits_by_agent",
+                "api.services.goals_metrics_agents._fetch_commits_by_agent",
                 new_callable=AsyncMock,
                 return_value={},
             ),
@@ -699,22 +699,22 @@ class TestFetchAgentStats:
         """Review counts from _fetch_review_counts are merged into agent stats."""
         with (
             patch(
-                "api.services.goals_metrics._search_items",
+                "api.services.goals_metrics_agents._search_items",
                 new_callable=AsyncMock,
                 side_effect=[[], [], []],
             ),
             patch(
-                "api.services.goals_metrics.fetch_merged_prs",
+                "api.services.goals_metrics_agents.fetch_merged_prs",
                 new_callable=AsyncMock,
                 return_value=[],
             ),
             patch(
-                "api.services.goals_metrics._fetch_review_counts",
+                "api.services.goals_metrics_agents._fetch_review_counts",
                 new_callable=AsyncMock,
                 return_value={"reviewer": 12, "human": 3},
             ),
             patch(
-                "api.services.goals_metrics._fetch_commits_by_agent",
+                "api.services.goals_metrics_agents._fetch_commits_by_agent",
                 new_callable=AsyncMock,
                 return_value={},
             ),
@@ -730,22 +730,22 @@ class TestFetchAgentStats:
         """Commit counts from _fetch_commits_by_agent are merged into agent stats."""
         with (
             patch(
-                "api.services.goals_metrics._search_items",
+                "api.services.goals_metrics_agents._search_items",
                 new_callable=AsyncMock,
                 side_effect=[[], [], []],
             ),
             patch(
-                "api.services.goals_metrics.fetch_merged_prs",
+                "api.services.goals_metrics_agents.fetch_merged_prs",
                 new_callable=AsyncMock,
                 return_value=[],
             ),
             patch(
-                "api.services.goals_metrics._fetch_review_counts",
+                "api.services.goals_metrics_agents._fetch_review_counts",
                 new_callable=AsyncMock,
                 return_value={},
             ),
             patch(
-                "api.services.goals_metrics._fetch_commits_by_agent",
+                "api.services.goals_metrics_agents._fetch_commits_by_agent",
                 new_callable=AsyncMock,
                 return_value={"engineer": 42, "reviewer": 3},
             ),
