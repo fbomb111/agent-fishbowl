@@ -8,10 +8,12 @@ set -euo pipefail
 API_BASE="${FISHBOWL_API_BASE:-https://ca-agent-fishbowl-api.victoriousground-9f7e15f3.eastus.azurecontainerapps.io}"
 API_PREFIX="${API_BASE}/api/fishbowl"
 
-# Known agent roles (union of all endpoints)
+# Known agent roles (union of all endpoints — must match API role names)
 KNOWN_ROLES=(
-    content-creator customer-ops engineer human-ops ops-engineer
-    pm po qa-analyst reviewer sre tech-lead triage ux
+    content-creator customer-ops engineer escalation-lead financial-analyst
+    human-ops marketing-strategist ops-engineer product-analyst
+    product-manager product-owner qa-analyst reviewer site-reliability
+    tech-lead triage user-experience
 )
 # Service accounts that appear in by_agent but aren't agent roles
 KNOWN_SERVICE_ACCOUNTS=(github-actions human)

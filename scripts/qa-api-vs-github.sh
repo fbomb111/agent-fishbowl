@@ -53,6 +53,22 @@ should_check() {
     [[ "$RUN_ALL" == "true" ]] || [[ "$CHECK_FILTER" == "$1" ]]
 }
 
+# Map API role names to actual workflow filenames.
+# The API returns full role names (e.g. "product-owner") but workflow files
+# don't always follow the agent-{role}.yml pattern.
+role_to_workflow() {
+    local role="$1"
+    case "$role" in
+        product-owner)       echo "agent-product-owner.yml" ;;
+        product-manager)     echo "agent-strategic.yml" ;;
+        site-reliability)    echo "agent-site-reliability.yml" ;;
+        user-experience)     echo "agent-user-experience.yml" ;;
+        tech-lead)           echo "agent-scans.yml" ;;
+        product-analyst)     echo "agent-product-analyst-discovery.yml" ;;
+        *)                   echo "agent-${role}.yml" ;;
+    esac
+}
+
 CHECKED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # --- Results accumulator ---
@@ -94,7 +110,7 @@ if should_check "agent-status"; then
         API_CONCLUSION=$(echo "$AGENT_STATUS" | jq -r ".agents[$i].last_conclusion // \"unknown\"")
 
         # Find the workflow file for this role
-        WORKFLOW_FILE="agent-${ROLE}.yml"
+        WORKFLOW_FILE=$(role_to_workflow "$ROLE")
         GH_RUNS=$(gh run list --repo "$REPO" --workflow="$WORKFLOW_FILE" --limit 3 \
             --json status,conclusion,createdAt 2>/dev/null || echo "[]")
 
@@ -147,14 +163,10 @@ if should_check "workflows"; then
     AGENT_COUNT=$(echo "$AGENT_STATUS" | jq '.agents | length')
     for i in $(seq 0 $((AGENT_COUNT - 1))); do
         ROLE=$(echo "$AGENT_STATUS" | jq -r ".agents[$i].role")
-        EXPECTED_WF="agent-${ROLE}.yml"
+        EXPECTED_WF=$(role_to_workflow "$ROLE")
         if ! echo "$ACTUAL_WORKFLOWS" | grep -qF "$EXPECTED_WF"; then
-            # Also check .yaml extension
-            EXPECTED_YAML="agent-${ROLE}.yaml"
-            if ! echo "$ACTUAL_WORKFLOWS" | grep -qF "$EXPECTED_YAML"; then
-                MISSING=$(echo "$MISSING" | jq --arg role "$ROLE" --arg wf "$EXPECTED_WF" \
-                    '. + [{"role": $role, "expected_workflow": $wf}]')
-            fi
+            MISSING=$(echo "$MISSING" | jq --arg role "$ROLE" --arg wf "$EXPECTED_WF" \
+                '. + [{"role": $role, "expected_workflow": $wf}]')
         fi
     done
 
@@ -176,7 +188,7 @@ if should_check "commit-counts"; then
 
     DISCREPANCIES="[]"
     # Check a few key agents (not all — GitHub rate limits)
-    for AGENT in engineer content-creator po tech-lead sre; do
+    for AGENT in engineer content-creator product-owner tech-lead site-reliability; do
         API_COMMITS=$(echo "$GOALS" | jq --arg a "$AGENT" '.metrics.by_agent[$a].commits // 0')
 
         # Query GitHub commits by author
