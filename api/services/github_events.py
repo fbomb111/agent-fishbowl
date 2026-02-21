@@ -24,6 +24,14 @@ ACTOR_MAP: dict[str, str] = {
     "YourMoveLabs": "org",
 }
 
+
+def agent_role(login: str) -> str | None:
+    """Map a GitHub login to an agent role, or None if not a known actor."""
+    if login == "fbomb111":
+        return "human"
+    return ACTOR_MAP.get(login)
+
+
 # Event types that represent interactive human actions (issues, comments, reviews)
 _HUMAN_EVENT_TYPES = {
     "IssuesEvent",

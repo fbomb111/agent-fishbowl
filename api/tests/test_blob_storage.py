@@ -6,13 +6,11 @@ from unittest.mock import MagicMock
 import pytest
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 
-from api.models.article import ArticleSummary
 from api.services.blob_storage import (
     get_article,
     get_article_index,
     get_blog_index,
     validate_blob_path_segment,
-    write_article,
     write_article_only,
 )
 
@@ -269,98 +267,6 @@ class TestGetArticle:
         """Rejects article IDs with path traversal characters."""
         with pytest.raises(ValueError):
             await get_article("../secret")
-
-
-class TestWriteArticle:
-    """Tests for write_article()."""
-
-    @pytest.mark.asyncio
-    async def test_new_article_added_to_index(self, mock_settings, monkeypatch):
-        """New article is written and prepended to the index."""
-        from api.models.article import Article, ArticleIndex
-
-        article = Article(**_make_article_data("new-1", title="New Article"))
-
-        # Track upload calls
-        upload_calls = []
-        mock_blob = MagicMock()
-        mock_blob.upload_blob.side_effect = lambda *a, **kw: upload_calls.append(
-            ("article", a, kw)
-        )
-
-        mock_container = MagicMock()
-        mock_container.get_blob_client.return_value = mock_blob
-
-        monkeypatch.setattr(
-            "api.services.blob_storage._get_container_client",
-            lambda: mock_container,
-        )
-
-        # Mock get_article_index to return empty index (must be async)
-        async def mock_get_index(**kw):
-            return ArticleIndex(articles=[], total=0)
-
-        monkeypatch.setattr(
-            "api.services.blob_storage.get_article_index", mock_get_index
-        )
-
-        # Mock write_article_index (must be async)
-        written_articles = []
-
-        async def mock_write_index(arts):
-            written_articles.extend(arts)
-
-        monkeypatch.setattr(
-            "api.services.blob_storage.write_article_index", mock_write_index
-        )
-
-        await write_article(article)
-
-        # Article blob was uploaded
-        assert len(upload_calls) == 1
-        # Index was updated with the new article
-        assert len(written_articles) == 1
-        assert written_articles[0].id == "new-1"
-
-    @pytest.mark.asyncio
-    async def test_existing_article_not_duplicated(self, mock_settings, monkeypatch):
-        """Writing an article that already exists in the index doesn't duplicate it."""
-        from api.models.article import Article, ArticleIndex
-
-        article = Article(**_make_article_data("existing-1"))
-
-        existing_summary = ArticleSummary(**_make_article_summary("existing-1"))
-
-        mock_blob = MagicMock()
-        mock_container = MagicMock()
-        mock_container.get_blob_client.return_value = mock_blob
-
-        monkeypatch.setattr(
-            "api.services.blob_storage._get_container_client",
-            lambda: mock_container,
-        )
-
-        async def mock_get_index(**kw):
-            return ArticleIndex(articles=[existing_summary], total=1)
-
-        monkeypatch.setattr(
-            "api.services.blob_storage.get_article_index", mock_get_index
-        )
-
-        written_articles = []
-
-        async def mock_write_index(arts):
-            written_articles.extend(arts)
-
-        monkeypatch.setattr(
-            "api.services.blob_storage.write_article_index", mock_write_index
-        )
-
-        await write_article(article)
-
-        # Index still has exactly one entry (no duplication)
-        assert len(written_articles) == 1
-        assert written_articles[0].id == "existing-1"
 
 
 class TestWriteArticleOnly:

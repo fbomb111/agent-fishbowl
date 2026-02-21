@@ -101,17 +101,6 @@ export async function fetchArticles(
   return res.json();
 }
 
-export async function fetchActivity(
-  page = 1,
-  perPage = 20
-): Promise<{ events: ActivityEvent[]; page: number; per_page: number }> {
-  const res = await fetch(
-    `${API_BASE}/activity?page=${page}&per_page=${perPage}`
-  );
-  if (!res.ok) throw apiError(res.status);
-  return res.json();
-}
-
 export async function fetchThreadedActivity(
   perPage = 50
 ): Promise<{ threads: ThreadedItem[]; mode: string }> {

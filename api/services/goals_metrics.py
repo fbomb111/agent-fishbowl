@@ -14,7 +14,7 @@ import httpx
 
 from api.config import get_settings
 from api.services.cache import TTLCache
-from api.services.github_events import ACTOR_MAP
+from api.services.github_events import agent_role as _agent_role
 from api.services.http_client import (
     fetch_merged_prs,
     get_shared_client,
@@ -23,13 +23,6 @@ from api.services.http_client import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _agent_role(login: str) -> str | None:
-    """Map a GitHub login to an agent role, or None if not a known agent."""
-    if login == "fbomb111":
-        return "human"
-    return ACTOR_MAP.get(login)
 
 
 async def _search_count(query: str) -> int | None:
