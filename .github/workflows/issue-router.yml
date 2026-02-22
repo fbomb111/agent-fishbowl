@@ -56,6 +56,8 @@ jobs:
             echo "$LABELS" | grep -qE "^(role/ops|priority/)" && dispatch "issue-labeled-ops"
             echo "$LABELS" | grep -q "^harness/request$"      && dispatch "issue-labeled-human-escalation"
 
+            true  # prevent exit 1 when last grep doesn't match
+
           elif [ "$ACTION" = "unlabeled" ]; then
             # For unlabeled, use the event payload (removed label is no longer on the issue)
             case "$REMOVED_LABEL" in
