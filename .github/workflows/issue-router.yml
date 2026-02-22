@@ -11,6 +11,10 @@ on:
 permissions:
   contents: write    # required for repository_dispatch via GITHUB_TOKEN
 
+concurrency:
+  group: issue-router-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   route:
     name: Route issue event
@@ -18,37 +22,40 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 5
     steps:
-      - name: Route label event
+      - name: Route based on current labels
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LABEL: ${{ github.event.label.name }}
-          ACTION: ${{ github.event.action }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ACTION: ${{ github.event.action }}
+          REMOVED_LABEL: ${{ github.event.label.name }}
         run: |
           dispatch() {
-            echo "Routing $ACTION '$LABEL' on #$ISSUE_NUMBER → $1"
+            echo "Routing #$ISSUE_NUMBER → $1"
             gh api "repos/$GITHUB_REPOSITORY/dispatches" \
               --input - <<< "{
                 \"event_type\": \"$1\",
                 \"client_payload\": {
-                  \"issue_number\": $ISSUE_NUMBER,
-                  \"label_name\": \"$LABEL\",
-                  \"action\": \"$ACTION\"
+                  \"issue_number\": $ISSUE_NUMBER
                 }
               }"
           }
 
           if [ "$ACTION" = "labeled" ]; then
-            case "$LABEL" in
-              role/engineer)       dispatch "issue-labeled-engineer" ;;
-              role/ops|priority/*) dispatch "issue-labeled-ops" ;;
-              harness/request)     dispatch "issue-labeled-human-escalation" ;;
-              *) echo "No route for label '$LABEL'" ;;
-            esac
+            # Read ALL current labels (not just the trigger) so the last
+            # surviving run (after cancel-in-progress) dispatches correctly
+            LABELS=$(gh issue view "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" \
+              --json labels --jq '.labels[].name')
+            echo "Current labels on #$ISSUE_NUMBER: $LABELS"
+
+            echo "$LABELS" | grep -q "^role/engineer$"       && dispatch "issue-labeled-engineer"
+            echo "$LABELS" | grep -qE "^(role/ops|priority/)" && dispatch "issue-labeled-ops"
+            echo "$LABELS" | grep -q "^harness/request$"      && dispatch "issue-labeled-human-escalation"
+
           elif [ "$ACTION" = "unlabeled" ]; then
-            case "$LABEL" in
+            # For unlabeled, use the event payload (removed label is no longer on the issue)
+            case "$REMOVED_LABEL" in
               status/blocked) dispatch "issue-unlabeled-ops" ;;
-              *) echo "No route for unlabeled '$LABEL'" ;;
+              *) echo "No route for unlabeled '$REMOVED_LABEL'" ;;
             esac
           fi
 

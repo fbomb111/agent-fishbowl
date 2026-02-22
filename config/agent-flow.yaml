@@ -746,7 +746,7 @@ infrastructure:
     note: "PR-only trigger (no push:main). check_suite failures routed to engineer via issue-router."
   issue-router:
     workflow: issue-router.yml
-    note: "Central event router: label events → agent dispatches, check_suite failures → ci-check-failed, agent-product-owner-complete → agent-po-engineer-work / agent-po-ops-work"
+    note: "Central event router with per-issue concurrency (cancel-in-progress). Label events → batch dispatch, check_suite failures → ci-check-failed, agent-product-owner-complete → agent-po-engineer-work / agent-po-ops-work"
 
 # ─── Safety Constraints ──────────────────────────────────────────
 # Validated by scripts/validate-flow.py
