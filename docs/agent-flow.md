@@ -1,5 +1,5 @@
 <!-- AUTO-GENERATED — Do not edit. Edit config/agent-flow.yaml instead. -->
-<!-- Last generated: 2026-02-21 23:58 UTC -->
+<!-- Last generated: 2026-02-22 02:07 UTC -->
 <!-- Regenerate: python scripts/validate-flow.py --mermaid -o docs/agent-flow.md -->
 
 # Agent Flow Graph
@@ -165,7 +165,7 @@ flowchart TD
 | Agent | Schedule | Day | Event Triggers |
 |-------|----------|-----|----------------|
 | content-creator | `0 10 * * *` | daily | Manual |
-| customer-ops | `0 */4 * * *` | daily | Manual |
+| customer-ops | --- |  | Manual |
 | engineer | --- |  | `issue-labeled-engineer`, `agent-po-engineer-work`, `agent-reviewer-feedback`, `ci-check-failed`, PR closed, Manual |
 | escalation-lead | `0 18 * * 3` | Wed | `dispute-detected`, Manual |
 | financial-analyst | `0 12 * * *` | daily | Manual |

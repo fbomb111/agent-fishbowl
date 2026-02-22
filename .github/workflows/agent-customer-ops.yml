@@ -1,9 +1,7 @@
 name: Agent - Customer Ops
 
 on:
-  schedule:
-    - cron: "0 */4 * * *"   # Every 4 hours
-  workflow_dispatch: {}
+  workflow_dispatch: {}   # Manual only — no email integration wired yet
 
 permissions:
   contents: read

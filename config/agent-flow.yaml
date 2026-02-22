@@ -650,8 +650,6 @@ agents:
       issues: write
     # concurrency: inherited from reusable-agent.yml → agent-customer-ops
     triggers:
-      - type: schedule
-        cron: "0 */4 * * *"
       - type: workflow_dispatch
     dispatches: []
 
