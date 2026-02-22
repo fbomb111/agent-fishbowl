@@ -44,10 +44,13 @@ events:
     description: "Agent disagreement loop detected"
     status: stub  # receiver wired, no sender yet
   issue-labeled-engineer:
-    description: "Router: role/engineer label applied"
+    description: "Router: assigned/engineer label applied"
     status: external  # sent by issue-router.yml
   issue-labeled-ops:
-    description: "Router: priority/* or role/ops label applied"
+    description: "Router: assigned/ops label applied"
+    status: external  # sent by issue-router.yml
+  issue-labeled-po:
+    description: "Router: assigned/po label applied — PO should triage"
     status: external  # sent by issue-router.yml
   issue-unlabeled-ops:
     description: "Router: status/blocked label removed"
@@ -132,6 +135,8 @@ agents:
         event: agent-product-manager-feedback
       - type: repository_dispatch
         event: agent-tech-lead-complete
+      - type: repository_dispatch
+        event: issue-labeled-po
       - type: schedule
         cron: "0 6,18 * * *"
       - type: workflow_dispatch

@@ -38,7 +38,7 @@ jobs:
           ACTIONABLE=$(gh issue list --state open --json assignees,labels \
             --jq '[.[] | select(
               (.assignees | length == 0) and
-              (.labels | map(.name) | any(. == "role/engineer" or . == "assigned/engineer")) and
+              (.labels | map(.name) | any(. == "assigned/engineer")) and
               (.labels | map(.name) | any(test("^priority/"))) and
               (.labels | map(.name) | any(. == "status/blocked") | not) and
               (.labels | map(.name) | any(. == "harness/request") | not)

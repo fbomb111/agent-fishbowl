@@ -47,14 +47,11 @@ jobs:
               --json labels --jq '.labels[].name')
             echo "Current labels on #$ISSUE_NUMBER: $LABELS"
 
-            # Assignment-based routing (preferred)
+            # Assignment-based routing
             echo "$LABELS" | grep -q "^assigned/engineer$" && dispatch "issue-labeled-engineer"
             echo "$LABELS" | grep -q "^assigned/ops$"      && dispatch "issue-labeled-ops"
-
-            # Legacy routing (backward compat — remove in Phase 3)
-            echo "$LABELS" | grep -q "^role/engineer$"       && dispatch "issue-labeled-engineer"
-            echo "$LABELS" | grep -qE "^(role/ops|priority/)" && dispatch "issue-labeled-ops"
-            echo "$LABELS" | grep -q "^harness/request$"      && dispatch "issue-labeled-human-escalation"
+            echo "$LABELS" | grep -q "^assigned/po$"       && dispatch "issue-labeled-po"
+            echo "$LABELS" | grep -q "^harness/request$"   && dispatch "issue-labeled-human-escalation"
 
             true  # prevent exit 1 when last grep doesn't match
 
@@ -114,7 +111,7 @@ jobs:
           ENG=$(gh issue list --state open --json assignees,labels \
             --jq '[.[] | select(
               (.assignees | length == 0) and
-              (.labels | map(.name) | any(. == "role/engineer" or . == "assigned/engineer")) and
+              (.labels | map(.name) | any(. == "assigned/engineer")) and
               (.labels | map(.name) | any(test("^priority/"))) and
               (.labels | map(.name) | any(. == "status/blocked") | not)
             )] | length')
@@ -123,7 +120,7 @@ jobs:
           OPS=$(gh issue list --state open --json assignees,labels \
             --jq '[.[] | select(
               (.assignees | length == 0) and
-              (.labels | map(.name) | any(. == "role/ops" or . == "assigned/ops")) and
+              (.labels | map(.name) | any(. == "assigned/ops")) and
               (.labels | map(.name) | any(. == "status/blocked") | not)
             )] | length')
 

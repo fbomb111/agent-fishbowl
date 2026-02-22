@@ -294,8 +294,13 @@ Scopes: `api`, `frontend`, `ci`, `config`
 
 | Label | Purpose |
 |-------|---------|
-| `role/engineer` | Routed to engineer agent for code changes |
-| `role/ops` | Routed to ops-engineer agent for Azure operations |
+| `assigned/triage` | Triage agent's turn to classify |
+| `assigned/po` | PO's turn to prioritize and scope |
+| `assigned/engineer` | Engineer's turn to implement |
+| `assigned/ops` | Ops engineer's turn to handle |
+| `assigned/human` | Human action required |
+| `role/engineer` | Categorization: code change |
+| `role/ops` | Categorization: Azure operations |
 | `priority/high` | Do first |
 | `priority/medium` | Do after high-priority items |
 | `priority/low` | Low priority — do when convenient |

@@ -2,7 +2,7 @@ name: Agent - Product Owner
 
 on:
   repository_dispatch:
-    types: [agent-product-manager-feedback, agent-tech-lead-complete]
+    types: [agent-product-manager-feedback, agent-tech-lead-complete, issue-labeled-po]
   schedule:
     - cron: "0 6,18 * * *"   # Every 12 hours (sweep runs)
   workflow_dispatch: {}        # Manual or batch-threshold dispatch
@@ -26,6 +26,10 @@ jobs:
         id: preflight
         if: github.event_name == 'repository_dispatch'
         run: |
+          # Count issues explicitly assigned to PO
+          ASSIGNED_PO=$(gh issue list --state open --label "assigned/po" \
+            --json number --jq length)
+
           # Count unprocessed intake (source/* without priority/*)
           INTAKE=$(gh issue list --state open --json labels \
             --jq '[.[] | select(
@@ -37,13 +41,13 @@ jobs:
           MISALIGNED=$(gh issue list --state open --label "product-manager/misaligned" \
             --json number --jq length)
 
-          echo "intake=$INTAKE misaligned=$MISALIGNED"
+          echo "assigned_po=$ASSIGNED_PO intake=$INTAKE misaligned=$MISALIGNED"
 
-          if [ "$((INTAKE + MISALIGNED))" -eq 0 ]; then
-            echo "No intake or misaligned issues — skipping PO run"
+          if [ "$((ASSIGNED_PO + INTAKE + MISALIGNED))" -eq 0 ]; then
+            echo "No work for PO — skipping"
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
-            echo "PO has work: $INTAKE intake + $MISALIGNED misaligned"
+            echo "PO has work: $ASSIGNED_PO assigned + $INTAKE intake + $MISALIGNED misaligned"
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
         env:
